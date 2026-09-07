@@ -1,0 +1,43 @@
+# Dependencias
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# Entorno — NUNCA subir valores reales
+.env
+.env.*
+!.env.example
+
+# Secretos y claves
+*.pem
+*.key
+*.p12
+credentials.json
+
+# Logs y temporales
+*.log
+logs/
+coverage/
+.nyc_output/
+tmp/
+
+# Datos locales de infraestructura de desarrollo
+.docker-data/
+minio-data/
+pgdata/
+
+# Editores y SO
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Obsidian: la configuración local del vault no se versiona, las notas sí
+docs/vault/.obsidian/
+docs/vault/.trash/

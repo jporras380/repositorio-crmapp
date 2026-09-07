@@ -1,0 +1,54 @@
+---
+estado: vivo
+fecha: 2026-09-07
+modulo: canales
+tags: [canal, whatsapp, meta, mvp, restricciones-externas]
+---
+
+# Canal — WhatsApp Cloud API
+
+Canal del MVP. Fase 1.
+
+> Esta nota recoge **restricciones que impone Meta**, no cómo está implementado el adaptador. Lo segundo se lee en el código; lo primero cuesta semanas descubrirlo.
+
+## Restricciones que condicionan el diseño
+
+- **Ventana de 24 horas.** Fuera de ella solo se pueden enviar plantillas aprobadas. La ventana se reinicia con cada mensaje **entrante** del usuario, no con los salientes. Se calcula y se aplica **en servidor** (columna `session_expires_at` de `conversations`); el frontend solo la pinta.
+- **Meta cobra por plantilla entregada**, con tarifa por **país** y por **categoría**. Ver P-02 en [[02-PREGUNTAS-ABIERTAS]].
+- **La categoría efectiva la decide Meta**, y puede diferir de la que declara el usuario. Por eso el esquema guarda `category_declared` y `category_effective` por separado: la segunda es la que determina el costo.
+- **Una plantilla aprobada puede pausarse o deshabilitarse después** si los usuarios la reportan. El CRM tiene que enterarse por webhook y avisar. Una plantilla no es una constante, es estado sincronizado.
+- **Calidad del número y límite de envío** cambian solos, de un día para otro, según el comportamiento de los destinatarios. Un cliente puede pasar de 10.000 a 1.000 destinatarios diarios sin haber hecho nada distinto.
+- **La URL de medios entrantes es firmada y de vida corta.** Meta entrega un `media_id`; hay que descargar a almacenamiento propio inmediatamente, no guardar la URL. La columna `remote_expires_at` existe para hacer visible esa caducidad.
+- **Meta reenvía eventos.** El webhook debe ser idempotente por `(channel_account_id, external_message_id)`. Ver [[ADR-005-particionado-idempotencia]] (pendiente).
+
+## Causas frecuentes de rechazo de plantilla
+
+El editor **advierte**, no bloquea: la decisión es de Meta y equivocarse advirtiendo de más es peor que dejar intentarlo.
+
+- Contenido promocional declarado como `utility`.
+- Enlaces acortados (bit.ly y similares).
+- Variables al principio o al final del cuerpo, sin texto que las envuelva.
+- Variables sin ejemplo. Meta rechaza plantillas sin muestra, y esto es rechazo seguro, no probable.
+- Promesas engañosas, garantías absolutas, contenido de categorías prohibidas.
+
+Cuando llega un rechazo, **el motivo viene en el webhook y hay que guardarlo y mostrarlo**: es lo único que permite corregir. Perder el motivo obliga al cliente a adivinar.
+
+## El riesgo principal del proyecto vive aquí
+
+Antes del primer mensaje real hacen falta verificación de empresa, App Review y un número con calidad aceptable. Ninguno de esos plazos los controlamos ni los podemos comprometer ante un cliente.
+
+**Mitigación, de fase 0 y no posterior:** el adaptador tiene modo *sandbox* que simula respuestas del proveedor, para que ninguna fase de desarrollo dependa de tener credenciales reales. Todo lo que Meta puede cambiar —estado de plantilla, categoría efectiva, calidad, límite de envío— se modela como estado sincronizado por webhook, nunca como constante en código.
+
+## Decisión pendiente que bloquea el diseño
+
+**P-01: modelo de despliegue.** Sin cerrar a fecha 2026-09-07.
+
+| Modelo | A favor | En contra |
+|---|---|---|
+| **Tech Provider propio** (Embedded Signup) | Cada cliente conecta su WABA y paga a Meta directo. Sin riesgo financiero ni de calidad para nosotros. | Exige nuestra Business Verification y App Review. Semanas antes de vender. |
+| **Vía BSP** (360dialog, Twilio…) | Se arranca en días. | El costo por mensaje pasa por nosotros, con markup del BSP encima. Obliga a resolver P-02 antes de cobrar. |
+| **WABA compartida nuestra** | Lo más rápido. | Lo más frágil: la calidad de un cliente degrada el número de todos, y Meta lo penaliza como spam. **No recomendado.** |
+
+## Aprendizajes verificados
+
+Ninguno todavía. Esta sección se llena cuando toquemos la API de verdad, y es la parte de esta nota que más va a valer dentro de tres meses.
