@@ -14,7 +14,16 @@ Canal del MVP. Fase 1.
 ## Restricciones que condicionan el diseño
 
 - **Ventana de 24 horas.** Fuera de ella solo se pueden enviar plantillas aprobadas. La ventana se reinicia con cada mensaje **entrante** del usuario, no con los salientes. Se calcula y se aplica **en servidor** (columna `session_expires_at` de `conversations`); el frontend solo la pinta.
-- **Meta cobra por plantilla entregada**, con tarifa por **país** y por **categoría**. Ver P-02 en [[02-PREGUNTAS-ABIERTAS]].
+- **Meta factura por mensaje entregado desde el 1 de julio de 2025**, no por conversación. Antes de esa fecha el modelo era por conversación de 24 h; toda documentación anterior que hable de "conversaciones facturables" está obsoleta.
+- **Qué se cobra y qué no** (verificado en la documentación de Meta, 2026-09-07):
+  - *Marketing*: siempre se cobra.
+  - *Utility*: **gratis** si se entrega dentro de una ventana de servicio abierta; se cobra fuera de ella.
+  - *Authentication*: se cobra fuera de la ventana. Kommo directamente no la soporta.
+  - *Service* y todo mensaje libre no-plantilla: **gratis**, pero solo dentro de la ventana abierta.
+  - Entrada gratuita: 72 h de mensajes gratis si el contacto llega por anuncio Click-to-WhatsApp o botón de página.
+- **Consecuencia de producto:** el CRM puede decir al usuario, antes de enviar, si ese mensaje le va a costar dinero. Es una función real, no un detalle contable.
+- **Tarifa por país** (código de país del destinatario) **y por categoría**, con descuentos por volumen mensual que se calculan por país y por categoría, y se reinician cada mes.
+- **Quién recibe la factura: el titular de la WABA.** Es el hecho que decide P-01 y P-02.
 - **La categoría efectiva la decide Meta**, y puede diferir de la que declara el usuario. Por eso el esquema guarda `category_declared` y `category_effective` por separado: la segunda es la que determina el costo.
 - **Una plantilla aprobada puede pausarse o deshabilitarse después** si los usuarios la reportan. El CRM tiene que enterarse por webhook y avisar. Una plantilla no es una constante, es estado sincronizado.
 - **Calidad del número y límite de envío** cambian solos, de un día para otro, según el comportamiento de los destinatarios. Un cliente puede pasar de 10.000 a 1.000 destinatarios diarios sin haber hecho nada distinto.
@@ -49,6 +58,18 @@ Antes del primer mensaje real hacen falta verificación de empresa, App Review y
 | **Vía BSP** (360dialog, Twilio…) | Se arranca en días. | El costo por mensaje pasa por nosotros, con markup del BSP encima. Obliga a resolver P-02 antes de cobrar. |
 | **WABA compartida nuestra** | Lo más rápido. | Lo más frágil: la calidad de un cliente degrada el número de todos, y Meta lo penaliza como spam. **No recomendado.** |
 
-## Aprendizajes verificados
+## Aprendizajes de terceros — Kommo
+
+Investigado el 2026-09-07 sobre documentación pública de Kommo. No es experiencia propia, pero es la evidencia más barata que vamos a conseguir.
+
+- **Kommo es Tech Partner de Meta**: conexión directa a Cloud API, el cliente crea su propio Meta Business Portfolio y su WABA por Embedded Signup, y **añade su método de pago a su propia cuenta**. Kommo no factura el consumo de Meta.
+- **Kommo probó el modelo contrario y lo abandonó.** Su producto anterior, "WhatsApp Business API", funcionaba con **saldo prepago recargable**. Cortó las recargas el **2024-09-20** y dejó de mantenerlo el **2024-10-01**, migrando a la conexión directa.
+- **Lo que costó esa migración**, en sus propias palabras: *"las automatizaciones (bots y triggers) se reinician durante la migración y hay que reconfigurarlas"*. El historial de conversaciones sí se conservó. **Traducción para nosotros: cambiar de modelo de conexión rompe los Salesbots de los clientes.** Es el dato duro del criterio de reversión en [[ADR-004-modelo-whatsapp]].
+- **Techos de números por portafolio**: sin verificar, 2 números; verificado, sube a 20. La verificación no es opcional en la práctica.
+- **Un número solo puede conectarse a una cuenta de Kommo.** Restricción sensata que conviene copiar: evita estados ambiguos.
+- **Límite inicial de 250 conversaciones diarias** por número nuevo, que sube a 1.000 tras verificar el portafolio.
+- **Estructura comercial de Kommo**, como referencia para el módulo de facturación: suscripción **por asiento** ($25 / $35 / $45 por usuario/mes, mínimo 6 meses), y **la IA como único consumo medido**, con packs de recarga de créditos. Contactos, leads y campos personalizados son límites de plan, no consumo facturado. Coherente: la IA es lo único donde ellos también le pagan a un proveedor.
+
+## Aprendizajes propios verificados
 
 Ninguno todavía. Esta sección se llena cuando toquemos la API de verdad, y es la parte de esta nota que más va a valer dentro de tres meses.

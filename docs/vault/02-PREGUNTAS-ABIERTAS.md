@@ -23,7 +23,9 @@ Meta cobra por plantilla entregada, con tarifa por país y por categoría — y 
 - **(c) Postpago medido**, facturado con la suscripción. Justo, pero exige conciliar nuestro conteo con el de Meta y aguantar la discrepancia delante del cliente.
 
 ### P-03 · Qué cuenta como "conversación mensual"
-A efectos del límite de plan: ¿la ventana de 24 h de Meta, o nuestro ciclo abrir/cerrar? Son números distintos y el cliente los va a comparar con su factura de Meta. Un contacto que escribe cada día son 30 conversaciones para Meta y puede ser 1 para nosotros.
+A efectos del límite de plan: ¿la ventana de 24 h, o nuestro ciclo abrir/cerrar?
+
+**Corregida el 2026-09-07.** La versión original de esta pregunta asumía que el cliente compararía nuestro conteo con su factura de Meta. Ya no aplica: desde el 1 de julio de 2025 **Meta factura por mensaje entregado, no por conversación**. Ver [[whatsapp]]. La pregunta sigue viva pero es solo de producto —qué límite de plan es justo y comprensible—, no de conciliación contable. Baja de bloqueante a menor si se aprueba el modelo Tech Provider de [[ADR-004-modelo-whatsapp]].
 
 ### P-04 · Región de datos y marco legal
 UE, EEUU o LatAm. GDPR, LFPDPPP, u otro. Decide dónde vive PostgreSQL y si hacen falta DPA con subencargados. Cambiarlo después es una migración de datos personales, no un cambio de configuración.
