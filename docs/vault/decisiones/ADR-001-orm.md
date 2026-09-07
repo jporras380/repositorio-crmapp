@@ -1,5 +1,5 @@
 ---
-estado: borrador
+estado: aceptado
 fecha: 2026-09-07
 modulo: db
 tags: [adr, orm, postgres, particionado, rls]

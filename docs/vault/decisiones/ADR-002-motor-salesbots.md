@@ -1,5 +1,5 @@
 ---
-estado: borrador
+estado: aceptado
 fecha: 2026-09-07
 modulo: salesbots
 tags: [adr, salesbots, estado, durabilidad, bullmq]

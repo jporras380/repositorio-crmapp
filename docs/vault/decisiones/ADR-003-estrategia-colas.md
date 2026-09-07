@@ -1,5 +1,5 @@
 ---
-estado: borrador
+estado: aceptado
 fecha: 2026-09-07
 modulo: infra
 tags: [adr, colas, bullmq, redis, multi-tenant, aislamiento]

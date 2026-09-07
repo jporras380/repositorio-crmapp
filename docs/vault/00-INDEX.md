@@ -15,18 +15,22 @@ Si algo se averigua leyendo el código en menos de un minuto, no va aquí. No ha
 
 - [[01-ESTADO]] — dónde estamos hoy. Se reescribe cada sesión.
 - [[02-PREGUNTAS-ABIERTAS]] — lo que necesita decisión del usuario, por urgencia.
+- **`docs/ARCH.md`** — la arquitectura. Vive fuera del vault a propósito: es un documento del *qué* y envejece con el código. Cuando exista código, las migraciones mandan sobre él.
 
 ## Decisiones
 
 | ADR | Tema | Estado |
 |---|---|---|
 | [[ADR-000-plantilla]] | Formato de los ADR | vivo |
-| [[ADR-001-orm]] | ORM: Drizzle sobre Prisma | borrador |
-| [[ADR-002-motor-salesbots]] | Máquina de estados propia sobre Temporal | borrador |
-| [[ADR-003-estrategia-colas]] | Colas por función + semáforo por inquilino | borrador |
-| [[ADR-004-modelo-whatsapp]] | Conexión a WhatsApp: BYO-credentials | **aceptado** |
+| [[ADR-001-orm]] | ORM: Drizzle sobre Prisma | aceptado |
+| [[ADR-002-motor-salesbots]] | Máquina de estados propia sobre Temporal | aceptado |
+| [[ADR-003-estrategia-colas]] | Colas por función + semáforo por inquilino | aceptado |
+| [[ADR-004-modelo-whatsapp]] | Conexión a WhatsApp: BYO-credentials | aceptado |
+| [[ADR-005-rls]] | RLS por `SET LOCAL` en transacción | aceptado |
+| [[ADR-006-particionado-idempotencia]] | Particionado de `messages` e idempotencia | aceptado |
+| [[ADR-007-identidad-contactos]] | Identidad unificada de contactos | aceptado |
 
-Pendientes de escribir: RLS (ADR-005), particionado e idempotencia (ADR-006), identidad unificada de contactos (ADR-007).
+Los siete ADR previstos están escritos. El siguiente se creará cuando aparezca una decisión nueva, no antes.
 
 ## Canales
 

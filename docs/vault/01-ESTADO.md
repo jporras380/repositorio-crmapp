@@ -15,7 +15,8 @@ Fase actual: **pre-fase 0**. No hay código de producto y no lo habrá hasta apr
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
-- Propuestas redactadas y pendientes de aprobación: estructura de monorepo, esquema inicial de PostgreSQL, decisiones de particionado, RLS e identidad unificada de contactos.
+- **`docs/ARCH.md` completo**: alcance, supuestos, principios, componentes, modelo de datos, RLS, ingesta, contrato de adaptador, colas, secretos, multimedia, observabilidad, privacidad, fases y riesgos.
+- **Los siete ADR escritos y en estado `aceptado`.** ADR-001/002/003 cerrados; ADR-005 (RLS), ADR-006 (particionado e idempotencia) y ADR-007 (identidad de contactos) nuevos.
 
 ## A medias
 
@@ -27,20 +28,26 @@ Nada. Este PR entrega documentación cerrada.
 
 **P-02 disuelta como consecuencia.** Si el cliente paga a Meta directo, no hay costo que repercutir ni que absorber. Sale de la lista de parada y **se elimina el módulo de wallet del roadmap**. Lo que queda es P-21: qué medimos y cobramos nosotros.
 
+## ARCH escrito bajo supuestos
+
+El usuario ordenó proceder sin respuesta a P-04, P-05 y P-06. El ARCH se escribió bajo tres supuestos explícitos, **cada uno con el umbral en el que deja de valer** — esa es la parte que hay que releer, no el supuesto:
+
+- **S-1 (P-04)** una sola región, con GDPR como línea base por ser el marco más estricto. Deja de valer si un cliente exige residencia en otra jurisdicción; sería cambio de topología, no de esquema.
+- **S-2 (P-05)** producto especulativo, primer cliente piloto acompañado. Deja de valer en cuanto haya cliente firmado con fecha.
+- **S-3 (P-06)** menos de 100 inquilinos y 5 M mensajes/mes. **Es el supuesto que más decide el documento**: justifica no tener réplica de lectura, usar vistas materializadas y particionar por mes. Deja de valer sobre 20 M mensajes/mes o pico de 200 msg/s.
+
+Las tres preguntas siguen abiertas en [[02-PREGUNTAS-ABIERTAS]]. Responderlas ahora es barato; después de fase 1, no.
+
 ## Bloqueado
 
-**El ARCH completo sigue bloqueado**, ahora solo por tres preguntas de [[02-PREGUNTAS-ABIERTAS]]:
-
-- **P-04** región de datos y marco legal — cambiarlo después es una migración de datos personales.
-- **P-05** ¿cliente concreto esperando, o producto especulativo? Subió de importancia: BYO-credentials filtra clientes que no sepan montar su propio Meta Business Portfolio.
-- **P-06** volumen esperado año 1 — dimensiona particionado, Redis y réplica de lectura.
+Nada bloquea el avance. **Lo que falta es tu aprobación del ARCH** para poder empezar fase 0.
 
 ## Qué sigue
 
-1. El usuario responde P-04, P-05 y P-06.
-2. Escribir el ARCH completo, cerrando los ADR-001/002/003 y añadiendo ADR-005 (RLS), ADR-006 (particionado e idempotencia) y ADR-007 (identidad de contactos).
-3. PR-1: andamiaje del monorepo — `pnpm` (no instalado en la máquina; Node v24.16.0), workspaces, Turborepo, CI, `docker-compose` de desarrollo. Sin lógica de negocio.
-4. Fase 0 propiamente: esquema base, auth, multi-tenancy con RLS, outbox. Criterio de salida: crear cuenta e invitar usuario.
+1. **Aprobar `docs/ARCH.md`.**
+2. PR-1: andamiaje del monorepo — instalar `pnpm` (no está en la máquina; Node v24.16.0), workspaces, Turborepo, CI, `docker-compose` de desarrollo. Sin lógica de negocio.
+3. Fase 0: esquema base, auth, multi-tenancy con RLS, outbox, adaptador en sandbox. Criterio de salida: crear cuenta e invitar usuario **y que los dos tests de RLS de §6 del ARCH pasen en CI**.
+4. Responder P-04, P-05 y P-06 en algún momento antes de fase 1.
 
 ## Cambio propuesto al plan de fases
 
