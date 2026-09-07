@@ -24,8 +24,9 @@ Si algo se averigua leyendo el código en menos de un minuto, no va aquí. No ha
 | [[ADR-001-orm]] | ORM: Drizzle sobre Prisma | borrador |
 | [[ADR-002-motor-salesbots]] | Máquina de estados propia sobre Temporal | borrador |
 | [[ADR-003-estrategia-colas]] | Colas por función + semáforo por inquilino | borrador |
+| [[ADR-004-modelo-whatsapp]] | Conexión a WhatsApp: BYO-credentials | **aceptado** |
 
-Pendientes de escribir: RLS (ADR-004), particionado e idempotencia (ADR-005), identidad unificada de contactos (ADR-006).
+Pendientes de escribir: RLS (ADR-005), particionado e idempotencia (ADR-006), identidad unificada de contactos (ADR-007).
 
 ## Canales
 

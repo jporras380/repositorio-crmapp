@@ -11,8 +11,8 @@ tags: [adr, orm, postgres, particionado, rls]
 
 El esquema tiene dos requisitos que un ORM puede estorbar más que ayudar:
 
-1. `messages` va **particionada por rango de fecha desde el diseño** (requisito 8.7), con precreación de particiones y una tabla de idempotencia aparte. Ver [[ADR-005-particionado-idempotencia]] (pendiente).
-2. **RLS** con `SET LOCAL app.tenant_id` por transacción (requisito 8.5). Exige que el `SET LOCAL` y la consulta viajen por la **misma** conexión física. Ver [[ADR-004-rls]] (pendiente).
+1. `messages` va **particionada por rango de fecha desde el diseño** (requisito 8.7), con precreación de particiones y una tabla de idempotencia aparte. Ver [[ADR-006-particionado-idempotencia]] (pendiente).
+2. **RLS** con `SET LOCAL app.tenant_id` por transacción (requisito 8.5). Exige que el `SET LOCAL` y la consulta viajen por la **misma** conexión física. Ver [[ADR-005-rls]] (pendiente).
 
 Ambos son DDL y control de conexión, no modelado de datos.
 

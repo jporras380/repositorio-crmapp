@@ -21,18 +21,24 @@ Fase actual: **pre-fase 0**. No hay código de producto y no lo habrá hasta apr
 
 Nada. Este PR entrega documentación cerrada.
 
+## Resuelto hoy, en segunda sesión de trabajo
+
+**P-01 decidida: BYO-credentials.** El cliente trae su propia WABA y paga a Meta directamente. Ver [[ADR-004-modelo-whatsapp]]. Evaluado con matriz ponderada y con Kommo como referencia empírica: puntuó 99 sobre 115, frente a 90 de Tech Provider con Embedded Signup, 53 de BSP con prepago y 39 de WABA compartida.
+
+**P-02 disuelta como consecuencia.** Si el cliente paga a Meta directo, no hay costo que repercutir ni que absorber. Sale de la lista de parada y **se elimina el módulo de wallet del roadmap**. Lo que queda es P-21: qué medimos y cobramos nosotros.
+
 ## Bloqueado
 
-**El ARCH completo está bloqueado** esperando respuesta a las preguntas P-01 a P-06 de [[02-PREGUNTAS-ABIERTAS]]. Las tres que más duelen:
+**El ARCH completo sigue bloqueado**, ahora solo por tres preguntas de [[02-PREGUNTAS-ABIERTAS]]:
 
-- **P-01** modelo de WhatsApp (Tech Provider propio / BSP / WABA compartida) — marcada "aún no decidido" por el usuario. Decide `channel_accounts`, el onboarding y quién paga a Meta.
-- **P-02** repercutir o absorber el costo de mensajería — está en la lista de parada de la sección 9.
 - **P-04** región de datos y marco legal — cambiarlo después es una migración de datos personales.
+- **P-05** ¿cliente concreto esperando, o producto especulativo? Subió de importancia: BYO-credentials filtra clientes que no sepan montar su propio Meta Business Portfolio.
+- **P-06** volumen esperado año 1 — dimensiona particionado, Redis y réplica de lectura.
 
 ## Qué sigue
 
-1. El usuario responde P-01 a P-06.
-2. Escribir el ARCH completo, cerrando los ADR-001/002/003 y añadiendo ADR-004 (RLS), ADR-005 (particionado e idempotencia) y ADR-006 (identidad de contactos).
+1. El usuario responde P-04, P-05 y P-06.
+2. Escribir el ARCH completo, cerrando los ADR-001/002/003 y añadiendo ADR-005 (RLS), ADR-006 (particionado e idempotencia) y ADR-007 (identidad de contactos).
 3. PR-1: andamiaje del monorepo — `pnpm` (no instalado en la máquina; Node v24.16.0), workspaces, Turborepo, CI, `docker-compose` de desarrollo. Sin lógica de negocio.
 4. Fase 0 propiamente: esquema base, auth, multi-tenancy con RLS, outbox. Criterio de salida: crear cuenta e invitar usuario.
 
@@ -42,4 +48,4 @@ Adelantar la **medición** de uso (`usage_events` y contadores) de fase 4 a fase
 
 ## Riesgo principal vigente
 
-La dependencia de aprobaciones de Meta. Detalle en [[whatsapp]]. La mitigación es de fase 0, no posterior: adaptador con modo sandbox para que ninguna fase dependa de credenciales reales.
+La dependencia de aprobaciones de Meta. **[[ADR-004-modelo-whatsapp]] lo reduce pero no lo elimina:** BYO-credentials evita el App Review del flujo de Embedded Signup y permite desarrollar y pilotar ya, con el cliente añadido como tester de nuestra app. Pero servir a clientes sin rol en esa app sigue exigiendo **Acceso Avanzado** a `whatsapp_business_messaging`, que pasa por revisión de Meta. La mitigación de fase 0 no cambia: adaptador con modo sandbox, para que ninguna fase dependa de credenciales reales.

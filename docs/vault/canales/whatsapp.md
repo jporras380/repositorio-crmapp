@@ -28,7 +28,7 @@ Canal del MVP. Fase 1.
 - **Una plantilla aprobada puede pausarse o deshabilitarse después** si los usuarios la reportan. El CRM tiene que enterarse por webhook y avisar. Una plantilla no es una constante, es estado sincronizado.
 - **Calidad del número y límite de envío** cambian solos, de un día para otro, según el comportamiento de los destinatarios. Un cliente puede pasar de 10.000 a 1.000 destinatarios diarios sin haber hecho nada distinto.
 - **La URL de medios entrantes es firmada y de vida corta.** Meta entrega un `media_id`; hay que descargar a almacenamiento propio inmediatamente, no guardar la URL. La columna `remote_expires_at` existe para hacer visible esa caducidad.
-- **Meta reenvía eventos.** El webhook debe ser idempotente por `(channel_account_id, external_message_id)`. Ver [[ADR-005-particionado-idempotencia]] (pendiente).
+- **Meta reenvía eventos.** El webhook debe ser idempotente por `(channel_account_id, external_message_id)`. Ver [[ADR-006-particionado-idempotencia]] (pendiente).
 
 ## Causas frecuentes de rechazo de plantilla
 
