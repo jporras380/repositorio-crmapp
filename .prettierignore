@@ -1,0 +1,8 @@
+pnpm-lock.yaml
+dist/
+.turbo/
+coverage/
+
+# La documentación es prosa escrita a mano. Prettier realinea las tablas
+# markdown y genera diffs de ruido sin ninguna ganancia de legibilidad.
+docs/

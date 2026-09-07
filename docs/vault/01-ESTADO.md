@@ -15,6 +15,7 @@ Fase actual: **pre-fase 0**. No hay código de producto y no lo habrá hasta apr
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
+- **PR-1, andamiaje del monorepo**: pnpm workspaces, Turborepo, TypeScript estricto, Prettier, CI de GitHub Actions, `docker-compose` de desarrollo (PostgreSQL 18, Redis 7, MinIO, Mailpit) y **guardas de arquitectura ejecutables**.
 - **`docs/ARCH.md` completo**: alcance, supuestos, principios, componentes, modelo de datos, RLS, ingesta, contrato de adaptador, colas, secretos, multimedia, observabilidad, privacidad, fases y riesgos.
 - **Los siete ADR escritos y en estado `aceptado`.** ADR-001/002/003 cerrados; ADR-005 (RLS), ADR-006 (particionado e idempotencia) y ADR-007 (identidad de contactos) nuevos.
 
@@ -40,14 +41,14 @@ Las tres preguntas siguen abiertas en [[02-PREGUNTAS-ABIERTAS]]. Responderlas ah
 
 ## Bloqueado
 
-Nada bloquea el avance. **Lo que falta es tu aprobación del ARCH** para poder empezar fase 0.
+Nada.
 
 ## Qué sigue
 
-1. **Aprobar `docs/ARCH.md`.**
-2. PR-1: andamiaje del monorepo — instalar `pnpm` (no está en la máquina; Node v24.16.0), workspaces, Turborepo, CI, `docker-compose` de desarrollo. Sin lógica de negocio.
-3. Fase 0: esquema base, auth, multi-tenancy con RLS, outbox, adaptador en sandbox. Criterio de salida: crear cuenta e invitar usuario **y que los dos tests de RLS de §6 del ARCH pasen en CI**.
-4. Responder P-04, P-05 y P-06 en algún momento antes de fase 1.
+1. **PR-2: `packages/db`** — esquema base, migraciones, políticas RLS y **los dos tests de RLS del ARCH §6**. Es el primer código de producto y el que fija ADR-005 y ADR-006.
+2. PR-3: `packages/config`, `packages/crypto`, `packages/observability`. Cimientos sin lógica de negocio.
+3. PR-4: auth, `memberships`, invitaciones, outbox. Cierra fase 0.
+4. Responder P-04, P-05 y P-06 antes de fase 1.
 
 ## Cambio propuesto al plan de fases
 

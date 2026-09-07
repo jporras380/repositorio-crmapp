@@ -1,0 +1,15 @@
+# Normaliza saltos de línea: LF en el repositorio, nativo en el disco.
+# Sin esto, cada commit desde Windows avisa de conversiones CRLF.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+
+pnpm-lock.yaml linguist-generated=true -diff

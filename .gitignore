@@ -41,3 +41,6 @@ Thumbs.db
 # Obsidian: la configuración local del vault no se versiona, las notas sí
 docs/vault/.obsidian/
 docs/vault/.trash/
+
+# Turborepo
+.turbo/
