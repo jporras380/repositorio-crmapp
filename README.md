@@ -49,6 +49,10 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/v1/canales/whatsapp -C
 
 Después, en el panel de Meta, el webhook apunta a `https://<tu-url-publica>/webhooks/whatsapp` con el `META_WEBHOOK_VERIFY_TOKEN` del `.env`. Para desarrollo hace falta un túnel (`cloudflared` o `ngrok`): Meta no puede llamar a `localhost`.
 
+## Medios (fotos, audios, documentos)
+
+Con `S3_*` en el `.env` (MinIO en desarrollo, R2 en producción), los medios entrantes se descargan solos y quedan bajo `tenants/<id>/media/`. Nada es público: la bandeja pide una URL firmada de 5 minutos con `GET /v1/medios/:id/url`. Para enviar un archivo propio: `POST /v1/medios/subidas {mime, bytes}` → `PUT` del archivo a `urlDeSubida` → `POST /v1/medios/subidas/:id/confirmar` → `POST …/mensajes {tipo:"image", mediaAssetId}`. Sin `S3_*`, esas rutas responden 503 y todo lo demás funciona.
+
 | Servicio   | Dónde                                                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | API        | `localhost:3000`                                                                                                                 |

@@ -9,6 +9,7 @@ import {
   type AdaptadorDeIngesta,
   type ChannelAdapter,
 } from '@crmapp/channels';
+import { AlmacenS3, type Almacen, type ConfigDeS3 } from '@crmapp/storage';
 import { BaseDeDatos } from './db.js';
 import {
   TOKEN_AUTH,
@@ -17,6 +18,7 @@ import {
   TOKEN_CIFRADOR,
   TOKEN_DB,
   TOKEN_INGESTA,
+  TOKEN_MEDIOS,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -31,6 +33,8 @@ import {
   type VerificadorDeCredenciales,
 } from './canales/canales.service.js';
 import { CanalesController } from './canales/canales.controller.js';
+import { MediosService } from './medios/medios.service.js';
+import { MediosController } from './medios/medios.controller.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -58,6 +62,10 @@ export interface OpcionesDeApp {
   adaptadoresDeIngesta?: Map<string, AdaptadorDeIngesta>;
   canales?: Map<string, ChannelAdapter>;
   resolverCuenta?: ResolverCuenta;
+  /** S3 real (MinIO/R2). Sin `s3` ni `almacen`, las rutas de medios responden 503. */
+  s3?: ConfigDeS3;
+  /** Sobrescribe el almacén por completo. Para tests. */
+  almacen?: Almacen;
 }
 
 @Module({})
@@ -73,7 +81,13 @@ export class AppModule {
   static forRoot(opciones: OpcionesDeApp): DynamicModule {
     return {
       module: AppModule,
-      controllers: [AuthController, WebhooksController, BandejaController, CanalesController],
+      controllers: [
+        AuthController,
+        WebhooksController,
+        BandejaController,
+        CanalesController,
+        MediosController,
+      ],
       providers: [
         {
           provide: TOKEN_DB,
@@ -159,9 +173,26 @@ export class AppModule {
               ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
             }),
         },
+        {
+          provide: TOKEN_MEDIOS,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) =>
+            new MediosService({
+              db,
+              almacen: opciones.almacen ?? (opciones.s3 ? new AlmacenS3(opciones.s3) : null),
+            }),
+        },
         AuthGuard,
       ],
-      exports: [TOKEN_DB, TOKEN_AUTH, TOKEN_INGESTA, TOKEN_BANDEJA, TOKEN_CANALES, TOKEN_CIFRADOR],
+      exports: [
+        TOKEN_DB,
+        TOKEN_AUTH,
+        TOKEN_INGESTA,
+        TOKEN_BANDEJA,
+        TOKEN_CANALES,
+        TOKEN_CIFRADOR,
+        TOKEN_MEDIOS,
+      ],
     };
   }
 }

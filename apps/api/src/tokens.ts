@@ -20,3 +20,5 @@ export const TOKEN_BANDEJA = Symbol('BandejaService');
 
 export const TOKEN_CANALES = Symbol('CanalesService');
 export const TOKEN_CIFRADOR = Symbol('Cifrador');
+
+export const TOKEN_MEDIOS = Symbol('MediosService');

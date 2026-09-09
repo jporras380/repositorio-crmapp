@@ -30,6 +30,7 @@ Si algo se averigua leyendo el código en menos de un minuto, no va aquí. No ha
 | [[ADR-006-particionado-idempotencia]] | Particionado de `messages` e idempotencia | aceptado |
 | [[ADR-007-identidad-contactos]] | Identidad unificada de contactos | aceptado |
 | [[ADR-008-visibilidad-entre-agentes]] | Visibilidad entre agentes, configurable por cuenta | aceptado |
+| [[ADR-009-medios]] | Medios: nada público, URL firmadas, subida directa | aceptado |
 
 Los siete ADR previstos están escritos. El siguiente se creará cuando aparezca una decisión nueva, no antes.
 
@@ -46,6 +47,7 @@ Lo más valioso del vault. Aquí van las restricciones externas que costaron tie
 Una nota por módulo, con las decisiones que le afectan enlazadas. Se crean al empezar cada módulo, no antes.
 
 - [[facturacion]] — ciclo prueba → gracia → suspensión, y por qué la lógica vive en `core`.
+- [[medios]] — flujos de medios (ADR-009)
 - [[web]] — convenciones de la aplicación web (estilo en CSS aparte).
 
 Previstos: bandeja, plantillas, salesbots, ia, usuarios, facturacion, panel, integraciones.

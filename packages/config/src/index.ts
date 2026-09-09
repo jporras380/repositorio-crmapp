@@ -70,6 +70,14 @@ export const esquemaConfig = z.object({
 
   JWT_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
 
+  // Almacenamiento S3 (MinIO en desarrollo, R2 en produccion). Opcional: sin
+  // el, las rutas de medios responden 503 y todo lo demas funciona.
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+
   // Opcional hasta que haya un canal real conectado: exigirla en fase 0
   // obligaria a inventarse un valor, y un valor inventado en una variable de
   // secreto acaba en produccion.
@@ -93,6 +101,7 @@ const CAMPOS_SECRETOS = [
   'REDIS_URL',
   'MASTER_ENCRYPTION_KEY',
   'JWT_SECRET',
+  'S3_SECRET_ACCESS_KEY',
 ] as const satisfies readonly (keyof Config)[];
 
 export interface OpcionesDeCarga {

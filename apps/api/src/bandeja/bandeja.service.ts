@@ -65,7 +65,9 @@ export type PeticionDeEnvio =
   | { tipo: 'text'; texto: string }
   | {
       tipo: 'image' | 'video' | 'audio' | 'document';
-      url: string;
+      /** URL externa, o bien un medio propio ya almacenado. Uno de los dos. */
+      url?: string | undefined;
+      mediaAssetId?: string | undefined;
       pieDeFoto?: string | undefined;
     }
   | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] };
@@ -210,15 +212,16 @@ export class BandejaService {
       if (opciones.cursor) {
         const cur = decodificarCursor(opciones.cursor);
         params.push(cur.t, cur.id);
-        condicionCursor = `AND (created_at, id) < ($3::timestamptz, $4::uuid)`;
+        condicionCursor = `AND (m.created_at, m.id) < ($3::timestamptz, $4::uuid)`;
       }
       const { rows } = await c.query<MensajeDeConversacion>(
-        `SELECT id, direction AS direccion, type AS tipo, body AS texto, status AS estado,
-                sent_by AS origen, ai_generated AS generado_por_ia, created_at AS creado_en,
-                error
-           FROM messages
-          WHERE conversation_id = $1 ${condicionCursor}
-          ORDER BY created_at DESC, id DESC
+        `SELECT m.id, m.direction AS direccion, m.type AS tipo, m.body AS texto, m.status AS estado,
+                m.sent_by AS origen, m.ai_generated AS generado_por_ia, m.created_at AS creado_en,
+                m.error, m.media_asset_id AS medio_id, ma.status AS medio_estado
+           FROM messages m
+           LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
+          WHERE m.conversation_id = $1 ${condicionCursor}
+          ORDER BY m.created_at DESC, m.id DESC
           LIMIT $2`,
         params,
       );
@@ -302,6 +305,30 @@ export class BandejaService {
       });
       if (error) throw new ErrorDeNegocio(`canal_${error.tipo}`, error.message, 422);
 
+      // 5b. Medio propio: debe existir (RLS: ajeno = inexistente) y estar
+      //     almacenado. La URL firmada la genera el worker al enviar.
+      let mediaAssetId: string | null = null;
+      if (peticion.tipo !== 'text' && peticion.tipo !== 'template') {
+        if (!peticion.url && !peticion.mediaAssetId) {
+          throw new ErrorDeNegocio('medio_requerido', 'Indica url o mediaAssetId.', 400);
+        }
+        if (peticion.mediaAssetId) {
+          const { rows } = await c.query<{ status: string }>(
+            `SELECT status FROM media_assets WHERE id = $1`,
+            [peticion.mediaAssetId],
+          );
+          if (!rows[0]) throw new ErrorDeNegocio('medio_no_encontrado', 'El medio no existe.', 404);
+          if (rows[0].status !== 'stored') {
+            throw new ErrorDeNegocio(
+              'medio_no_disponible',
+              'El medio todavía no está almacenado.',
+              409,
+            );
+          }
+          mediaAssetId = peticion.mediaAssetId;
+        }
+      }
+
       // 6. Insertar en `queued` y encolar por el outbox. Sin RETURNING.
       const messageId = await this.#db.nuevoId(c);
       const createdAt = ahora;
@@ -317,13 +344,19 @@ export class BandejaService {
                   parametros: peticion.parametros,
                 },
               }
-            : { media: { url: peticion.url, pieDeFoto: peticion.pieDeFoto ?? null } };
+            : {
+                media: {
+                  url: peticion.url ?? null,
+                  mediaAssetId,
+                  pieDeFoto: peticion.pieDeFoto ?? null,
+                },
+              };
 
       await c.query(
         `INSERT INTO messages
            (id, tenant_id, conversation_id, channel_account_id, direction, type, body, payload,
-            status, sent_by, sent_by_user_id, created_at)
-         VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, 'queued', 'human', $8, $9)`,
+            status, sent_by, sent_by_user_id, created_at, media_asset_id)
+         VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, 'queued', 'human', $8, $9, $10)`,
         [
           messageId,
           ctx.tenantId,
@@ -334,6 +367,7 @@ export class BandejaService {
           JSON.stringify(payload),
           ctx.userId,
           createdAt,
+          mediaAssetId,
         ],
       );
 
@@ -369,7 +403,7 @@ export class BandejaService {
           channelAccountId: conv.channel_account_id,
           canal: conv.channel,
           externalUserId: conv.external_user_id,
-          peticion,
+          peticion: peticionParaEnvio(peticion, mediaAssetId),
         },
       });
 
@@ -645,6 +679,15 @@ export interface MensajeDeConversacion {
   generado_por_ia: boolean;
   creado_en: Date;
   error: unknown;
+  /** Medio propio; la URL se pide aparte en GET /v1/medios/:id/url. */
+  medio_id: string | null;
+  medio_estado: string | null;
+}
+
+/** Lo que viaja al worker: URL externa tal cual, o medio propio sin URL (la firma el worker). */
+function peticionParaEnvio(p: PeticionDeEnvio, mediaAssetId: string | null): unknown {
+  if (p.tipo === 'text' || p.tipo === 'template') return p;
+  return { tipo: p.tipo, url: p.url ?? null, mediaAssetId, pieDeFoto: p.pieDeFoto };
 }
 
 function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {

@@ -7,9 +7,11 @@ tags: [estado, sesion]
 
 # Estado — 9 de septiembre de 2026
 
-Fase actual: **fase 1, código completo**. Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
+Fase actual: **fase 1, código completo, con multimedia**. Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
 
 ## Completado
+
+- **PR-14, multimedia** ([[ADR-009-medios]], [[medios]]): `packages/storage` (S3 por URL firmadas, nada público), descarga de entrantes por job propio con deduplicación por `sha256` dentro del inquilino, envío con `mediaAssetId` (la URL se firma en el worker al enviar), subida directa desde el navegador (`/v1/medios/subidas` → PUT → confirmar) y `GET /v1/medios/:id/url`. Se quitó la lectura anónima del bucket en el compose. MinIO en CI solo para `packages/storage`. 6 + 8 + 11 tests nuevos.
 
 - Repositorio inicializado (`git init`, rama `main`). No es monorepo todavía: no hay `package.json`.
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
@@ -62,11 +64,9 @@ Nada.
 **Fase 1**: adaptador de WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla. Criterio de salida: un agente atiende WhatsApp de punta a punta.
 
 1. **Prueba con número real** (la hace el usuario): app en developers.facebook.com, número de prueba de Meta, su móvil como destinatario, túnel para el webhook. Es el criterio de salida de fase 1 demostrado de verdad.
-2. **PR-14, multimedia**: al llegar `mediaId` en un entrante, el worker descarga con `fetchMedia` antes de que caduque la URL y guarda en S3/MinIO; miniaturas en background.
-3. **PR-15, plantillas**: respuestas rápidas y HSM con `syncTemplates`, y llenar `plantillasSugeridas` del 409 de fuera de ventana.
+2. **PR-15, plantillas**: respuestas rápidas y HSM con `syncTemplates`, y llenar `plantillasSugeridas` del 409 de fuera de ventana.
+3. Miniaturas/transcodificación en la cola `media` y CORS del bucket cuando llegue `apps/web`.
 4. Smoke test de arranque en CI (lección del 2026-09-09).
-3. PR-13: multimedia — descarga de medios entrantes antes de que caduque la URL, subida a S3/MinIO, miniaturas.
-4. PR-14: plantillas (respuestas rápidas y HSM con sincronización de estado), que además llena `plantillasSugeridas` del 409 de fuera de ventana.
 5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.
 
 ## Cambio propuesto al plan de fases

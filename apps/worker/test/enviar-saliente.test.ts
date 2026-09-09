@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
 import { migrar, withTenant } from '@crmapp/db';
 import { AdaptadorSandbox, type ChannelAdapter } from '@crmapp/channels';
+import { AlmacenEnMemoria } from '@crmapp/storage';
 import { enviarMensajeSaliente, type CargaDeEnvio } from '../src/enviar-saliente.js';
 
 const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
@@ -80,7 +81,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   sandbox = new AdaptadorSandbox({ canal: 'whatsapp' });
-  await admin.query('TRUNCATE messages, message_keys, outbox');
+  await admin.query('TRUNCATE messages, message_keys, outbox, media_assets CASCADE');
 });
 
 /** Inserta un saliente en `queued` como lo hace la API y devuelve su carga. */
@@ -185,5 +186,54 @@ describe('errores: reintentable decide el destino', () => {
     expect(await enviarMensajeSaliente({ pool: app, canales: canales() }, tenantId, carga)).toBe(
       'enviado',
     );
+  });
+});
+
+describe('medio propio', () => {
+  async function medio(status: 'stored' | 'pending') {
+    return withTenant(app, tenantId, async (c) => {
+      const id = (await c.query<{ id: string }>('SELECT uuidv7() AS id')).rows[0]!.id;
+      await c.query(
+        `INSERT INTO media_assets (id, tenant_id, kind, status, storage_key, mime)
+         VALUES ($1, $2, 'image', $3, $4, 'image/jpeg')`,
+        [id, tenantId, status, `tenants/${tenantId}/media/${id}.jpg`],
+      );
+      return id;
+    });
+  }
+
+  it('firma la URL en el momento del envío y la entrega al canal', async () => {
+    const mediaAssetId = await medio('stored');
+    const base = await encolado();
+    const carga: CargaDeEnvio = {
+      ...base,
+      peticion: { tipo: 'image', url: null, mediaAssetId, pieDeFoto: 'foto' },
+    };
+    const firmadas: string[] = [];
+    const almacen = new AlmacenEnMemoria();
+    const original = almacen.urlDeLectura.bind(almacen);
+    almacen.urlDeLectura = async (clave, ttl) => {
+      firmadas.push(clave);
+      return original(clave, ttl);
+    };
+    expect(
+      await enviarMensajeSaliente({ pool: app, canales: canales(), almacen }, tenantId, carga),
+    ).toBe('enviado');
+    expect(firmadas).toEqual([`tenants/${tenantId}/media/${mediaAssetId}.jpg`]);
+    expect(sandbox.enviados[0]!.contenido).toMatchObject({ origen: 'url', pieDeFoto: 'foto' });
+  });
+
+  it('medio no almacenado → failed, no reintentable', async () => {
+    const mediaAssetId = await medio('pending');
+    const base = await encolado();
+    const carga: CargaDeEnvio = { ...base, peticion: { tipo: 'image', url: null, mediaAssetId } };
+    expect(
+      await enviarMensajeSaliente(
+        { pool: app, canales: canales(), almacen: new AlmacenEnMemoria() },
+        tenantId,
+        carga,
+      ),
+    ).toBe('fallido');
+    expect((await estadoDe(carga.messageId)).status).toBe('failed');
   });
 });

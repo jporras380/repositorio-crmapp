@@ -223,11 +223,22 @@ async function procesarMensaje(
   const contacto = await resolverIdentidad(c, fila, evento);
   const conversacion = await resolverConversacion(c, fila, contacto);
 
+  // Medio entrante: se registra `pending` en la misma transacción que el
+  // mensaje y la descarga va por el outbox (ARCH §12). La URL de WhatsApp
+  // caduca pronto; esperar a que alguien abra la conversación es perderla.
+  const mediaAssetId = evento.mediaId && esTipoDeMedio(evento.tipo) ? await nuevoId(c) : null;
+  if (mediaAssetId) {
+    await c.query(
+      `INSERT INTO media_assets (id, tenant_id, kind, status) VALUES ($1, $2, $3, 'pending')`,
+      [mediaAssetId, fila.tenant_id, evento.tipo],
+    );
+  }
+
   await c.query(
     `INSERT INTO messages
        (id, tenant_id, conversation_id, channel_account_id, direction, type, body, payload,
-        external_message_id, status, sent_by, created_at)
-     VALUES ($1, $2, $3, $4, 'inbound', $5, $6, $7, $8, 'delivered', 'human', $9)`,
+        external_message_id, status, sent_by, created_at, media_asset_id)
+     VALUES ($1, $2, $3, $4, 'inbound', $5, $6, $7, $8, 'delivered', 'human', $9, $10)`,
     [
       messageId,
       fila.tenant_id,
@@ -242,8 +253,25 @@ async function procesarMensaje(
       }),
       evento.externalMessageId,
       createdAt,
+      mediaAssetId,
     ],
   );
+
+  if (mediaAssetId) {
+    await escribirEnOutbox(c, {
+      tenantId: fila.tenant_id,
+      aggregateType: 'media_asset',
+      aggregateId: mediaAssetId,
+      eventType: 'media.descargar',
+      payload: {
+        mediaAssetId,
+        messageId,
+        channelAccountId: fila.channel_account_id,
+        canal: fila.channel,
+        mediaId: evento.mediaId,
+      },
+    });
+  }
 
   // La ventana la reinicia el ENTRANTE. Lo calcula core con la política que
   // declara el adaptador; el worker no sabe que WhatsApp usa 24 horas.
@@ -284,6 +312,11 @@ async function procesarMensaje(
 interface Identidad {
   identityId: string;
   contactId: string;
+}
+
+const TIPOS_DE_MEDIO = new Set(['image', 'video', 'audio', 'document', 'sticker']);
+function esTipoDeMedio(tipo: string): tipo is 'image' | 'video' | 'audio' | 'document' | 'sticker' {
+  return TIPOS_DE_MEDIO.has(tipo);
 }
 
 /**

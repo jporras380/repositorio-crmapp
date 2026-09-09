@@ -21,6 +21,20 @@ const app = await NestFactory.create(
     ...(config.META_WEBHOOK_VERIFY_TOKEN
       ? { webhookVerifyToken: config.META_WEBHOOK_VERIFY_TOKEN }
       : {}),
+    ...(config.S3_ENDPOINT &&
+    config.S3_BUCKET &&
+    config.S3_ACCESS_KEY_ID &&
+    config.S3_SECRET_ACCESS_KEY
+      ? {
+          s3: {
+            endpoint: config.S3_ENDPOINT,
+            region: config.S3_REGION,
+            bucket: config.S3_BUCKET,
+            accessKeyId: config.S3_ACCESS_KEY_ID,
+            secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+          },
+        }
+      : {}),
   }),
   {
     logger: false,

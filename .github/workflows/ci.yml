@@ -44,6 +44,18 @@ jobs:
           --health-timeout 3s
           --health-retries 20
 
+      # Solo packages/storage habla con S3 de verdad. La imagen de Bitnami
+      # arranca el servidor sin argumentos —los services de Actions no admiten
+      # comando— y crea el bucket por variable de entorno.
+      minio:
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: crmapp
+          MINIO_ROOT_PASSWORD: crmapp_dev_secret
+          MINIO_DEFAULT_BUCKETS: crmapp-media
+        ports:
+          - 9000:9000
+
     env:
       # En CI el service container expone el puerto estándar; en local se cede
       # el 5432 por si hay un PostgreSQL nativo instalado (ver README).

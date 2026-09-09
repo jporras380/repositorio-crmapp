@@ -62,6 +62,12 @@ export interface TrabajoDeEnvio extends TrabajoBase {
   carga: unknown;
 }
 
+export interface TrabajoDeMedia extends TrabajoBase {
+  mediaAssetId: string;
+  /** Carga completa del outbox (`media.descargar`). */
+  carga: unknown;
+}
+
 export interface TrabajoDeMantenimiento extends TrabajoBase {
   tarea: 'precrear_particiones' | 'purgar_message_keys' | 'refrescar_vistas';
 }
@@ -71,6 +77,7 @@ export interface MapaDeTrabajos {
   [COLAS.ingestaEntrante]: TrabajoDeIngesta;
   [COLAS.salidaWhatsapp]: TrabajoDeEnvio;
   [COLAS.salidaInstagram]: TrabajoDeEnvio;
+  [COLAS.media]: TrabajoDeMedia;
   [COLAS.mantenimiento]: TrabajoDeMantenimiento;
 }
 

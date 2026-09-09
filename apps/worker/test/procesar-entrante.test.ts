@@ -99,7 +99,7 @@ beforeEach(async () => {
   // fusiones. Enumerarlas a mano se rompe en la primera tabla nueva.
   await admin.query(
     `TRUNCATE inbound_events, outbox, messages, message_keys, conversations,
-              contact_identities, contacts CASCADE`,
+              contact_identities, contacts, media_assets CASCADE`,
   );
 });
 
@@ -171,6 +171,40 @@ describe('mensaje nuevo', () => {
     expect(await contar('contacts')).toBe(1);
     expect(await contar('conversations')).toBe(1);
     expect(await contar('messages')).toBe(2);
+  });
+
+  it('un medio entrante crea media_asset pending y encola su descarga por el outbox', async () => {
+    const id = await webhook([
+      mensaje('wamid.img', { tipo: 'image', texto: undefined, mediaId: 'media-9' }),
+    ]);
+    await procesarEventoEntrante(deps(), tenantId, id);
+
+    const m = await admin.query<{ media_asset_id: string | null }>(
+      `SELECT media_asset_id FROM messages WHERE external_message_id = 'wamid.img'`,
+    );
+    const mediaAssetId = m.rows[0]!.media_asset_id;
+    expect(mediaAssetId).toBeTruthy();
+    const ma = await admin.query<{ status: string; kind: string }>(
+      `SELECT status, kind FROM media_assets WHERE id = $1`,
+      [mediaAssetId],
+    );
+    expect(ma.rows[0]).toEqual({ status: 'pending', kind: 'image' });
+
+    const o = await admin.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM outbox WHERE event_type = 'media.descargar'`,
+    );
+    expect(o.rows).toHaveLength(1);
+    expect(o.rows[0]!.payload).toMatchObject({
+      mediaAssetId,
+      mediaId: 'media-9',
+      canal: 'whatsapp',
+    });
+  });
+
+  it('un texto no crea media_asset aunque el proveedor mande mediaId vacío', async () => {
+    const id = await webhook([mensaje('wamid.txt')]);
+    await procesarEventoEntrante(deps(), tenantId, id);
+    expect(await contar('media_assets')).toBe(0);
   });
 
   it('emite mensaje.recibido en el outbox', async () => {

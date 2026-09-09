@@ -25,10 +25,13 @@ import {
   arrancarRelay,
   type TrabajoDeEnvio,
   type TrabajoDeIngesta,
+  type TrabajoDeMedia,
 } from '@crmapp/queue';
 import { Redis } from 'ioredis';
+import { AlmacenS3, type Almacen } from '@crmapp/storage';
 import { marcarFallo, procesarEventoEntrante } from './procesar-entrante.js';
 import { enviarMensajeSaliente, type CargaDeEnvio } from './enviar-saliente.js';
+import { descargarMedia, type CargaDeMedia } from './descargar-media.js';
 
 const config = cargarConfig();
 const log = crearLogger({ nivel: config.LOG_LEVEL, contexto: { proceso: 'worker' } });
@@ -56,6 +59,20 @@ const cifrador = new Cifrador({
     [config.MASTER_ENCRYPTION_KEY_VERSION]: parsearClaveMaestra(config.MASTER_ENCRYPTION_KEY),
   },
 });
+
+// Almacén de medios. Sin S3 configurado el worker arranca igual: los medios
+// entrantes quedan `pending` y se registra el aviso, en vez de tirar todo.
+const almacen: Almacen | null =
+  config.S3_ENDPOINT && config.S3_BUCKET && config.S3_ACCESS_KEY_ID && config.S3_SECRET_ACCESS_KEY
+    ? new AlmacenS3({
+        endpoint: config.S3_ENDPOINT,
+        region: config.S3_REGION,
+        bucket: config.S3_BUCKET,
+        accessKeyId: config.S3_ACCESS_KEY_ID,
+        secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+      })
+    : null;
+if (!almacen) log.warn('S3 sin configurar: los medios entrantes no se descargarán');
 
 const ingesta = new Map([
   ['whatsapp', new IngestaWhatsapp()],
@@ -87,6 +104,11 @@ const colasDeSalida: Record<string, Queue> = {
   }),
 };
 
+const colaMedia = new Queue(COLAS.media, {
+  connection: conexion,
+  defaultJobOptions: OPCIONES_POR_DEFECTO,
+});
+
 // --- Relay: outbox → BullMQ ------------------------------------------------
 const pararRelay = arrancarRelay({
   pool: poolRelay,
@@ -114,6 +136,16 @@ const pararRelay = arrancarRelay({
         carga,
       };
       await cola.add('enviar', trabajo, { jobId: `outbox-${evento.id}` });
+    }
+    if (evento.eventType === 'media.descargar') {
+      const carga = evento.payload as CargaDeMedia;
+      const trabajo: TrabajoDeMedia = {
+        tenantId: evento.tenantId,
+        correlationId: evento.id,
+        mediaAssetId: carga.mediaAssetId,
+        carga,
+      };
+      await colaMedia.add('descargar', trabajo, { jobId: `outbox-${evento.id}` });
     }
     // Otros tipos de evento se enrutarán aquí a medida que existan consumidores.
   },
@@ -161,7 +193,11 @@ const workersDeSalida = Object.entries(colasDeSalida).map(
       async (job) => {
         const { tenantId, carga } = job.data;
         const r = await semaforo.ejecutar(tenantId, () =>
-          enviarMensajeSaliente({ pool, canales }, tenantId, carga as CargaDeEnvio),
+          enviarMensajeSaliente(
+            { pool, canales, almacen: almacen ?? undefined },
+            tenantId,
+            carga as CargaDeEnvio,
+          ),
         );
         if (r === SIN_CUPO) {
           await job.moveToDelayed(Date.now() + 500, job.token);
@@ -181,6 +217,27 @@ for (const w of workersDeSalida) {
   w.on('failed', (job, error) => log.error('envío fallido', { jobId: job?.id, error }));
 }
 
+// --- Consumidor de medios ---------------------------------------------------
+const workerMedia = new Worker<TrabajoDeMedia>(
+  COLAS.media,
+  async (job) => {
+    if (!almacen) throw new Error('S3 sin configurar; el job se reintentará.');
+    const { tenantId, carga } = job.data;
+    const r = await semaforo.ejecutar(tenantId, () =>
+      descargarMedia({ pool, canales, almacen }, tenantId, carga as CargaDeMedia),
+    );
+    if (r === SIN_CUPO) {
+      await job.moveToDelayed(Date.now() + 500, job.token);
+      throw new DelayedError();
+    }
+    log.info('medio procesado', { tenantId, mediaAssetId: job.data.mediaAssetId, resultado: r });
+  },
+  { connection: conexion, concurrency: 4 },
+);
+workerMedia.on('failed', (job, error) =>
+  log.error('descarga de medio fallida', { jobId: job?.id, error }),
+);
+
 worker.on('failed', (job, error) =>
   log.error('job fallido', { jobId: job?.id, tenantId: job?.data.tenantId, error }),
 );
@@ -192,7 +249,9 @@ const apagar = async () => {
   await pararRelay();
   await worker.close();
   await Promise.all(workersDeSalida.map((w) => w.close()));
+  await workerMedia.close();
   await colaIngesta.close();
+  await colaMedia.close();
   await Promise.all(Object.values(colasDeSalida).map((q) => q.close()));
   await redis.quit();
   await pool.end();

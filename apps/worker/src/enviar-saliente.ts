@@ -18,6 +18,7 @@ import type { Pool } from 'pg';
 import { withTenant } from '@crmapp/db';
 import { ErrorDeCanal, type ChannelAdapter, type ResultadoDeEnvio } from '@crmapp/channels';
 import { escribirEnOutbox } from '@crmapp/queue';
+import type { Almacen } from '@crmapp/storage';
 
 export interface CargaDeEnvio {
   messageId: string;
@@ -30,7 +31,9 @@ export interface CargaDeEnvio {
     | { tipo: 'text'; texto: string }
     | {
         tipo: 'image' | 'video' | 'audio' | 'document';
-        url: string;
+        /** URL externa, o `null` cuando el medio es nuestro (`mediaAssetId`). */
+        url: string | null;
+        mediaAssetId?: string | null | undefined;
         pieDeFoto?: string | undefined;
       }
     | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] };
@@ -39,6 +42,12 @@ export interface CargaDeEnvio {
 export interface DependenciasDeEnvio {
   pool: Pool;
   canales: Map<string, ChannelAdapter>;
+  /**
+   * Para firmar la URL de un medio propio EN EL MOMENTO del envío, no al
+   * encolar: un job que espere en cola más que el TTL de la firma fallaría
+   * con una URL caducada y el cliente vería "no se pudo enviar" sin motivo.
+   */
+  almacen?: Pick<Almacen, 'urlDeLectura'> | undefined;
 }
 
 export type ResultadoDeEntrega = 'enviado' | 'ya_procesado' | 'fallido';
@@ -70,7 +79,8 @@ export async function enviarMensajeSaliente(
   //    todo el tiempo que tarde Meta.
   let resultado: ResultadoDeEnvio;
   try {
-    resultado = await entregar(adaptador, carga);
+    const cargaResuelta = await resolverMedioPropio(deps, tenantId, carga);
+    resultado = await entregar(adaptador, cargaResuelta);
   } catch (error) {
     if (error instanceof ErrorDeCanal && !error.reintentable) {
       await withTenant(deps.pool, tenantId, async (c) => {
@@ -134,6 +144,35 @@ export async function enviarMensajeSaliente(
   return 'enviado';
 }
 
+/** Sustituye `mediaAssetId` por una URL firmada fresca. Sin medio propio, no toca nada. */
+async function resolverMedioPropio(
+  deps: DependenciasDeEnvio,
+  tenantId: string,
+  carga: CargaDeEnvio,
+): Promise<CargaDeEnvio> {
+  const p = carga.peticion;
+  if (p.tipo === 'text' || p.tipo === 'template' || !p.mediaAssetId) return carga;
+  if (!deps.almacen) throw new Error('Medio propio sin almacén configurado.');
+  const clave = await withTenant(deps.pool, tenantId, async (c) => {
+    const { rows } = await c.query<{ storage_key: string | null; status: string }>(
+      `SELECT storage_key, status FROM media_assets WHERE id = $1`,
+      [p.mediaAssetId],
+    );
+    const m = rows[0];
+    if (!m || m.status !== 'stored' || !m.storage_key) {
+      // No reintentable: el medio no va a aparecer por esperar.
+      throw new ErrorDeCanal(
+        'tipo_no_soportado',
+        `El medio ${p.mediaAssetId} no está almacenado.`,
+        false,
+      );
+    }
+    return m.storage_key;
+  });
+  const url = await deps.almacen.urlDeLectura(clave, 60 * 60);
+  return { ...carga, peticion: { ...p, url } };
+}
+
 async function entregar(adaptador: ChannelAdapter, carga: CargaDeEnvio): Promise<ResultadoDeEnvio> {
   const destino = {
     externalUserId: carga.externalUserId,
@@ -154,7 +193,7 @@ async function entregar(adaptador: ChannelAdapter, carga: CargaDeEnvio): Promise
       return adaptador.sendMedia({
         ...destino,
         tipo: p.tipo,
-        origen: { tipo: 'url', url: p.url },
+        origen: { tipo: 'url', url: p.url ?? '' },
         pieDeFoto: p.pieDeFoto,
       });
   }
