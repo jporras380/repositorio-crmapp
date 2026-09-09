@@ -4,6 +4,11 @@
     grid-template-rows: auto minmax(0, 1fr) auto;
     grid-template-columns: minmax(0, 1fr);
     min-block-size: 0;
+    /* El ancho del hilo lo decide el agente con los separadores, no la
+       ventana: lo que se adapta aqui se consulta al contenedor, no a la
+       pantalla. Una media query se equivocaria en cuanto alguien pliegue la
+       lista. */
+    container-type: inline-size;
   }
 
   .cabecera {
@@ -37,6 +42,58 @@
     font-size: var(--text-xs);
     color: var(--fg-muted);
   }
+  /*
+   * Volver a la lista. Solo existe en movil, donde lista y hilo no caben a la
+   * vez; en escritorio la lista esta ahi al lado y un boton mas seria ruido.
+   */
+  .volver {
+    display: none;
+    inline-size: 2rem;
+    block-size: 2rem;
+    border-radius: var(--radius-md);
+    place-content: center;
+    color: var(--fg-muted);
+    flex-shrink: 0;
+  }
+  .volver:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  /* Alterna la ficha del contacto. `aria-pressed` porque es un interruptor. */
+  .detalles {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    padding: 0.35rem 0.7rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    transition:
+      background 120ms ease,
+      color 120ms ease,
+      border-color 120ms ease;
+  }
+  .detalles:hover {
+    color: var(--fg);
+    border-color: var(--glass-border);
+    background: var(--surface);
+  }
+  .detallesActivo,
+  .detallesActivo:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: transparent;
+  }
+  @container (max-width: 30rem) {
+    .detallesTexto {
+      display: none;
+    }
+  }
+
   .ventana {
     margin-inline-start: auto;
     font-size: var(--text-xs);
@@ -72,12 +129,40 @@
 
   .mensajes {
     overflow-y: auto;
-    padding: var(--space-4);
+    /* Con la lista plegada el hilo puede ocupar 1600 px y las burbujas se
+       irian a los dos extremos: la vista salta de un lado al otro para leer.
+       La conversacion se queda en una columna centrada de 64 rem. */
+    padding: var(--space-4) max(var(--space-4), calc((100% - 64rem) / 2));
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
     scrollbar-gutter: stable;
   }
+  /*
+   * Separador de dia, pegado arriba mientras se recorre el hilo: al subir
+   * buscando algo, la fecha del tramo que se esta leyendo sigue a la vista.
+   */
+  .dia {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    padding-block: var(--space-1);
+    pointer-events: none;
+  }
+  .diaTexto {
+    padding: 0.15rem 0.7rem;
+    border-radius: var(--radius-pill);
+    background: var(--surface-raised);
+    border: 1px solid var(--hairline);
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: capitalize;
+    box-shadow: 0 2px 8px -4px oklch(0% 0 0 / 0.25);
+  }
+
   .sinMensajes {
     margin: auto;
     color: var(--fg-muted);
@@ -166,6 +251,12 @@
   @keyframes brillo {
     to {
       background-position: -200% 0;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .volver {
+      display: grid;
     }
   }
 }

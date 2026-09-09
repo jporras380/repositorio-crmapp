@@ -1,20 +1,19 @@
 @layer components {
+  /*
+   * Flex y no rejilla: los paneles laterales se pliegan y desaparecen del
+   * flujo. Con `grid-template-areas` cada combinación —lista sí/no, ficha
+   * sí/no, con o sin conversación— pedía su propia plantilla de columnas;
+   * con flex, quitar un panel es no pintarlo. Los anchos llegan en dos
+   * variables CSS que escribe el separador mientras se arrastra.
+   */
   .bandeja {
     block-size: 100dvb;
-    display: grid;
-    grid-template-columns: 4rem minmax(18rem, 22rem) minmax(0, 1fr) minmax(16rem, 19rem);
-    grid-template-areas: 'barra lista hilo contacto';
+    display: flex;
+    align-items: stretch;
     gap: var(--space-3);
     padding: var(--space-3);
-  }
-
-  /* Sin conversación abierta no hay ficha que mostrar: el hilo ocupa su sitio. */
-  .sinSeleccion {
-    grid-template-columns: 4rem minmax(18rem, 22rem) minmax(0, 1fr);
-    grid-template-areas: 'barra lista hilo';
-  }
-  .sinSeleccion .contacto {
-    display: none;
+    /* Ancla del cajón de la ficha en pantallas donde ya no cabe la columna. */
+    position: relative;
   }
 
   .lista,
@@ -28,16 +27,27 @@
        de no leídos quedan fuera del recorte. */
     grid-template-columns: minmax(0, 1fr);
     overflow: hidden;
+    /* Cambiar el ancho de un panel no debe obligar al navegador a recalcular
+       el interior de los otros dos: la contención pone el límite. Se nota al
+       arrastrar el separador con la lista llena. */
+    contain: layout paint;
   }
   .lista {
-    grid-area: lista;
+    flex: 0 0 var(--ancho-lista, 21rem);
     grid-template-rows: auto minmax(0, 1fr);
   }
   .hilo {
-    grid-area: hilo;
+    flex: 1 1 0;
+    min-inline-size: 0;
   }
   .contacto {
-    grid-area: contacto;
+    flex: 0 0 var(--ancho-ficha, 19rem);
+  }
+
+  /* Plegados: el panel desaparece; el carril del separador queda para volver. */
+  .listaPlegada .lista,
+  .fichaPlegada .contacto {
+    display: none;
   }
 
   .vacio {
@@ -58,22 +68,53 @@
     font-size: var(--text-sm);
   }
 
+  /*
+   * Menos de 1100 px: la ficha como columna dejaría el hilo sin sitio, así
+   * que pasa a ser un cajón sobre él. Sigue siendo el mismo panel y el mismo
+   * botón de «Detalles»; lo que cambia es que tapa en vez de empujar.
+   */
   @media (max-width: 1100px) {
-    .bandeja {
-      grid-template-columns: 4rem minmax(16rem, 20rem) minmax(0, 1fr);
-      grid-template-areas: 'barra lista hilo';
-    }
     .contacto {
-      display: none;
+      position: absolute;
+      inset-block: var(--space-3);
+      inset-inline-end: var(--space-3);
+      inline-size: min(22rem, calc(100% - 6rem));
+      z-index: 3;
+      box-shadow: var(--shadow-pop);
+      /* Flotando sobre el hilo, el vidrio deja leer las burbujas de debajo y
+         la ficha se vuelve ilegible: aquí manda una superficie casi opaca. */
+      background: var(--surface-raised);
     }
   }
+
+  /*
+   * Móvil: una cosa a la vez. Con conversación abierta manda el hilo —y su
+   * botón de volver—; sin ella, la lista. El plegado que el agente eligió en
+   * el escritorio no puede dejar aquí una pantalla en blanco.
+   */
   @media (max-width: 760px) {
-    .bandeja {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto minmax(0, 1fr);
-      grid-template-areas: 'barra' 'lista';
+    /* En el móvil la ficha no es un cajón lateral: es la pantalla entera.
+       Un cajón que deja 90 px de hilo asomando no sirve para nada. */
+    .contacto {
+      inset: 0;
+      inline-size: auto;
     }
+    .bandeja {
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-2);
+    }
+    .lista,
     .hilo {
+      flex: 1 1 auto;
+    }
+    .listaPlegada .lista {
+      display: grid;
+    }
+    .sinSeleccion .hilo {
+      display: none;
+    }
+    .bandeja:not(.sinSeleccion) .lista {
       display: none;
     }
   }

@@ -57,6 +57,26 @@ pnpm dev:web          # http://localhost:5173 (proxy /api → 3000)
 pnpm --filter @crmapp/web test   # 16 tests: cliente, tiempo, Acceso, Lista, Compositor
 ```
 
+## Paneles ajustables (PR-24)
+
+![[2026-09-09-bandeja-ajustable.png]]
+
+La bandeja era de tres paneles fijos. El usuario lo dijo claro: «donde sale los mensajes veo que es estático, debería permitir moverlo o achicarlo o cerrar». Kommo y Zenvia lo tienen, y no es cosmética: la lista útil de quien atiende comentarios cortos no es la misma que la de quien negocia por mensajes largos.
+
+**Rejilla → flex.** Con `grid-template-areas` cada combinación —lista sí/no, ficha sí/no, con o sin conversación— pedía su propia plantilla de columnas, y salían seis. Con flex, plegar un panel es no pintarlo. El ancho llega en dos variables CSS (`--ancho-lista`, `--ancho-ficha`) que escribe el separador.
+
+**El arrastre no pasa por React.** `pointermove` escribe la variable CSS del contenedor directamente; el estado se toca una sola vez, al soltar. Redibujar lista, hilo y ficha en cada píxel se nota a simple vista. Los paneles llevan `contain: layout paint` para que cambiar el ancho de uno no obligue a recalcular el interior de los otros.
+
+**Accesible de verdad**: el asa es el *window splitter* de ARIA (`role="separator"` enfocable con `aria-valuenow/min/max`), se mueve con las flechas, `Inicio`/`Fin` van a los extremos y el doble clic vuelve al ancho normal. Los mínimos no son estéticos: por debajo de 232 px la fila pierde la vista previa; por debajo de 248 px la ficha parte los botones de estado.
+
+**La preferencia vive en el navegador**, no en el servidor: un portátil de 13" y un monitor de 27" piden repartos distintos, así que ni siquiera es igual para la misma persona. Llevarla al servidor costaría tabla, ruta y migración. `estado/paneles.ts` es el único sitio donde tocar el día que haya que sincronizarla.
+
+**Lo que cambia con el ancho se pregunta al contenedor, no a la pantalla**: el hilo declara `container-type: inline-size` y el texto del botón «Detalles» desaparece con `@container`. Una media query se equivocaría en cuanto alguien pliegue la lista.
+
+**Por debajo de 1100 px la ficha deja de ser columna y se superpone**; en móvil ocupa la pantalla entera. Eso obliga a dos cosas que no existían: un aspa dentro de la ficha —el botón «Detalles» que la abrió queda debajo— y fondo casi opaco, porque flotando sobre el hilo el vidrio deja leer las burbujas de abajo. En móvil, además, manda la conversación abierta: si hay una, se ve el hilo con su botón de volver; si no, la lista.
+
+De paso, tres arreglos que se veían en la captura anterior: las cinco vistas de la lista se **recortaban** contra el borde del panel (`flex: 1 1 0` con `nowrap` no encoge por debajo del texto) y ahora pasan a dos filas; el hilo lleva **separadores de día** pegados arriba —«Hoy», «Ayer», la fecha— porque sin ellos dos mensajes de días distintos se leen como seguidos; y con la lista plegada las burbujas se iban a los dos extremos de 1600 px, así que la conversación se queda en una columna centrada de 64 rem.
+
 ## Panel de control y material de vidrio (PR-23)
 
 ![[2026-09-09-panel-claro.png]]

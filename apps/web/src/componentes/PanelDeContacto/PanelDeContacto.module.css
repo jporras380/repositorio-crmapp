@@ -7,12 +7,14 @@
     align-content: start;
   }
   .cabecera {
+    position: relative;
     display: grid;
     justify-items: center;
     text-align: center;
     gap: var(--space-1);
   }
   .avatar {
+    position: relative;
     inline-size: 4rem;
     block-size: 4rem;
     border-radius: 50%;
@@ -24,6 +26,50 @@
     color: var(--accent);
     margin-block-end: var(--space-2);
   }
+  .cerrar {
+    display: none;
+    position: absolute;
+    inset-block-start: calc(-1 * var(--space-2));
+    inset-inline-end: calc(-1 * var(--space-2));
+    inline-size: 2rem;
+    block-size: 2rem;
+    border-radius: 50%;
+    place-content: center;
+    font-size: var(--text-xl);
+    line-height: 1;
+    color: var(--fg-muted);
+  }
+  .cerrar:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+  @media (max-width: 1100px) {
+    .cerrar {
+      display: grid;
+    }
+  }
+
+  /* El borde opaco recorta el avatar: con vidrio se veria lo de debajo. */
+  .canal {
+    position: absolute;
+    inset-inline-end: 2px;
+    inset-block-end: 2px;
+    inline-size: 1rem;
+    block-size: 1rem;
+    border-radius: 50%;
+    border: 2px solid var(--surface-solida);
+    background: var(--fg-faint);
+  }
+  .canal_whatsapp {
+    background: var(--channel-whatsapp);
+  }
+  .canal_instagram {
+    background: var(--channel-instagram);
+  }
+  .canal_tiktok {
+    background: var(--channel-tiktok);
+  }
+
   .nombre {
     font-size: var(--text-lg);
     font-weight: 600;
@@ -111,6 +157,31 @@
     block-size: 0.6rem;
     border-radius: 50%;
     background: var(--tag);
+  }
+
+  .datos {
+    margin: 0;
+    display: grid;
+    gap: var(--space-1);
+  }
+  .dato {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block: var(--space-1);
+    border-block-end: 1px solid var(--hairline);
+    font-size: var(--text-sm);
+  }
+  .dato:last-child {
+    border-block-end: 0;
+  }
+  .dato dt {
+    color: var(--fg-muted);
+  }
+  .dato dd {
+    margin: 0;
+    font-weight: 600;
   }
 
   .error {

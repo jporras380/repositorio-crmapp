@@ -90,6 +90,18 @@
     box-shadow: var(--shadow-pop);
   }
 
+  /*
+   * Mientras se arrastra un separador de paneles: el cursor es el mismo en
+   * toda la página y nada se selecciona por accidente. Va en `base` con
+   * `!important` porque para las declaraciones importantes el orden de capas
+   * se invierte: así gana a cualquier cursor de componente.
+   */
+  .redimensionando,
+  .redimensionando * {
+    cursor: col-resize !important;
+    user-select: none !important;
+  }
+
   .visually-hidden {
     position: absolute;
     inline-size: 1px;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { horaCorta, inicial, ventana } from './tiempo.ts';
+import { diaDeMensaje, horaCorta, inicial, ventana } from './tiempo.ts';
 
 const ahora = new Date('2026-09-09T12:00:00Z');
 
@@ -28,6 +28,16 @@ describe('horaCorta', () => {
     expect(horaCorta('2026-09-09T09:05:00Z', ahora)).toMatch(/\d{2}:\d{2}/);
     expect(horaCorta('2026-09-08T09:05:00Z', ahora)).toBe('ayer');
     expect(horaCorta('2026-08-12T09:05:00Z', ahora)).toMatch(/12/);
+  });
+});
+
+describe('diaDeMensaje', () => {
+  it('hoy, ayer y fecha completa; el año solo si es otro', () => {
+    expect(diaDeMensaje('2026-09-09T12:30:00Z', ahora)).toBe('Hoy');
+    expect(diaDeMensaje('2026-09-08T12:00:00Z', ahora)).toBe('Ayer');
+    expect(diaDeMensaje('2026-08-12T09:05:00Z', ahora)).toContain('agosto');
+    expect(diaDeMensaje('2026-08-12T09:05:00Z', ahora)).not.toContain('2026');
+    expect(diaDeMensaje('2025-08-12T09:05:00Z', ahora)).toContain('2025');
   });
 });
 

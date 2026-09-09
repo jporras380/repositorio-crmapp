@@ -1,0 +1,114 @@
+@layer components {
+  /*
+   * La zona no ocupa ancho: vive dentro del hueco que ya deja el `gap` de la
+   * bandeja. Así el separador se puede agarrar sin que aparezca un carril
+   * gris entre paneles cuando nadie lo está usando.
+   */
+  .zona {
+    flex: 0 0 auto;
+    inline-size: 0;
+    position: relative;
+    align-self: stretch;
+  }
+
+  .asa {
+    position: absolute;
+    inset-block: 0;
+    /* Cero ancho visible, 16 px de zona de agarre: la línea fina se ve fina
+       pero no hay que apuntarle con precisión de cirujano. */
+    inset-inline: calc(-1 * var(--space-2));
+    cursor: col-resize;
+    touch-action: none;
+    border-radius: var(--radius-pill);
+  }
+  /* La marca: una línea tenue que engorda y se tiñe al agarrarla. */
+  .asa::after {
+    content: '';
+    position: absolute;
+    inset-block: 12%;
+    inset-inline-start: 50%;
+    translate: -50% 0;
+    inline-size: 2px;
+    border-radius: var(--radius-pill);
+    background: var(--hairline);
+    transition:
+      inline-size 120ms ease,
+      background 120ms ease,
+      inset-block 120ms ease;
+  }
+  .asa:hover::after,
+  .asa:focus-visible::after,
+  .activa::after {
+    inline-size: 4px;
+    inset-block: var(--space-2);
+    background: var(--accent);
+  }
+  .asa:focus-visible {
+    outline: none;
+  }
+  .asa:focus-visible::after {
+    box-shadow: var(--ring);
+  }
+
+  /*
+   * El botón de plegar solo aparece al acercarse. Siempre visible sería un
+   * botón más compitiendo por la atención en una pantalla que ya tiene
+   * muchos; escondido del todo no existiría. Con el foco del teclado también
+   * aparece: si no, sería inalcanzable sin ratón.
+   */
+  .plegar {
+    position: absolute;
+    inset-block-start: var(--space-5);
+    inset-inline-start: 50%;
+    translate: -50% 0;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    border-radius: 50%;
+    display: grid;
+    place-content: center;
+    color: var(--fg-muted);
+    background: var(--surface-solida);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-glass);
+    opacity: 0;
+    transition:
+      opacity 140ms ease,
+      color 140ms ease;
+    z-index: 2;
+  }
+  .zona:hover .plegar,
+  .plegar:focus-visible {
+    opacity: 1;
+  }
+  .plegar:hover {
+    color: var(--accent);
+  }
+
+  /*
+   * Plegado: la zona pasa a ser un carril de verdad y el botón se queda fijo.
+   * Un panel que se cierra y no deja rastro de cómo volver a abrirlo es una
+   * trampa, no una preferencia.
+   */
+  .plegada {
+    inline-size: 1.75rem;
+  }
+  .plegada .plegar {
+    opacity: 1;
+    inset-inline-start: 50%;
+  }
+
+  /* Por debajo de 1100 px la ficha es un cajon superpuesto: ya no hay ancho
+     que repartir, y su separador solo estorbaria. */
+  @media (max-width: 1100px) {
+    .soloAnchas {
+      display: none;
+    }
+  }
+
+  @media (max-width: 760px) {
+    /* En móvil manda la conversación abierta, no el reparto de paneles. */
+    .zona {
+      display: none;
+    }
+  }
+}

@@ -1,6 +1,9 @@
 @layer components {
   .barra {
     grid-area: barra;
+    /* En la bandeja el contenedor es flex; en el panel manda la rejilla y
+       este `flex` se ignora. Mismo ancho en las dos pantallas. */
+    flex: 0 0 4rem;
     border-radius: var(--radius-lg);
     display: flex;
     flex-direction: column;
@@ -74,6 +77,7 @@
 
   @media (max-width: 760px) {
     .barra {
+      flex: 0 0 auto;
       flex-direction: row;
       padding: var(--space-2) var(--space-3);
     }

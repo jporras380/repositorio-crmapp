@@ -12,6 +12,13 @@ import { Filtros } from '../../componentes/Filtros/Filtros.tsx';
 import { ListaDeConversaciones } from '../../componentes/ListaDeConversaciones/ListaDeConversaciones.tsx';
 import { Hilo } from '../../componentes/Hilo/Hilo.tsx';
 import { PanelDeContacto } from '../../componentes/PanelDeContacto/PanelDeContacto.tsx';
+import { Separador } from '../../componentes/Separador/Separador.tsx';
+import {
+  guardarPaneles,
+  leerPaneles,
+  LIMITES,
+  type EstadoDePaneles,
+} from '../../estado/paneles.ts';
 import estilos from './Bandeja.module.css';
 
 interface Props {
@@ -26,6 +33,9 @@ const CADA_MS = 10_000;
 /**
  * Tres paneles (Kommo): lista, hilo, contacto. La bandeja no decide nada:
  * pide, pinta y vuelve a pedir. Sondeo cada 10 s hasta que exista WebSocket.
+ *
+ * El reparto del espacio lo manda el agente: los separadores se arrastran y
+ * los paneles laterales se pliegan (ver `estado/paneles.ts`).
  */
 export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: Props) {
   const api = useMemo(() => crearApi(sesion.token), [sesion.token]);
@@ -45,6 +55,25 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const version = useRef(0);
+
+  const [paneles, setPaneles] = useState<EstadoDePaneles>(leerPaneles);
+  const contenedor = useRef<HTMLDivElement>(null);
+  const cambiarPaneles = useCallback((cambio: Partial<EstadoDePaneles>) => {
+    setPaneles((p) => {
+      const nuevo = { ...p, ...cambio };
+      guardarPaneles(nuevo);
+      return nuevo;
+    });
+  }, []);
+  // Los anchos viajan como variables CSS: durante el arrastre el separador las
+  // escribe directamente y así no se redibuja la bandeja entera en cada píxel.
+  const anchoEnVivo = useCallback((nombre: string, px: number) => {
+    contenedor.current?.style.setProperty(nombre, `${px}px`);
+  }, []);
+  useEffect(() => {
+    anchoEnVivo('--ancho-lista', paneles.anchoLista);
+    anchoEnVivo('--ancho-ficha', paneles.anchoFicha);
+  }, [anchoEnVivo, paneles.anchoLista, paneles.anchoFicha]);
 
   const cargarLista = useCallback(
     async (silencioso = false) => {
@@ -96,12 +125,21 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
   }
 
   const seleccionada = items.find((c) => c.id === seleccionadaId) ?? null;
+  const fichaVisible = seleccionada !== null && paneles.fichaAbierta;
+  const clases = [
+    estilos.bandeja,
+    seleccionada ? '' : estilos.sinSeleccion,
+    paneles.listaAbierta ? '' : estilos.listaPlegada,
+    fichaVisible ? '' : estilos.fichaPlegada,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className={`${estilos.bandeja} ${seleccionada ? '' : estilos.sinSeleccion}`}>
+    <div className={clases} ref={contenedor}>
       <Barra yo={yo} activa="bandeja" alSalir={alSalir} />
 
-      <section className={`glass ${estilos.lista}`} aria-label="Conversaciones">
+      <section id="panel-lista" className={`glass ${estilos.lista}`} aria-label="Conversaciones">
         <Filtros
           filtros={filtros}
           etiquetas={etiquetas}
@@ -120,12 +158,27 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
         />
       </section>
 
+      <Separador
+        etiqueta="lista de conversaciones"
+        controla="panel-lista"
+        valor={paneles.anchoLista}
+        limites={LIMITES.lista}
+        lado="inicio"
+        abierto={paneles.listaAbierta}
+        alMover={(px) => anchoEnVivo('--ancho-lista', px)}
+        alFijar={(px) => cambiarPaneles({ anchoLista: px })}
+        alAlternar={() => cambiarPaneles({ listaAbierta: !paneles.listaAbierta })}
+      />
+
       <section className={`glass ${estilos.hilo}`} aria-label="Conversación">
         {seleccionada ? (
           <Hilo
             key={seleccionada.id}
             api={api}
             conversacion={seleccionada}
+            fichaAbierta={fichaVisible}
+            alAlternarFicha={() => cambiarPaneles({ fichaAbierta: !paneles.fichaAbierta })}
+            alVolver={() => setSeleccionadaId(null)}
             alCambiar={() => void cargarLista(true)}
           />
         ) : (
@@ -138,13 +191,29 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
         )}
       </section>
 
-      <aside className={`glass ${estilos.contacto}`} aria-label="Contacto" hidden={!seleccionada}>
+      {fichaVisible && (
+        <Separador
+          etiqueta="ficha del contacto"
+          controla="panel-ficha"
+          valor={paneles.anchoFicha}
+          limites={LIMITES.ficha}
+          lado="fin"
+          abierto={true}
+          soloAnchas
+          alMover={(px) => anchoEnVivo('--ancho-ficha', px)}
+          alFijar={(px) => cambiarPaneles({ anchoFicha: px })}
+          alAlternar={() => cambiarPaneles({ fichaAbierta: false })}
+        />
+      )}
+
+      <aside id="panel-ficha" className={`glass ${estilos.contacto}`} aria-label="Contacto">
         {seleccionada && (
           <PanelDeContacto
             api={api}
             conversacion={seleccionada}
             etiquetas={etiquetas}
             userId={sesion.userId}
+            alCerrar={() => cambiarPaneles({ fichaAbierta: false })}
             alCambiar={() => void cargarLista(true)}
           />
         )}

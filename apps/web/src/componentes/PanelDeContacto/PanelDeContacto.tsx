@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Api } from '../../api/cliente.ts';
 import type { Etiqueta, ResumenDeConversacion } from '../../api/tipos.ts';
-import { inicial } from '../../vista/tiempo.ts';
+import { horaCorta, inicial } from '../../vista/tiempo.ts';
 import { pintar } from '../Filtros/Filtros.tsx';
 import estilos from './PanelDeContacto.module.css';
 
@@ -10,8 +10,16 @@ interface Props {
   conversacion: ResumenDeConversacion;
   etiquetas: Etiqueta[];
   userId: string;
+  /** Cierra la ficha. Solo se ve donde la ficha tapa el hilo en vez de convivir con él. */
+  alCerrar: () => void;
   alCambiar: () => void;
 }
+
+const CANAL: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+};
 
 const ESTADOS: [string, string][] = [
   ['open', 'Abierta'],
@@ -21,7 +29,14 @@ const ESTADOS: [string, string][] = [
 ];
 
 /** Ficha del contacto (Kommo): quién es, quién la atiende, en qué estado va y sus etiquetas. */
-export function PanelDeContacto({ api, conversacion, etiquetas, userId, alCambiar }: Props) {
+export function PanelDeContacto({
+  api,
+  conversacion,
+  etiquetas,
+  userId,
+  alCerrar,
+  alCambiar,
+}: Props) {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const mia = conversacion.agenteId === userId;
@@ -43,8 +58,17 @@ export function PanelDeContacto({ api, conversacion, etiquetas, userId, alCambia
   return (
     <div className={estilos.panel}>
       <div className={estilos.cabecera}>
+        {/*
+          Por debajo de 1100 px la ficha se superpone al hilo y tapa el botón
+          «Detalles» que la abrió: sin esta aspa no habría forma de cerrarla.
+        */}
+        <button className={estilos.cerrar} onClick={alCerrar} title="Cerrar la ficha">
+          <span aria-hidden="true">×</span>
+          <span className="visually-hidden">Cerrar la ficha</span>
+        </button>
         <span className={estilos.avatar} aria-hidden="true">
           {inicial(conversacion.contacto.nombre, conversacion.contacto.handle)}
+          <span className={`${estilos.canal} ${estilos[`canal_${conversacion.canal}`] ?? ''}`} />
         </span>
         <h2 className={estilos.nombre}>
           {conversacion.contacto.nombre ?? conversacion.contacto.handle ?? 'Sin nombre'}
@@ -120,6 +144,31 @@ export function PanelDeContacto({ api, conversacion, etiquetas, userId, alCambia
             );
           })}
         </ul>
+      </section>
+
+      {/*
+        La ficha se quedaba a medias: quién es y qué se hace con ella, pero
+        nada de cómo va. Estos tres datos ya viajan en el resumen de la
+        conversación —no cuestan una petición más— y son los que se miran
+        antes de escribir: por dónde llegó, cuándo escribió y si ya se le
+        contestó.
+      */}
+      <section className={estilos.seccion}>
+        <h3 className={estilos.titulo}>Actividad</h3>
+        <dl className={estilos.datos}>
+          <div className={estilos.dato}>
+            <dt>Canal</dt>
+            <dd>{CANAL[conversacion.canal] ?? conversacion.canal}</dd>
+          </div>
+          <div className={estilos.dato}>
+            <dt>Escribió</dt>
+            <dd>{horaCorta(conversacion.ultimoEntranteEn) || 'nunca'}</dd>
+          </div>
+          <div className={estilos.dato}>
+            <dt>Respondimos</dt>
+            <dd>{horaCorta(conversacion.ultimoSalienteEn) || 'todavía no'}</dd>
+          </div>
+        </dl>
       </section>
 
       {error && (

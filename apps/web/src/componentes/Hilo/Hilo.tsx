@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { Api } from '../../api/cliente.ts';
 import type { Mensaje, ResumenDeConversacion } from '../../api/tipos.ts';
-import { horaDeMensaje, inicial, ventana } from '../../vista/tiempo.ts';
+import { diaDeMensaje, horaDeMensaje, inicial, ventana } from '../../vista/tiempo.ts';
 import { Compositor } from '../Compositor/Compositor.tsx';
 import { CompositorDeComentario } from '../Compositor/CompositorDeComentario.tsx';
 import { Medio } from './Medio.tsx';
@@ -10,6 +10,11 @@ import estilos from './Hilo.module.css';
 interface Props {
   api: Api;
   conversacion: ResumenDeConversacion;
+  /** Si la ficha del contacto esta a la vista; el boton la alterna. */
+  fichaAbierta: boolean;
+  alAlternarFicha: () => void;
+  /** Volver a la lista. Solo se ve en movil, donde no caben las dos. */
+  alVolver: () => void;
   alCambiar: () => void;
 }
 
@@ -27,7 +32,14 @@ const ESTADO_MENSAJE: Record<string, string> = {
   failed: 'No se envió',
 };
 
-export function Hilo({ api, conversacion, alCambiar }: Props) {
+export function Hilo({
+  api,
+  conversacion,
+  fichaAbierta,
+  alAlternarFicha,
+  alVolver,
+  alCambiar,
+}: Props) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [cargando, setCargando] = useState(true);
   const [tic, setTic] = useState(0);
@@ -67,6 +79,10 @@ export function Hilo({ api, conversacion, alCambiar }: Props) {
   return (
     <div className={estilos.hilo}>
       <header className={estilos.cabecera}>
+        <button className={estilos.volver} onClick={alVolver} title="Volver a la lista">
+          <Galon />
+          <span className="visually-hidden">Volver a la lista</span>
+        </button>
         <span className={estilos.avatar} aria-hidden="true">
           {inicial(conversacion.contacto.nombre, conversacion.contacto.handle)}
         </span>
@@ -90,20 +106,41 @@ export function Hilo({ api, conversacion, alCambiar }: Props) {
             {v.texto}
           </span>
         )}
+        <button
+          className={`${estilos.detalles} ${fichaAbierta ? estilos.detallesActivo : ''}`}
+          aria-pressed={fichaAbierta}
+          aria-controls="panel-ficha"
+          onClick={alAlternarFicha}
+          title={fichaAbierta ? 'Ocultar la ficha del contacto' : 'Ver la ficha del contacto'}
+        >
+          <IconoFicha />
+          <span className={estilos.detallesTexto}>Detalles</span>
+        </button>
       </header>
 
       <div className={estilos.mensajes} role="log" aria-live="polite" aria-busy={cargando}>
         {!cargando && mensajes.length === 0 && (
           <p className={estilos.sinMensajes}>Todavía no hay mensajes.</p>
         )}
-        {mensajes.map((m, i) => (
-          <Burbuja
-            key={m.id}
-            m={m}
-            api={api}
-            agrupado={mensajes[i - 1]?.direccion === m.direccion}
-          />
-        ))}
+        {mensajes.map((m, i) => {
+          const anterior = mensajes[i - 1];
+          const dia = diaDeMensaje(m.creado_en);
+          const nuevoDia = !anterior || diaDeMensaje(anterior.creado_en) !== dia;
+          return (
+            <Fragment key={m.id}>
+              {nuevoDia && (
+                <div className={estilos.dia}>
+                  <span className={estilos.diaTexto}>{dia}</span>
+                </div>
+              )}
+              <Burbuja
+                m={m}
+                api={api}
+                agrupado={!nuevoDia && anterior?.direccion === m.direccion}
+              />
+            </Fragment>
+          );
+        })}
         <div ref={fondo} />
       </div>
 
@@ -150,5 +187,33 @@ function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean
         )}
       </footer>
     </article>
+  );
+}
+
+function Galon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M14 6l-6 6 6 6"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconoFicha() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="8.5" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M5 19.5c1.2-3.2 3.8-4.8 7-4.8s5.8 1.6 7 4.8"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

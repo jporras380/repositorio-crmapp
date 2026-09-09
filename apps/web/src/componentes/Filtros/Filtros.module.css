@@ -50,16 +50,26 @@
     border-color: var(--accent);
   }
 
+  /*
+   * Las cinco vistas no caben en una lista estrecha, y ahora el ancho lo
+   * decide el agente. Se recortaban contra el borde del panel —«Cer…»
+   * cortado a la mitad— porque `flex: 1 1 0` con `nowrap` no puede encoger
+   * por debajo de su texto. Con `wrap` pasan a dos filas: ocupa un poco mas
+   * de alto, pero no esconde ninguna vista ni obliga a descubrir que la tira
+   * se desplazaba.
+   */
   .vistas {
     display: flex;
     gap: var(--space-1);
     padding: 3px;
     border-radius: var(--radius-pill);
     background: var(--hairline);
+    flex-wrap: wrap;
   }
   .vista {
-    flex: 1 1 0;
-    padding: 0.35rem 0.5rem;
+    /* Crece si sobra sitio, nunca encoge por debajo de su texto. */
+    flex: 1 0 auto;
+    padding: 0.35rem 0.6rem;
     border-radius: var(--radius-pill);
     font-size: var(--text-sm);
     color: var(--fg-muted);

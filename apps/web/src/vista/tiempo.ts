@@ -35,6 +35,26 @@ export function horaDeMensaje(iso: string): string {
   return new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * Etiqueta del separador de dia dentro del hilo: «Hoy», «Ayer» o la fecha.
+ * Sin el separador, dos mensajes con la misma hora y tres dias de diferencia
+ * se leen como seguidos, que es el error de lectura mas caro de la bandeja.
+ */
+export function diaDeMensaje(iso: string, ahora: Date = new Date()): string {
+  const d = new Date(iso);
+  if (d.toDateString() === ahora.toDateString()) return 'Hoy';
+  const ayer = new Date(ahora);
+  ayer.setDate(ahora.getDate() - 1);
+  if (d.toDateString() === ayer.toDateString()) return 'Ayer';
+  const mismoAno = d.getFullYear() === ahora.getFullYear();
+  return d.toLocaleDateString('es', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    ...(mismoAno ? {} : { year: 'numeric' }),
+  });
+}
+
 export function inicial(nombre: string | null, handle: string | null): string {
   const base = (nombre ?? handle ?? '?').trim();
   return base.charAt(0).toUpperCase() || '?';
