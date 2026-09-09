@@ -15,7 +15,7 @@
  *   inválido siguen siendo un token inválido.
  */
 import type { Pool } from 'pg';
-import { withTenant } from '@crmapp/db';
+import { registrarUso, withTenant } from '@crmapp/db';
 import { ErrorDeCanal, type ChannelAdapter, type ResultadoDeEnvio } from '@crmapp/channels';
 import { escribirEnOutbox } from '@crmapp/queue';
 import type { Almacen } from '@crmapp/storage';
@@ -129,6 +129,22 @@ export async function enviarMensajeSaliente(
        ON CONFLICT (channel_account_id, external_message_id) DO NOTHING`,
       [tenantId, carga.channelAccountId, resultado.externalMessageId, carga.messageId, createdAt],
     );
+    // Medición: se cuenta lo ENTREGADO al proveedor, no lo encolado. Un
+    // mensaje que falla no consume.
+    await registrarUso(c, {
+      tenantId,
+      metric: 'messages.outbound',
+      dedupKey: `message:${carga.messageId}:outbound`,
+      meta: { channel: carga.canal, type: carga.peticion.tipo },
+    });
+    if (carga.peticion.tipo === 'template') {
+      await registrarUso(c, {
+        tenantId,
+        metric: 'templates.sent',
+        dedupKey: `message:${carga.messageId}:template`,
+        meta: { channel: carga.canal, nombre: carga.peticion.nombre },
+      });
+    }
     await escribirEnOutbox(c, {
       tenantId,
       aggregateType: 'message',

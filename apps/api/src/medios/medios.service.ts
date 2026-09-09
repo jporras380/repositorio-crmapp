@@ -7,6 +7,7 @@
  * es tuyo) y firma. Un proxy de imágenes por la API sería el primer cuello de
  * botella del producto y no aportaría nada.
  */
+import { registrarUso } from '@crmapp/db';
 import { claveDeMedio, tipoDeMedio, type Almacen } from '@crmapp/storage';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
@@ -124,10 +125,14 @@ export class MediosService {
     const almacen = this.#exigirAlmacen();
     this.#exigirContexto();
     return this.#db.enTransaccion(async (c) => {
-      const { rows } = await c.query<{ storage_key: string; mime: string; status: string }>(
-        `SELECT storage_key, mime, status FROM media_assets WHERE id = $1 FOR UPDATE`,
-        [mediaAssetId],
-      );
+      const { rows } = await c.query<{
+        storage_key: string;
+        mime: string;
+        status: string;
+        bytes: string | null;
+      }>(`SELECT storage_key, mime, status, bytes FROM media_assets WHERE id = $1 FOR UPDATE`, [
+        mediaAssetId,
+      ]);
       const m = rows[0];
       if (!m) throw new ErrorDeNegocio('medio_no_encontrado', 'El medio no existe.', 404);
       if (m.status !== 'stored') {
@@ -142,6 +147,13 @@ export class MediosService {
           `UPDATE media_assets SET status = 'stored', updated_at = now() WHERE id = $1`,
           [mediaAssetId],
         );
+        await registrarUso(c, {
+          tenantId: contextoActual()!.tenantId,
+          metric: 'media.stored_bytes',
+          quantity: Number(m.bytes ?? 0),
+          dedupKey: `media:${mediaAssetId}:stored`,
+          meta: { mime: m.mime, origen: 'subida' },
+        });
       }
       const url = await almacen.urlDeLectura(m.storage_key, 60 * 60);
       return { mediaAssetId, urlDeLectura: url, mime: m.mime };

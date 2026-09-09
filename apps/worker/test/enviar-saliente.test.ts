@@ -81,7 +81,9 @@ afterAll(async () => {
 
 beforeEach(async () => {
   sandbox = new AdaptadorSandbox({ canal: 'whatsapp' });
-  await admin.query('TRUNCATE messages, message_keys, outbox, media_assets CASCADE');
+  await admin.query(
+    'TRUNCATE messages, message_keys, outbox, media_assets, usage_events, usage_event_keys, usage_rollups CASCADE',
+  );
 });
 
 /** Inserta un saliente en `queued` como lo hace la API y devuelve su carga. */
@@ -186,6 +188,22 @@ describe('errores: reintentable decide el destino', () => {
     expect(await enviarMensajeSaliente({ pool: app, canales: canales() }, tenantId, carga)).toBe(
       'enviado',
     );
+  });
+});
+
+describe('medición', () => {
+  it('lo entregado suma messages.outbound; lo fallido no; el reintento no duplica', async () => {
+    const carga = await encolado();
+    await enviarMensajeSaliente({ pool: app, canales: canales() }, tenantId, carga);
+    await enviarMensajeSaliente({ pool: app, canales: canales() }, tenantId, carga);
+    const fallido = await encolado('x');
+    sandbox.programarFallo({ tipo: 'destinatario_invalido', reintentable: false });
+    await enviarMensajeSaliente({ pool: app, canales: canales() }, tenantId, fallido);
+    const r = await admin.query<{ quantity: string }>(
+      `SELECT quantity FROM usage_rollups WHERE tenant_id = $1 AND metric = 'messages.outbound'`,
+      [tenantId],
+    );
+    expect(r.rows[0]!.quantity).toBe('1');
   });
 });
 

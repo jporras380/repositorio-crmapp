@@ -25,6 +25,7 @@ import {
   arrancarRelay,
   type TrabajoDeEnvio,
   type TrabajoDeIngesta,
+  type TrabajoDeMantenimiento,
   type TrabajoDeMedia,
 } from '@crmapp/queue';
 import { Redis } from 'ioredis';
@@ -32,6 +33,7 @@ import { AlmacenS3, type Almacen } from '@crmapp/storage';
 import { marcarFallo, procesarEventoEntrante } from './procesar-entrante.js';
 import { enviarMensajeSaliente, type CargaDeEnvio } from './enviar-saliente.js';
 import { descargarMedia, type CargaDeMedia } from './descargar-media.js';
+import { INQUILINO_SISTEMA, precrearParticiones } from './mantenimiento.js';
 
 const config = cargarConfig();
 const log = crearLogger({ nivel: config.LOG_LEVEL, contexto: { proceso: 'worker' } });
@@ -41,6 +43,14 @@ const pool = new Pool({ connectionString: config.DATABASE_URL, max: config.DATAB
 const poolRelay = new Pool({
   connectionString: config.DATABASE_RELAY_URL ?? config.DATABASE_URL,
   max: 2,
+});
+
+// Mantenimiento con pool propio (mismo rol que el relay, una conexión): así
+// un relay ocupado sondeando el outbox nunca retrasa la precreación de
+// particiones, ni al revés. Cuesta una conexión.
+const poolMantenimiento = new Pool({
+  connectionString: config.DATABASE_RELAY_URL ?? config.DATABASE_URL,
+  max: 1,
 });
 
 const conexion = { url: config.REDIS_URL };
@@ -108,6 +118,44 @@ const colaMedia = new Queue(COLAS.media, {
   connection: conexion,
   defaultJobOptions: OPCIONES_POR_DEFECTO,
 });
+
+// --- Mantenimiento: particiones al arrancar y cada día ---------------------
+// Sin partición la inserción falla y la ingesta se cae (0001 no crea DEFAULT
+// a propósito). Al arrancar, por si el worker estuvo días parado; y a las
+// 03:00 UTC, que es cuando menos duele que falle y avise.
+const colaMantenimiento = new Queue<TrabajoDeMantenimiento>(COLAS.mantenimiento, {
+  connection: conexion,
+  defaultJobOptions: OPCIONES_POR_DEFECTO,
+});
+const trabajoDeParticiones: TrabajoDeMantenimiento = {
+  tenantId: INQUILINO_SISTEMA,
+  correlationId: 'mantenimiento',
+  tarea: 'precrear_particiones',
+};
+await colaMantenimiento.upsertJobScheduler(
+  'particiones-diarias',
+  { pattern: '0 3 * * *' },
+  { name: 'precrear_particiones', data: trabajoDeParticiones },
+);
+await colaMantenimiento.add('precrear_particiones', trabajoDeParticiones, {
+  jobId: `arranque-${Date.now()}`,
+});
+const workerMantenimiento = new Worker<TrabajoDeMantenimiento>(
+  COLAS.mantenimiento,
+  async (job) => {
+    if (job.data.tarea === 'precrear_particiones') {
+      const nombres = await precrearParticiones(poolMantenimiento, 3);
+      log.info('particiones aseguradas', { total: nombres.length });
+      return;
+    }
+    log.warn('tarea de mantenimiento sin implementar', { tarea: job.data.tarea });
+  },
+  { connection: conexion, concurrency: 1 },
+);
+workerMantenimiento.on('failed', (job, error) =>
+  // ARCH §13: que falle la precreación es caída de ingesta en diferido, no un aviso.
+  log.error('MANTENIMIENTO FALLIDO: revisar particiones', { jobId: job?.id, error }),
+);
 
 // --- Relay: outbox → BullMQ ------------------------------------------------
 const pararRelay = arrancarRelay({
@@ -250,12 +298,15 @@ const apagar = async () => {
   await worker.close();
   await Promise.all(workersDeSalida.map((w) => w.close()));
   await workerMedia.close();
+  await workerMantenimiento.close();
   await colaIngesta.close();
   await colaMedia.close();
+  await colaMantenimiento.close();
   await Promise.all(Object.values(colasDeSalida).map((q) => q.close()));
   await redis.quit();
   await pool.end();
   await poolRelay.end();
+  await poolMantenimiento.end();
   await poolAuth.end();
   process.exit(0);
 };

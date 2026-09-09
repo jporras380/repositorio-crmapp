@@ -15,6 +15,7 @@ import {
   bigint,
   boolean,
   customType,
+  date,
   index,
   integer,
   jsonb,
@@ -479,3 +480,38 @@ export const waTemplateVersions = pgTable('wa_template_versions', {
   rejectionReason: text('rejection_reason'),
   createdAt: creado,
 });
+
+// ---------------------------------------------------------------------------
+// Medición de uso (0013, ARCH §5.9)
+// ---------------------------------------------------------------------------
+
+/** Particionada por mes; PK (occurred_at, id). Solo inserción para la aplicación. */
+export const usageEvents = pgTable('usage_events', {
+  id: uuid('id').notNull(),
+  tenantId: uuid('tenant_id').notNull(),
+  metric: text('metric').notNull(),
+  quantity: bigint('quantity', { mode: 'number' }).notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  dedupKey: text('dedup_key').notNull(),
+  meta: jsonb('meta').notNull().default({}),
+});
+
+/** Clave de idempotencia sin particionar (ADR-006). */
+export const usageEventKeys = pgTable('usage_event_keys', {
+  dedupKey: text('dedup_key').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+});
+
+/** Agregado por inquilino, métrica y mes. La factura lee esto. */
+export const usageRollups = pgTable(
+  'usage_rollups',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    metric: text('metric').notNull(),
+    period: date('period').notNull(),
+    quantity: bigint('quantity', { mode: 'number' }).notNull().default(0),
+    updatedAt: actualizado,
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.metric, t.period] })],
+);

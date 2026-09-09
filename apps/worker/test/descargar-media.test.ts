@@ -65,7 +65,9 @@ afterAll(async () => {
 beforeEach(async () => {
   sandbox = new AdaptadorSandbox({ canal: 'whatsapp' });
   almacen = new AlmacenEnMemoria();
-  await admin.query('TRUNCATE media_assets, outbox CASCADE');
+  await admin.query(
+    'TRUNCATE media_assets, outbox, usage_events, usage_event_keys, usage_rollups CASCADE',
+  );
 });
 
 const deps = () => ({ pool: app, canales: new Map([['whatsapp', sandbox]]), almacen });
@@ -122,6 +124,12 @@ describe('descarga', () => {
     expect(await descargarMedia(deps(), tenantId, b)).toBe('reutilizado');
     expect((await fila(b.mediaAssetId)).storage_key).toBe((await fila(a.mediaAssetId)).storage_key);
     expect(almacen.objetos.size).toBe(1);
+    // Medición: los bytes reutilizados no se cuentan dos veces.
+    const bytes = await admin.query<{ quantity: string }>(
+      `SELECT quantity FROM usage_rollups WHERE tenant_id = $1 AND metric = 'media.stored_bytes'`,
+      [tenantId],
+    );
+    expect(Number(bytes.rows[0]!.quantity)).toBe(Number((await fila(a.mediaAssetId)).bytes));
 
     // Otro inquilino con bytes idénticos: copia propia. Compartir claves entre
     // inquilinos haría que el borrado por prefijo de uno rompiera al otro.

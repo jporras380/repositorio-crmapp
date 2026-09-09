@@ -13,7 +13,7 @@
  * contactos lo almacena una vez.
  */
 import type { Pool } from 'pg';
-import { withTenant } from '@crmapp/db';
+import { registrarUso, withTenant } from '@crmapp/db';
 import { ErrorDeCanal, type ChannelAdapter } from '@crmapp/channels';
 import { claveDeMedio, sha256De, type Almacen } from '@crmapp/storage';
 import { escribirEnOutbox } from '@crmapp/queue';
@@ -98,6 +98,16 @@ export async function descargarMedia(
       [carga.mediaAssetId, clave, descarga.mime, descarga.bytes, sha],
     );
     if ((r.rowCount ?? 0) === 0) return false;
+    // Solo los bytes que de verdad ocupan sitio: un medio reutilizado no suma.
+    if (!existente) {
+      await registrarUso(c, {
+        tenantId,
+        metric: 'media.stored_bytes',
+        quantity: descarga.bytes,
+        dedupKey: `media:${carga.mediaAssetId}:stored`,
+        meta: { mime: descarga.mime, origen: 'entrante' },
+      });
+    }
     await escribirEnOutbox(c, {
       tenantId,
       aggregateType: 'media_asset',

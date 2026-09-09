@@ -49,6 +49,7 @@ Una nota por módulo, con las decisiones que le afectan enlazadas. Se crean al e
 - [[facturacion]] — ciclo prueba → gracia → suspensión, y por qué la lógica vive en `core`.
 - [[medios]] — flujos de medios (ADR-009)
 - [[plantillas]] — HSM sincronizadas desde Meta y respuestas rápidas con versiones
+- [[uso]] — medición de uso (`usage_events`/`usage_rollups`) y precreación diaria de particiones
 - [[web]] — convenciones de la aplicación web (estilo en CSS aparte).
 
 Previstos: bandeja, plantillas, salesbots, ia, usuarios, facturacion, panel, integraciones.

@@ -52,6 +52,8 @@ Sin una cifra no puedo decidir entre réplica de lectura sí o no, Redis gestion
 Con el costo de mensajería fuera, ¿qué es consumo facturable? Referencia de Kommo, documentada en [[whatsapp]]: suscripción **por asiento** y la **IA como único consumo medido**, con packs de recarga; contactos, leads y campos son límites de plan, no consumo facturado. Es coherente — la IA es lo único donde también le pagamos a un proveedor — y simplifica mucho `usage_events`.
 *(Por defecto, si no hay respuesta: copiamos esa estructura.)*
 
+> **2026-09-09:** la **medición** ya existe (PR-16, [[uso]]): se registran hechos —mensajes, plantillas, conversaciones abiertas, bytes— sin cobrar ni bloquear. Lo que falta decidir es qué de eso es facturable y qué pasa al superar un límite del plan. Emitir era barato; retroactivar habría sido imposible.
+
 ### P-22 · ¿Librería de logging (pino) o el logger propio? *(lista de parada)*
 PR-3 trae un logger escrito a mano —JSON por línea, niveles, contexto heredado y redacción— porque añadir una librería de logging es una dependencia de peso y eso se pregunta antes.
 

@@ -12,7 +12,7 @@
  * fallido con su error para reintentarlo.
  */
 import type { Pool, PoolClient } from 'pg';
-import { withTenant } from '@crmapp/db';
+import { registrarUso, withTenant } from '@crmapp/db';
 import {
   capacidades,
   expiracionTrasMensaje,
@@ -264,6 +264,26 @@ async function procesarMensaje(
     ],
   );
 
+  // Medición (ARCH §5.9): en la misma transacción que el hecho. Una
+  // conversación cuenta como abierta cuando se crea o cuando un entrante la
+  // reabre desde `closed`; un contacto que sigue escribiendo no suma.
+  await registrarUso(c, {
+    tenantId: fila.tenant_id,
+    metric: 'messages.inbound',
+    dedupKey: `message:${messageId}:inbound`,
+    occurredAt: createdAt,
+    meta: { channel: fila.channel, type: evento.tipo },
+  });
+  if (conversacion.status === 'nueva' || conversacion.status === 'closed') {
+    await registrarUso(c, {
+      tenantId: fila.tenant_id,
+      metric: 'conversations.opened',
+      dedupKey: `conversation:${conversacion.id}:opened:${messageId}`,
+      occurredAt: createdAt,
+      meta: { channel: fila.channel, reabierta: conversacion.status === 'closed' },
+    });
+  }
+
   if (mediaAssetId) {
     await escribirEnOutbox(c, {
       tenantId: fila.tenant_id,
@@ -385,6 +405,8 @@ async function resolverIdentidad(
 interface Conversacion {
   id: string;
   session_expires_at: Date | null;
+  /** Estado ANTES de este mensaje; `nueva` si se acaba de crear. */
+  status: string;
 }
 
 /** Devuelve la conversación abierta de la identidad, o crea una. */
@@ -394,7 +416,7 @@ async function resolverConversacion(
   identidad: Identidad,
 ): Promise<Conversacion> {
   const abierta = await c.query<Conversacion>(
-    `SELECT id, session_expires_at FROM conversations
+    `SELECT id, session_expires_at, status FROM conversations
       WHERE contact_identity_id = $1 AND status <> 'closed'
       ORDER BY created_at DESC LIMIT 1
       FOR UPDATE`,
@@ -406,7 +428,7 @@ async function resolverConversacion(
   // historial del contacto sigue siendo un solo hilo, que es lo que un agente
   // espera ver.
   const cerrada = await c.query<Conversacion>(
-    `SELECT id, session_expires_at FROM conversations
+    `SELECT id, session_expires_at, status FROM conversations
       WHERE contact_identity_id = $1
       ORDER BY created_at DESC LIMIT 1
       FOR UPDATE`,
@@ -421,7 +443,7 @@ async function resolverConversacion(
      VALUES ($1, $2, $3, $4, $5, 'dm', 'open')`,
     [id, fila.tenant_id, identidad.identityId, identidad.contactId, fila.channel_account_id],
   );
-  return { id, session_expires_at: null };
+  return { id, session_expires_at: null, status: 'nueva' };
 }
 
 /**

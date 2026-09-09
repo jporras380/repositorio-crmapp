@@ -99,7 +99,8 @@ beforeEach(async () => {
   // fusiones. Enumerarlas a mano se rompe en la primera tabla nueva.
   await admin.query(
     `TRUNCATE inbound_events, outbox, messages, message_keys, conversations,
-              contact_identities, contacts, media_assets, wa_templates CASCADE`,
+              contact_identities, contacts, media_assets, wa_templates,
+              usage_events, usage_event_keys, usage_rollups CASCADE`,
   );
 });
 
@@ -244,6 +245,30 @@ describe('mensaje nuevo', () => {
     );
     expect(t.rows[0]).toMatchObject({ status: 'rechazada', rejection_reason: 'INVALID_FORMAT' });
     expect(t.rows[0]!.current_version_id).toBeTruthy();
+  });
+
+  it('mide: cada entrante suma messages.inbound; la conversación se cuenta al abrirse o reabrirse', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.u1')]));
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.u2')]));
+    const uso = async (metric: string) =>
+      (
+        await admin.query<{ quantity: string }>(
+          `SELECT quantity FROM usage_rollups WHERE tenant_id = $1 AND metric = $2`,
+          [tenantId, metric],
+        )
+      ).rows[0]?.quantity ?? '0';
+    expect(await uso('messages.inbound')).toBe('2');
+    expect(await uso('conversations.opened')).toBe('1');
+
+    // Se cierra y vuelve a escribir: reapertura, suma una.
+    await admin.query(`UPDATE conversations SET status = 'closed'`);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.u3')]));
+    expect(await uso('conversations.opened')).toBe('2');
+    expect(await uso('messages.inbound')).toBe('3');
+
+    // Un reenvío duplicado no suma.
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.u3')]));
+    expect(await uso('messages.inbound')).toBe('3');
   });
 
   it('un texto no crea media_asset aunque el proveedor mande mediaId vacío', async () => {

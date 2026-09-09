@@ -21,6 +21,7 @@ import {
   TOKEN_MEDIOS,
   TOKEN_PLANTILLAS,
   TOKEN_ADAPTADORES,
+  TOKEN_USO,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -42,6 +43,8 @@ import {
   PlantillasWhatsappController,
   RespuestasRapidasController,
 } from './plantillas/plantillas.controller.js';
+import { UsoService } from './uso/uso.service.js';
+import { UsoController } from './uso/uso.controller.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -96,6 +99,7 @@ export class AppModule {
         MediosController,
         PlantillasWhatsappController,
         RespuestasRapidasController,
+        UsoController,
       ],
       providers: [
         {
@@ -208,6 +212,12 @@ export class AppModule {
               almacen: opciones.almacen ?? (opciones.s3 ? new AlmacenS3(opciones.s3) : null),
             }),
         },
+        {
+          provide: TOKEN_USO,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) =>
+            new UsoService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
+        },
         AuthGuard,
       ],
       exports: [
@@ -219,6 +229,7 @@ export class AppModule {
         TOKEN_CIFRADOR,
         TOKEN_MEDIOS,
         TOKEN_PLANTILLAS,
+        TOKEN_USO,
       ],
     };
   }
