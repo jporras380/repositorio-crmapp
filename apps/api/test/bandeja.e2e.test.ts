@@ -173,6 +173,49 @@ describe('listado y filtros', () => {
       .expect(204);
   });
 
+  it('GET /v1/etiquetas lista las de la cuenta con su color, y otra cuenta no las ve', async () => {
+    const creada = await http
+
+      .post('/v1/etiquetas')
+
+      .set(auth())
+
+      .send({ nombre: 'Prioridad', color: '#ff9500' })
+
+      .expect(201);
+
+    const r = await http.get('/v1/etiquetas').set(auth()).expect(200);
+
+    expect(r.body).toEqual(
+      expect.arrayContaining([{ id: creada.body.id, nombre: 'Prioridad', color: '#ff9500' }]),
+    );
+
+    const otra = await http
+
+      .post('/v1/cuentas')
+
+      .send({
+        nombreDeCuenta: 'Otra',
+
+        slug: 'otra-etiquetas',
+
+        email: 'otra-etiquetas@test.test',
+
+        contrasena: 'contrasena-muy-larga',
+
+        nombreCompleto: 'Otra',
+      })
+
+      .expect(201);
+
+    const ajena = await http
+      .get('/v1/etiquetas')
+      .set({ Authorization: `Bearer ${otra.body.token}` })
+      .expect(200);
+
+    expect(ajena.body).toEqual([]);
+  });
+
   it('lista ordenada por último entrante, con vista previa y etiquetas con color', async () => {
     const r = await http.get('/v1/conversaciones').set(auth()).expect(200);
     const ids = r.body.items.map((i: { id: string }) => i.id);

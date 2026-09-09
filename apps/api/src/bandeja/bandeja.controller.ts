@@ -133,6 +133,11 @@ export class BandejaController {
     await conContextoDePeticion(req, () => this.bandeja.cambiarVisibilidad(modo));
   }
 
+  @Get('etiquetas')
+  listarEtiquetas(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.bandeja.listarEtiquetas());
+  }
+
   @Post('etiquetas')
   @HttpCode(201)
   crearEtiqueta(@Req() req: Req, @Body() body: unknown) {

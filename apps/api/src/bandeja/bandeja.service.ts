@@ -519,6 +519,17 @@ export class BandejaService {
     });
   }
 
+  /** Etiquetas de la cuenta, para el filtro de primer nivel de la bandeja (Zenvia). */
+  async listarEtiquetas(): Promise<{ id: string; nombre: string; color: string | null }[]> {
+    this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{ id: string; nombre: string; color: string | null }>(
+        `SELECT id, name AS nombre, color FROM tags ORDER BY name`,
+      );
+      return rows;
+    });
+  }
+
   async crearEtiqueta(nombre: string, color: string | null): Promise<{ id: string }> {
     const ctx = this.#exigirContexto();
     return this.#db.enTransaccion(async (c) => {
