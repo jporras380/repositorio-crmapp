@@ -205,7 +205,7 @@ describe('modo team', () => {
     await http
       .post(`/v1/conversaciones/${ajena}/mensajes`)
       .set(auth(tokenAgente))
-      .send({ tipo: 'texto', texto: 'x' })
+      .send({ tipo: 'text', texto: 'x' })
       .expect(404);
   });
 

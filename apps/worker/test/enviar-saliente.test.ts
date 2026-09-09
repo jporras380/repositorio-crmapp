@@ -100,7 +100,7 @@ async function encolado(texto = 'hola'): Promise<CargaDeEnvio> {
       channelAccountId,
       canal: 'whatsapp',
       externalUserId: 'wa-ana',
-      peticion: { tipo: 'texto', texto },
+      peticion: { tipo: 'text', texto },
     };
   });
 }

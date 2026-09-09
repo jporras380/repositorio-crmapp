@@ -70,6 +70,20 @@ Investigado el 2026-09-07 sobre documentación pública de Kommo. No es experien
 - **Límite inicial de 250 conversaciones diarias** por número nuevo, que sube a 1.000 tras verificar el portafolio.
 - **Estructura comercial de Kommo**, como referencia para el módulo de facturación: suscripción **por asiento** ($25 / $35 / $45 por usuario/mes, mínimo 6 meses), y **la IA como único consumo medido**, con packs de recarga de créditos. Contactos, leads y campos personalizados son límites de plan, no consumo facturado. Coherente: la IA es lo único donde ellos también le pagan a un proveedor.
 
+## Códigos de error de Cloud API que decide el adaptador
+
+Tomados de la documentación y codificados en `AdaptadorWhatsapp`. Lo importante es `reintentable`:
+
+| Código | Significado | Reintentable |
+|---|---|---|
+| 190 / HTTP 401 | Token inválido o caducado | No |
+| 4, 80007, 130429, 131056, HTTP 429 | Límite de tasa | Sí, respeta `Retry-After` |
+| 131047 | Fuera de la ventana de 24 h | No — hay que usar plantilla |
+| 131021, 131026, 131030 | Destinatario inválido o no alcanzable | No |
+| 132000–132015 | Plantilla no aprobada / parámetros | No |
+| 131052, 131053 | Medio inválido o demasiado grande | No |
+| 1, 2, 131000, 131016, HTTP 5xx | Fallo temporal de Meta | Sí |
+
 ## Aprendizajes propios verificados
 
 Ninguno todavía. Esta sección se llena cuando toquemos la API de verdad, y es la parte de esta nota que más va a valer dentro de tres meses.

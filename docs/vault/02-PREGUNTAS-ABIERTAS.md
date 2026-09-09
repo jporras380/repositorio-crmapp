@@ -65,10 +65,6 @@ Lo que gana pino: transportes, rendimiento medido, muestreo, y no mantener códi
 La ficha de Kommo muestra campos definidos por el cliente (presupuesto, dirección de entrega, razón de pérdida…). `contacts.attributes` cubre los del contacto; falta decidir si la conversación/lead necesita los suyos y si se definen con un esquema por inquilino. *(Por defecto: `jsonb` en la conversación con esquema declarado por inquilino, validado en la API.)*
 
 
-### P-24 · Vocabulario de tipos de mensaje: español en el contrato, inglés en la base
-`TipoDeMensaje` del contrato de canal usa `texto`, `imagen`…; la columna `messages.type` usa `text`, `image`… por la regla "inglés en tablas y variables". Hoy la traducción vive en un solo sitio del worker (`TIPO_EN_BASE`) y falla ruidosa ante un tipo desconocido. Dos vocabularios para lo mismo son deuda: **se unifica antes del primer canal real**, que es cuando el contrato entra en la lista de parada. *(Por defecto: el contrato pasa a inglés, porque los valores de un tipo son identificadores de código.)*
-
-
 ### P-23 · CSS Modules o CSS plano
 Convención fijada por el usuario el 2026-09-09: todo el estilo en CSS aparte, nada en línea ni CSS-in-JS. Queda elegir entre CSS Modules (aislamiento automático de nombres) o CSS plano con convención tipo BEM. Ambas cumplen la regla. Se decide al escribir el primer componente. Ver [[web]].
 
@@ -90,5 +86,6 @@ La versión original de esta pregunta asumía que el cliente compararía nuestro
 | R-01 | Alcance del PR-0 | Vault + `git init`, sin andamiaje de monorepo | 2026-09-07 |
 | R-02 | Skills a instalar | `claude-security`, `frontend-design`, `feature-dev` | 2026-09-07 |
 | **P-01** | Modelo de conexión a WhatsApp | **BYO-credentials.** Tech Provider con Embedded Signup queda como destino documentado, no como compromiso. Ver [[ADR-004-modelo-whatsapp]] | 2026-09-07 |
+| **P-24** | Vocabulario de tipos de mensaje | **Inglés en el contrato** (`text`, `image`…). Los valores de un tipo son identificadores de código. Los mapas de traducción desaparecen | 2026-09-09 |
 | **P-09** | Visibilidad entre agentes | **Configurable por cuenta, `all` por defecto** (como Kommo); `team` y `assigned` disponibles. Solo restringe al rol `agent`. Ver [[ADR-008-visibilidad-entre-agentes]] | 2026-09-09 |
 | **P-02** | Repercutir o absorber el costo de mensajería | **Disuelta.** El cliente paga a Meta directamente: no hay nada que repercutir. Sale de la lista de parada; se elimina el módulo de wallet del roadmap. Lo que queda es P-21 | 2026-09-07 |

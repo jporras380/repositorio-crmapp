@@ -121,7 +121,7 @@ const mensaje = (externalMessageId: string, extra: Record<string, unknown> = {})
   clase: 'mensaje',
   externalMessageId,
   externalUserId: 'wa-ana',
-  tipo: 'texto',
+  tipo: 'text',
   texto: 'hola',
   nombre: 'Ana',
   telefono: '+34600111222',

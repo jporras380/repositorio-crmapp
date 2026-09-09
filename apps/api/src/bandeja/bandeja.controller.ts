@@ -36,14 +36,14 @@ const Paginacion = z.object({
 });
 
 const Envio: z.ZodType<PeticionDeEnvio> = z.discriminatedUnion('tipo', [
-  z.object({ tipo: z.literal('texto'), texto: z.string().min(1).max(4096) }),
+  z.object({ tipo: z.literal('text'), texto: z.string().min(1).max(4096) }),
   z.object({
-    tipo: z.enum(['imagen', 'video', 'audio', 'documento']),
+    tipo: z.enum(['image', 'video', 'audio', 'document']),
     url: z.string().url(),
     pieDeFoto: z.string().max(1024).optional(),
   }),
   z.object({
-    tipo: z.literal('plantilla'),
+    tipo: z.literal('template'),
     nombre: z.string().min(1),
     idioma: z.string().min(2).max(10),
     parametros: z.array(z.string()).max(20),

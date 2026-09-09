@@ -55,32 +55,6 @@ interface FilaEntrante {
   attempts: number;
 }
 
-/**
- * Vocabulario del contrato de canal (español) → columna `messages.type`
- * (inglés, por la regla "inglés en tablas y variables").
- *
- * Dos vocabularios para lo mismo es una deuda: queda anotada (P-24) para
- * unificarla antes del primer canal real, que es cuando el contrato entra en
- * la lista de parada. Mientras tanto, la traducción vive en UN sitio y falla
- * ruidosa ante un tipo desconocido en vez de guardar basura.
- */
-const TIPO_EN_BASE: Record<string, string> = {
-  texto: 'text',
-  imagen: 'image',
-  video: 'video',
-  audio: 'audio',
-  documento: 'document',
-  sticker: 'sticker',
-  ubicacion: 'location',
-  plantilla: 'template',
-};
-
-function tipoEnBase(tipo: string): string {
-  const t = TIPO_EN_BASE[tipo];
-  if (!t) throw new Error(`Tipo de mensaje desconocido: "${tipo}".`);
-  return t;
-}
-
 /** Orden de los estados de entrega. Un estado nunca retrocede. */
 const ORDEN_ESTADO: Record<string, number> = { queued: 0, sent: 1, delivered: 2, read: 3 };
 
@@ -259,7 +233,7 @@ async function procesarMensaje(
       fila.tenant_id,
       conversacion.id,
       fila.channel_account_id,
-      tipoEnBase(evento.tipo),
+      evento.tipo,
       evento.texto ?? null,
       JSON.stringify({
         proveedor: { ocurridoEn: evento.ocurridoEn.toISOString(), mediaId: evento.mediaId ?? null },

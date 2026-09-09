@@ -72,24 +72,24 @@ export class AdaptadorSandbox implements ChannelAdapter {
     return {
       canal: this.canal,
       tiposSoportados: [
-        'texto',
-        'imagen',
+        'text',
+        'image',
         'video',
         'audio',
-        'documento',
+        'document',
         'sticker',
-        'ubicacion',
-        'plantilla',
+        'location',
+        'template',
       ],
       soportaPlantillas: true,
       soportaComentarios: false,
       respuestasPrivadasPorComentario: null,
       requiereUrlPublicaParaMedios: false,
       limitesDeMedios: {
-        imagen: 5 * MB,
+        image: 5 * MB,
         video: 16 * MB,
         audio: 16 * MB,
-        documento: 100 * MB,
+        document: 100 * MB,
         sticker: 500 * 1024,
       },
       longitudMaximaTexto: 4096,
@@ -142,8 +142,8 @@ export class AdaptadorSandbox implements ChannelAdapter {
 
   async sendText(envio: EnvioDeTexto): Promise<ResultadoDeEnvio> {
     this.#comprobarFallo();
-    this.#validar('texto', { longitudTexto: envio.texto.length });
-    return this.#registrar('texto', envio.externalUserId, { texto: envio.texto });
+    this.#validar('text', { longitudTexto: envio.texto.length });
+    return this.#registrar('text', envio.externalUserId, { texto: envio.texto });
   }
 
   async sendMedia(envio: EnvioDeMedia): Promise<ResultadoDeEnvio> {
@@ -158,7 +158,7 @@ export class AdaptadorSandbox implements ChannelAdapter {
 
   async sendTemplate(envio: EnvioDePlantilla): Promise<ResultadoDeEnvio> {
     this.#comprobarFallo();
-    this.#validar('plantilla', {});
+    this.#validar('template', {});
 
     const conocida = this.#plantillas.find(
       (p) => p.nombre === envio.nombre && p.idioma === envio.idioma,
@@ -174,7 +174,7 @@ export class AdaptadorSandbox implements ChannelAdapter {
       );
     }
 
-    return this.#registrar('plantilla', envio.externalUserId, {
+    return this.#registrar('template', envio.externalUserId, {
       nombre: envio.nombre,
       parametros: envio.parametros,
     });

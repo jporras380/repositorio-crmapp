@@ -175,12 +175,12 @@ describe('evaluarEnvio', () => {
   const suspendida = desplazar(enPrueba.pruebaHasta!, dias(20));
 
   it('en gracia deja pasar el texto', () => {
-    const d = evaluarEnvio(enPrueba, { tipo: 'texto', origen: 'human' }, enGracia);
+    const d = evaluarEnvio(enPrueba, { tipo: 'text', origen: 'human' }, enGracia);
     expect(d.permitido).toBe(true);
     expect(d.estado).toBe('gracia');
   });
 
-  it.each(['imagen', 'video', 'audio', 'documento', 'sticker'] as const)(
+  it.each(['image', 'video', 'audio', 'document', 'sticker'] as const)(
     'en gracia bloquea %s',
     (tipo) => {
       const d = evaluarEnvio(enPrueba, { tipo, origen: 'human' }, enGracia);
@@ -193,33 +193,33 @@ describe('evaluarEnvio', () => {
   );
 
   it('en gracia bloquea plantillas, porque pueden llevar medios en la cabecera', () => {
-    const d = evaluarEnvio(enPrueba, { tipo: 'plantilla', origen: 'human' }, enGracia);
+    const d = evaluarEnvio(enPrueba, { tipo: 'template', origen: 'human' }, enGracia);
     expect(d.permitido).toBe(false);
     expect(d.motivo).toBe('plantillas_no_permitidas_en_gracia');
   });
 
   it('en gracia los bots están detenidos aunque envíen texto', () => {
-    const d = evaluarEnvio(enPrueba, { tipo: 'texto', origen: 'bot' }, enGracia);
+    const d = evaluarEnvio(enPrueba, { tipo: 'text', origen: 'bot' }, enGracia);
     expect(d.permitido).toBe(false);
     expect(d.motivo).toBe('bots_detenidos');
   });
 
   it('en gracia la IA está detenida', () => {
     // Cuesta dinero nuestro en tokens: gasto sin ingreso.
-    const d = evaluarEnvio(enPrueba, { tipo: 'texto', origen: 'ai' }, enGracia);
+    const d = evaluarEnvio(enPrueba, { tipo: 'text', origen: 'ai' }, enGracia);
     expect(d.permitido).toBe(false);
     expect(d.motivo).toBe('ia_detenida');
   });
 
   it('suspendida no deja pasar ni el texto', () => {
-    const d = evaluarEnvio(enPrueba, { tipo: 'texto', origen: 'human' }, suspendida);
+    const d = evaluarEnvio(enPrueba, { tipo: 'text', origen: 'human' }, suspendida);
     expect(d.permitido).toBe(false);
     expect(d.motivo).toBe('suscripcion_suspendida');
     expect(d.mensaje).toMatch(/exportar tu historial/i);
   });
 
   it('durante la prueba pasa todo', () => {
-    for (const tipo of ['texto', 'imagen', 'video', 'plantilla'] as const) {
+    for (const tipo of ['text', 'image', 'video', 'template'] as const) {
       expect(evaluarEnvio(enPrueba, { tipo, origen: 'human' }, T0).permitido).toBe(true);
     }
   });

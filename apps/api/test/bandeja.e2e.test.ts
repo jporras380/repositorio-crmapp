@@ -249,7 +249,7 @@ describe('la puerta de envío (ARCH §9)', () => {
     const r = await http
       .post(`/v1/conversaciones/${conv}/mensajes`)
       .set(auth())
-      .send({ tipo: 'texto', texto: 'Hola Diego' })
+      .send({ tipo: 'text', texto: 'Hola Diego' })
       .expect(202);
     expect(r.body.estado).toBe('queued');
 
@@ -288,7 +288,7 @@ describe('la puerta de envío (ARCH §9)', () => {
     await http
       .post(`/v1/conversaciones/${conv}/mensajes`)
       .set(auth())
-      .send({ tipo: 'texto', texto: 'x' })
+      .send({ tipo: 'text', texto: 'x' })
       .expect(202);
     const despues = (
       await admin.query<{ session_expires_at: Date }>(
@@ -304,7 +304,7 @@ describe('la puerta de envío (ARCH §9)', () => {
     const r = await http
       .post(`/v1/conversaciones/${conv}/mensajes`)
       .set(auth())
-      .send({ tipo: 'texto', texto: 'tarde' })
+      .send({ tipo: 'text', texto: 'tarde' })
       .expect(409);
     expect(r.body.codigo).toBe('fuera_de_ventana');
     expect(r.body.plantillasSugeridas).toEqual([]);
@@ -315,7 +315,7 @@ describe('la puerta de envío (ARCH §9)', () => {
     await http
       .post(`/v1/conversaciones/${conv}/mensajes`)
       .set(auth())
-      .send({ tipo: 'plantilla', nombre: 'recordatorio', idioma: 'es', parametros: ['Gema'] })
+      .send({ tipo: 'template', nombre: 'recordatorio', idioma: 'es', parametros: ['Gema'] })
       .expect(202);
   });
 
@@ -326,7 +326,7 @@ describe('la puerta de envío (ARCH §9)', () => {
     const r = await http
       .post(`/v1/conversaciones/${conv}/mensajes`)
       .set(auth())
-      .send({ tipo: 'texto', texto: 'a'.repeat(5000) })
+      .send({ tipo: 'text', texto: 'a'.repeat(5000) })
       .expect(400);
     expect(r.body.codigo).toBe('datos_invalidos');
   });
@@ -341,7 +341,7 @@ describe('la puerta de envío (ARCH §9)', () => {
     const r = await http
       .post(`/v1/conversaciones/${conv}/mensajes`)
       .set(auth())
-      .send({ tipo: 'texto', texto: 'x' })
+      .send({ tipo: 'text', texto: 'x' })
       .expect(409);
     expect(r.body.codigo).toBe('conversacion_cerrada');
   });
@@ -360,12 +360,12 @@ describe('la puerta de envío (ARCH §9)', () => {
       await http
         .post(`/v1/conversaciones/${conv}/mensajes`)
         .set(auth())
-        .send({ tipo: 'texto', texto: 'texto permitido' })
+        .send({ tipo: 'text', texto: 'texto permitido' })
         .expect(202);
       const r = await http
         .post(`/v1/conversaciones/${conv}/mensajes`)
         .set(auth())
-        .send({ tipo: 'imagen', url: 'https://ejemplo.test/foto.jpg' })
+        .send({ tipo: 'image', url: 'https://ejemplo.test/foto.jpg' })
         .expect(402);
       expect(r.body.codigo).toBe('suscripcion_medios_no_permitidos_en_gracia');
       expect(r.body.mensaje).toMatch(/solo se pueden enviar mensajes de texto/i);
@@ -386,7 +386,7 @@ describe('la puerta de envío (ARCH §9)', () => {
       const r = await http
         .post(`/v1/conversaciones/${conv}/mensajes`)
         .set(auth())
-        .send({ tipo: 'texto', texto: 'x' })
+        .send({ tipo: 'text', texto: 'x' })
         .expect(402);
       expect(r.body.codigo).toBe('suscripcion_suscripcion_suspendida');
     } finally {

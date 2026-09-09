@@ -62,13 +62,13 @@ export interface ResumenDeConversacion {
 }
 
 export type PeticionDeEnvio =
-  | { tipo: 'texto'; texto: string }
+  | { tipo: 'text'; texto: string }
   | {
-      tipo: 'imagen' | 'video' | 'audio' | 'documento';
+      tipo: 'image' | 'video' | 'audio' | 'document';
       url: string;
       pieDeFoto?: string | undefined;
     }
-  | { tipo: 'plantilla'; nombre: string; idioma: string; parametros: string[] };
+  | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] };
 
 export interface MensajeEncolado {
   id: string;
@@ -84,16 +84,6 @@ export interface OpcionesDeBandeja {
 
 const LIMITE_POR_DEFECTO = 30;
 const LIMITE_MAXIMO = 100;
-
-/** Traducción del vocabulario del contrato a `messages.type`. Ver P-24. */
-const TIPO_EN_BASE: Record<string, string> = {
-  texto: 'text',
-  imagen: 'image',
-  video: 'video',
-  audio: 'audio',
-  documento: 'document',
-  plantilla: 'template',
-};
 
 export class BandejaService {
   readonly #db: BaseDeDatos;
@@ -295,7 +285,7 @@ export class BandejaService {
 
       // 4. Ventana de sesión. Las plantillas son la excepción: existen
       //    precisamente para hablar fuera de ventana.
-      if (peticion.tipo !== 'plantilla' && !ventanaAbierta(conv.session_expires_at, ahora)) {
+      if (peticion.tipo !== 'template' && !ventanaAbierta(conv.session_expires_at, ahora)) {
         throw new ErrorDeNegocio(
           'fuera_de_ventana',
           'La ventana de 24 horas está cerrada. Solo se puede enviar una plantilla aprobada.',
@@ -308,18 +298,18 @@ export class BandejaService {
       // 5. Capacidades del canal. Se pregunta, no se asume (ARCH §8).
       const error = validarContraCapacidades(capacidades, {
         tipo: peticion.tipo as TipoDeMensaje,
-        ...(peticion.tipo === 'texto' ? { longitudTexto: peticion.texto.length } : {}),
+        ...(peticion.tipo === 'text' ? { longitudTexto: peticion.texto.length } : {}),
       });
       if (error) throw new ErrorDeNegocio(`canal_${error.tipo}`, error.message, 422);
 
       // 6. Insertar en `queued` y encolar por el outbox. Sin RETURNING.
       const messageId = await this.#db.nuevoId(c);
       const createdAt = ahora;
-      const texto = peticion.tipo === 'texto' ? peticion.texto : null;
+      const texto = peticion.tipo === 'text' ? peticion.texto : null;
       const payload =
-        peticion.tipo === 'texto'
+        peticion.tipo === 'text'
           ? {}
-          : peticion.tipo === 'plantilla'
+          : peticion.tipo === 'template'
             ? {
                 plantilla: {
                   nombre: peticion.nombre,
@@ -339,7 +329,7 @@ export class BandejaService {
           ctx.tenantId,
           conv.id,
           conv.channel_account_id,
-          TIPO_EN_BASE[peticion.tipo],
+          peticion.tipo,
           texto,
           JSON.stringify(payload),
           ctx.userId,

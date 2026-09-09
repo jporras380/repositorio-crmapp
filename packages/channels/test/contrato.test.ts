@@ -61,17 +61,17 @@ describe('validacion contra capacidades', () => {
     await expect(
       canal.sendMedia({
         ...destino,
-        tipo: 'imagen',
+        tipo: 'image',
         origen: { tipo: 'buffer', datos: grande, mime: 'image/jpeg' },
       }),
-    ).rejects.toThrow(/límite de whatsapp para "imagen" es/i);
+    ).rejects.toThrow(/límite de whatsapp para "image" es/i);
   });
 
   it('acepta un medio dentro del limite', async () => {
     const ok = Buffer.alloc(1024);
     const r = await canal.sendMedia({
       ...destino,
-      tipo: 'imagen',
+      tipo: 'image',
       origen: { tipo: 'buffer', datos: ok, mime: 'image/jpeg' },
     });
     expect(r.externalMessageId).toBeTruthy();
@@ -98,8 +98,8 @@ describe('validacion contra capacidades', () => {
   it('validarContraCapacidades funciona sin adaptador', () => {
     // Es una funcion pura: el nucleo puede validar antes de encolar nada.
     const caps = canal.capacidades();
-    expect(validarContraCapacidades(caps, { tipo: 'texto', longitudTexto: 10 })).toBeNull();
-    const error = validarContraCapacidades(caps, { tipo: 'imagen', bytes: 99 * 1024 * 1024 });
+    expect(validarContraCapacidades(caps, { tipo: 'text', longitudTexto: 10 })).toBeNull();
+    const error = validarContraCapacidades(caps, { tipo: 'image', bytes: 99 * 1024 * 1024 });
     expect(error?.tipo).toBe('medio_demasiado_grande');
     expect(error?.reintentable).toBe(false);
   });

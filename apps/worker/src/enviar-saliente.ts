@@ -27,13 +27,13 @@ export interface CargaDeEnvio {
   canal: string;
   externalUserId: string;
   peticion:
-    | { tipo: 'texto'; texto: string }
+    | { tipo: 'text'; texto: string }
     | {
-        tipo: 'imagen' | 'video' | 'audio' | 'documento';
+        tipo: 'image' | 'video' | 'audio' | 'document';
         url: string;
         pieDeFoto?: string | undefined;
       }
-    | { tipo: 'plantilla'; nombre: string; idioma: string; parametros: string[] };
+    | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] };
 }
 
 export interface DependenciasDeEnvio {
@@ -141,9 +141,9 @@ async function entregar(adaptador: ChannelAdapter, carga: CargaDeEnvio): Promise
   };
   const p = carga.peticion;
   switch (p.tipo) {
-    case 'texto':
+    case 'text':
       return adaptador.sendText({ ...destino, texto: p.texto });
-    case 'plantilla':
+    case 'template':
       return adaptador.sendTemplate({
         ...destino,
         nombre: p.nombre,

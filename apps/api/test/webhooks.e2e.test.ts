@@ -109,7 +109,7 @@ const cuerpoValido = (texto = 'hola') =>
         clase: 'mensaje',
         externalMessageId: 'wamid.ABC123',
         externalUserId: 'wa-user-1',
-        tipo: 'texto',
+        tipo: 'text',
         texto,
         nombre: 'Ana',
       },
@@ -302,7 +302,7 @@ describe('la firma se calcula sobre los BYTES CRUDOS', () => {
           clase: 'mensaje',
           externalMessageId: 'wamid.UNICODE',
           externalUserId: 'u1',
-          tipo: 'texto',
+          tipo: 'text',
           texto: 'Hola 👋 ñandú — "comillas" y \\ barras',
         },
       ],
@@ -375,7 +375,7 @@ describe('payload malformado', () => {
       cuenta: 'pn-999',
       eventos: [
         { clase: 'tipo_del_futuro', algo: 1 },
-        { clase: 'mensaje', externalMessageId: 'wamid.OK', externalUserId: 'u', tipo: 'texto' },
+        { clase: 'mensaje', externalMessageId: 'wamid.OK', externalUserId: 'u', tipo: 'text' },
       ],
     });
     const r = await http

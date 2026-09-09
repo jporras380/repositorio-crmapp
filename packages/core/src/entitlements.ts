@@ -196,9 +196,9 @@ export function capacidades(s: Suscripcion, ahora: Date): Capacidades {
 // ---------------------------------------------------------------------------
 
 export type TipoDeEnvio =
-  'texto' | 'imagen' | 'video' | 'audio' | 'documento' | 'sticker' | 'ubicacion' | 'plantilla';
+  'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'location' | 'template';
 
-const TIPOS_CON_MEDIOS = new Set<TipoDeEnvio>(['imagen', 'video', 'audio', 'documento', 'sticker']);
+const TIPOS_CON_MEDIOS = new Set<TipoDeEnvio>(['image', 'video', 'audio', 'document', 'sticker']);
 
 export type MotivoDeBloqueo =
   | 'suscripcion_suspendida'
@@ -268,7 +268,7 @@ export function evaluarEnvio(
     };
   }
 
-  if (peticion.tipo === 'plantilla' && !c.puedeEnviarPlantillas) {
+  if (peticion.tipo === 'template' && !c.puedeEnviarPlantillas) {
     return {
       permitido: false,
       motivo: 'plantillas_no_permitidas_en_gracia',

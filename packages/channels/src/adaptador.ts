@@ -17,7 +17,7 @@ import type { PoliticaDeVentana } from '@crmapp/core';
 export type Canal = 'whatsapp' | 'instagram' | 'tiktok';
 
 export type TipoDeMensaje =
-  'texto' | 'imagen' | 'video' | 'audio' | 'documento' | 'sticker' | 'ubicacion' | 'plantilla';
+  'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'location' | 'template';
 
 // ---------------------------------------------------------------------------
 // Capacidades
@@ -75,7 +75,7 @@ export interface EnvioDeTexto extends DestinoDeEnvio {
 }
 
 export interface EnvioDeMedia extends DestinoDeEnvio {
-  tipo: Exclude<TipoDeMensaje, 'texto' | 'ubicacion' | 'plantilla'>;
+  tipo: Exclude<TipoDeMensaje, 'text' | 'location' | 'template'>;
   /** Bytes o URL pública, según lo que exija el canal. */
   origen: { tipo: 'buffer'; datos: Buffer; mime: string } | { tipo: 'url'; url: string };
   pieDeFoto?: string | undefined;
@@ -87,7 +87,7 @@ export interface EnvioDePlantilla extends DestinoDeEnvio {
   idioma: string;
   /** Parámetros numerados, en orden. */
   parametros: readonly string[];
-  cabecera?: { tipo: 'imagen' | 'video' | 'documento'; url: string } | undefined;
+  cabecera?: { tipo: 'image' | 'video' | 'document'; url: string } | undefined;
 }
 
 export interface RespuestaAComentario {
@@ -219,7 +219,7 @@ export function validarContraCapacidades(
     );
   }
 
-  if (peticion.tipo === 'plantilla' && !capacidades.soportaPlantillas) {
+  if (peticion.tipo === 'template' && !capacidades.soportaPlantillas) {
     return new ErrorDeCanal(
       'tipo_no_soportado',
       `El canal ${capacidades.canal} no admite plantillas.`,
