@@ -28,9 +28,12 @@
     margin: 0;
     min-block-size: 100dvb;
     background-color: var(--bg-a);
+    /* Tres focos de color: es lo que el vidrio desenfoca. Sin ellos, los
+       paneles se leen como plástico gris por muy alto que sea el blur. */
     background-image:
-      radial-gradient(60% 50% at 8% 0%, var(--bg-b) 0%, transparent 70%),
-      radial-gradient(50% 60% at 100% 100%, var(--bg-c) 0%, transparent 70%);
+      radial-gradient(58% 44% at 12% -6%, var(--bg-b) 0%, transparent 68%),
+      radial-gradient(46% 52% at 104% 106%, var(--bg-c) 0%, transparent 70%),
+      radial-gradient(38% 40% at 88% -4%, var(--bg-d) 0%, transparent 72%);
     background-attachment: fixed;
   }
 
@@ -66,7 +69,12 @@
     border-radius: var(--radius-sm);
   }
 
-  /* Superficie de vidrio. Fondo de respaldo con contraste: ver tokens.css. */
+  /*
+   * Superficie de vidrio. El brillo del borde superior va dentro de
+   * `--shadow-glass` como `inset`: es el reflejo especular que distingue un
+   * cristal de un plástico translúcido. Sin transparencia disponible, los
+   * tokens ya devuelven una superficie opaca (ver tokens.css).
+   */
   .glass {
     background: var(--glass);
     -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
@@ -79,7 +87,7 @@
     -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
     backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
     border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-glass);
+    box-shadow: var(--shadow-pop);
   }
 
   .visually-hidden {

@@ -116,6 +116,15 @@ export interface ResumenDeUso {
   limites: Record<string, { limite: number | null; usado: number | null }>;
 }
 
+export interface ResumenDelPanel {
+  atencion: { sinResponder: number; ventanasPorCerrar: number; sinAsignar: number };
+  conversaciones: { abiertas: number; pendientes: number; cerradasHoy: number };
+  actividadHoy: { canal: string; entrantes: number; salientes: number }[];
+  respuesta: { medianaSegundos: number | null; conversacionesMedidas: number };
+  uso: Record<string, number>;
+  periodo: string;
+}
+
 export interface FiltrosDeBandeja {
   canal?: string | undefined;
   tipo?: string | undefined;

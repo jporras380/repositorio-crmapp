@@ -4,7 +4,7 @@ import estilos from './Barra.module.css';
 
 interface Props {
   yo: Yo | null;
-  activa?: 'bandeja' | 'ajustes';
+  activa?: 'panel' | 'bandeja' | 'ajustes';
   alSalir: () => void;
 }
 
@@ -21,6 +21,15 @@ export function Barra({ yo, activa = 'bandeja', alSalir }: Props) {
   return (
     <nav className={`glass ${estilos.barra}`} aria-label="Principal">
       <div className={estilos.marca} aria-hidden="true" />
+      <button
+        className={`${estilos.item} ${activa === 'panel' ? estilos.activo : ''}`}
+        aria-current={activa === 'panel' ? 'page' : undefined}
+        title="Panel"
+        onClick={() => irA({ pantalla: 'panel' })}
+      >
+        <IconoPanel />
+        <span className="visually-hidden">Panel</span>
+      </button>
       <button
         className={`${estilos.item} ${activa === 'bandeja' ? estilos.activo : ''}`}
         aria-current={activa === 'bandeja' ? 'page' : undefined}
@@ -70,6 +79,19 @@ function IconoBandeja() {
     </svg>
   );
 }
+function IconoPanel() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 19V11m5 8V5m5 14v-6m5 6V8"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function IconoAjustes() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">

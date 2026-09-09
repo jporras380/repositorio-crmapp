@@ -65,7 +65,7 @@
     inline-size: 0.85rem;
     block-size: 0.85rem;
     border-radius: 50%;
-    border: 2px solid var(--surface);
+    border: 2px solid var(--surface-solida);
     background: var(--fg-faint);
   }
   .canal_whatsapp {

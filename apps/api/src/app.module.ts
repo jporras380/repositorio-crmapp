@@ -24,6 +24,7 @@ import {
   TOKEN_PLANTILLAS,
   TOKEN_ADAPTADORES,
   TOKEN_USO,
+  TOKEN_PANEL,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -49,6 +50,8 @@ import {
 } from './plantillas/plantillas.controller.js';
 import { UsoService } from './uso/uso.service.js';
 import { UsoController } from './uso/uso.controller.js';
+import { PanelService } from './panel/panel.service.js';
+import { PanelController } from './panel/panel.controller.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -107,6 +110,7 @@ export class AppModule {
         PlantillasWhatsappController,
         RespuestasRapidasController,
         UsoController,
+        PanelController,
       ],
       providers: [
         {
@@ -233,6 +237,12 @@ export class AppModule {
             }),
         },
         {
+          provide: TOKEN_PANEL,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) =>
+            new PanelService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
+        },
+        {
           provide: TOKEN_USO,
           inject: [TOKEN_DB],
           useFactory: (db: BaseDeDatos) =>
@@ -250,6 +260,7 @@ export class AppModule {
         TOKEN_MEDIOS,
         TOKEN_PLANTILLAS,
         TOKEN_USO,
+        TOKEN_PANEL,
       ],
     };
   }

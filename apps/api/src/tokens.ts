@@ -28,3 +28,5 @@ export const TOKEN_PLANTILLAS = Symbol('PlantillasService');
 export const TOKEN_ADAPTADORES = Symbol('Adaptadores');
 
 export const TOKEN_USO = Symbol('UsoService');
+
+export const TOKEN_PANEL = Symbol('PanelService');

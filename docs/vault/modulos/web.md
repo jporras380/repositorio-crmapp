@@ -57,6 +57,18 @@ pnpm dev:web          # http://localhost:5173 (proxy /api → 3000)
 pnpm --filter @crmapp/web test   # 16 tests: cliente, tiempo, Acceso, Lista, Compositor
 ```
 
+## Panel de control y material de vidrio (PR-23)
+
+![[2026-09-09-panel-claro.png]]
+
+**El material.** La primera version del vidrio no se leia como vidrio: el fondo era casi plano, y un `backdrop-filter` sin nada detras produce un panel gris. Ahora el fondo lleva tres focos de color **frios** —cobalto y acero, sin magenta: esto es la herramienta de un mostrador, no una app de consumo— y el vidrio es mas transparente (0.42) con el reflejo del borde superior dentro de `--shadow-glass`. Ese `inset 0 1px 0` es lo que separa cristal de plastico translucido.
+
+Con superficies semitransparentes hay que decidir que sigue siendo opaco: los bordes que **recortan** (el punto de canal sobre el avatar) y lo que **flota** (el desplegable de respuestas rapidas) usan `--surface-solida`, o se lee lo de debajo.
+
+**El panel.** Lo primero es lo accionable, y cada cifra enlaza a la bandeja ya filtrada: un numero que no se puede pulsar no sirve. La metrica propia es **Ventanas por cerrar**: conversaciones cuya ventana de 24 h expira en menos de dos horas. Ningun CRM de los que hemos visto la tiene, y sale gratis porque `session_expires_at` ya es un instante calculado (ARCH §9). La tarjeta se tiñe muy levemente y lleva franja de color al borde: teñir el fondo entero de ambar sobre azul se leia rosa, y rosa dice «error» cuando esto solo dice «te toca».
+
+**Primera respuesta: mediana, no media.** Una conversacion olvidada un fin de semana dispara la media y deja de describir al equipo. Y se descartan las duraciones negativas en vez de maquillarlas: aparecen con datos importados, donde `created_at` no es el primer entrante.
+
 ## Hilos de comentarios (PR-22)
 
 ![[2026-09-09-bandeja-comentarios.png]]

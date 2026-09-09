@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 
 export type Ruta =
-  | { pantalla: 'bandeja'; conversacionId: string | null }
+  | { pantalla: 'panel' }
+  | {
+      pantalla: 'bandeja';
+      conversacionId: string | null;
+      /** Vista con la que abrir la lista (la usan los enlaces del panel). */
+      vista?: 'sinRespuesta' | undefined;
+    }
   | { pantalla: 'ajustes'; seccion: 'canales' | 'plantillas' | 'respuestas' | 'uso' };
 
 const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'uso']);
@@ -12,6 +18,15 @@ const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'uso']);
  * una dependencia; el día que haya URLs con parámetros anidados, sí.
  */
 export function leerRuta(hash: string = location.hash): Ruta {
+  if (hash.startsWith('#panel')) return { pantalla: 'panel' };
+  if (hash.startsWith('#bandeja')) {
+    const vista = hash.split('/')[1];
+    return {
+      pantalla: 'bandeja',
+      conversacionId: null,
+      ...(vista === 'sinRespuesta' ? { vista: 'sinRespuesta' as const } : {}),
+    };
+  }
   if (hash.startsWith('#ajustes')) {
     const seccion = hash.split('/')[1] ?? 'canales';
     return {
@@ -24,11 +39,15 @@ export function leerRuta(hash: string = location.hash): Ruta {
 
 export function irA(ruta: Ruta): void {
   const hash =
-    ruta.pantalla === 'ajustes'
-      ? `#ajustes/${ruta.seccion}`
-      : ruta.conversacionId
-        ? `#c=${ruta.conversacionId}`
-        : '';
+    ruta.pantalla === 'panel'
+      ? '#panel'
+      : ruta.pantalla === 'ajustes'
+        ? `#ajustes/${ruta.seccion}`
+        : ruta.conversacionId
+          ? `#c=${ruta.conversacionId}`
+          : ruta.vista
+            ? `#bandeja/${ruta.vista}`
+            : '#bandeja';
   if (hash) location.hash = hash;
   else history.pushState(null, '', location.pathname);
   window.dispatchEvent(new HashChangeEvent('hashchange'));

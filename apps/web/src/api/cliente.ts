@@ -8,6 +8,7 @@
  */
 import type {
   CuentaDeCanal,
+  ResumenDelPanel,
   Etiqueta,
   PlantillaDeWhatsapp,
   ResumenDeUso,
@@ -91,6 +92,7 @@ export function crearApi(token: string | null) {
         cuerpo: { email, contrasena },
       }),
     yo: () => peticion<Yo>('/v1/yo', t),
+    panel: () => peticion<ResumenDelPanel>('/v1/panel', t),
     etiquetas: () => peticion<Etiqueta[]>('/v1/etiquetas', t),
     conversaciones: (f: FiltrosDeBandeja) =>
       peticion<Pagina<ResumenDeConversacion>>(`/v1/conversaciones${consulta({ ...f })}`, t),

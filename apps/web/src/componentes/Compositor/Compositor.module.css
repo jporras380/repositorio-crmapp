@@ -116,7 +116,8 @@
     display: grid;
     gap: 2px;
     border-radius: var(--radius-md);
-    background: var(--surface-raised);
+    /* Flota sobre el hilo: opaca, o se leería el mensaje de debajo. */
+    background: var(--surface-solida);
     border: 1px solid var(--hairline);
     box-shadow: var(--shadow-pop);
   }

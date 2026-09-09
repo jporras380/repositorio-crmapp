@@ -15,6 +15,10 @@ Quedan tres. P-01 y P-02 se resolvieron el 2026-09-07 con [[ADR-004-modelo-whats
 
 > **Señal del 2026-09-09:** el usuario compartió una captura de su cuenta real de Kommo (Nippon Autoparts, Perú: `+51`, moneda `S/`). Apunta a **P-04 = Perú/LatAm**, **P-05 = sí hay primer cliente: el propio usuario**, y **P-10 = facturación en PEN**. No se cierran hasta confirmación explícita, pero los valores por defecto del ARCH deberían moverse en esa dirección.
 
+### P-26 · ¿Embedded Signup para conectar WhatsApp? *(lista de parada, nueva 2026-09-09)*
+El usuario vio en Kommo el boton «Conectar nuevo numero» que lleva a Facebook y detecta los numeros solos: es **Embedded Signup** de Meta, y exige App Review de `whatsapp_business_management` mas Facebook Login for Business. [[ADR-004-modelo-whatsapp]] lo descarto para el MVP justo por eso: bloquearia el desarrollo hasta que Meta apruebe. Cambiarlo es cambiar el modelo de conexion.
+*Sin decidir. Mientras tanto se puede dar el 80 % sin App Review: pedir solo el token y descubrir WABAs y numeros por Graph (`GET /me/businesses` -> `owned_whatsapp_business_accounts` -> `phone_numbers`).*
+
 ### P-04 · Región de datos y marco legal
 UE, EEUU o LatAm. GDPR, LFPDPPP, u otro. Decide dónde vive PostgreSQL y si hacen falta DPA con subencargados. Cambiarlo después es una migración de datos personales, no un cambio de configuración.
 

@@ -1,0 +1,282 @@
+@layer components {
+  .pantalla {
+    min-block-size: 100dvb;
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr);
+    grid-template-areas: 'barra contenido';
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+  .contenido {
+    grid-area: contenido;
+    display: grid;
+    gap: var(--space-5);
+    align-content: start;
+    padding: var(--space-5) var(--space-4);
+    max-inline-size: 78rem;
+    inline-size: 100%;
+    margin-inline: auto;
+    min-inline-size: 0;
+  }
+
+  .cabecera {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .titulo {
+    font-size: var(--text-3xl);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: var(--leading-tight);
+  }
+  .subtitulo {
+    color: var(--fg-muted);
+    font-size: var(--text-md);
+  }
+
+  /* --- Lo accionable, arriba y pulsable ------------------------------- */
+  .atencion {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: var(--space-3);
+  }
+  .urgente {
+    display: grid;
+    gap: 2px;
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-lg);
+    text-align: start;
+    color: var(--fg);
+    transition:
+      transform 140ms ease,
+      box-shadow 140ms ease;
+  }
+  .urgente:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pop);
+  }
+  .urgenteCifra {
+    font-size: var(--text-3xl);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .urgenteTitulo {
+    font-weight: 600;
+    font-size: var(--text-md);
+  }
+  .urgenteDetalle {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+  /*
+   * El estado se lee de un vistazo, no leyendo la cifra: la tarjeta entera se
+   * tiñe cuando hay algo que hacer y se apaga cuando no. «Ventanas por
+   * cerrar» es la que de verdad cuesta dinero si se ignora, y por eso es la
+   * única que llega a rojo.
+   */
+  /*
+   * Franja de color y tinte muy leve, en vez de teñir la tarjeta entera: un
+   * ámbar translúcido sobre el fondo azul se leía rosa, y rosa dice «error»
+   * cuando esto solo dice «te toca». La franja es además el mismo lenguaje
+   * que la de etiquetas en la bandeja.
+   */
+  .urgente {
+    position: relative;
+    overflow: hidden;
+  }
+  .tono_warn::before,
+  .tono_danger::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    inline-size: 4px;
+  }
+  .tono_warn::before {
+    background: var(--warn);
+  }
+  .tono_danger::before {
+    background: var(--danger);
+  }
+  .tono_warn {
+    background: color-mix(in oklch, var(--warn) 8%, var(--glass));
+    border-color: color-mix(in oklch, var(--warn) 28%, var(--glass-border));
+  }
+  .tono_warn .urgenteCifra {
+    color: var(--warn);
+  }
+  .tono_danger {
+    background: color-mix(in oklch, var(--danger) 9%, var(--glass));
+    border-color: color-mix(in oklch, var(--danger) 30%, var(--glass-border));
+  }
+  .tono_danger .urgenteCifra {
+    color: var(--danger);
+  }
+  .tono_ok .urgenteCifra {
+    color: var(--fg-faint);
+  }
+  .tono_ok .urgenteTitulo,
+  .tono_ok .urgenteDetalle {
+    opacity: 0.75;
+  }
+
+  /* --- Rejilla de tarjetas -------------------------------------------- */
+  /*
+   * Dos columnas y no `auto-fit`: con cuatro tarjetas, tres columnas dejaban
+   * la última sola y medio panel vacío debajo.
+   */
+  .rejilla {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    gap: var(--space-3);
+    align-items: stretch;
+  }
+  @media (min-width: 1100px) {
+    .rejilla {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .tarjeta {
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    min-inline-size: 0;
+  }
+  .tarjetaTitulo {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+  .granCifra {
+    font-size: var(--text-3xl);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .granCifraPie {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    margin-block-end: var(--space-2);
+  }
+  .nota {
+    font-size: var(--text-xs);
+    color: var(--fg-faint);
+    line-height: var(--leading);
+  }
+
+  .canales {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+  }
+  .canal {
+    display: grid;
+    grid-template-columns: minmax(6rem, auto) minmax(2rem, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+  }
+  .canalNombre {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    white-space: nowrap;
+  }
+  .canalPunto {
+    inline-size: 0.55rem;
+    block-size: 0.55rem;
+    border-radius: 50%;
+    background: var(--fg-faint);
+  }
+  .canal_whatsapp {
+    background: var(--channel-whatsapp);
+  }
+  .canal_instagram {
+    background: var(--channel-instagram);
+  }
+  .canal_tiktok {
+    background: var(--channel-tiktok);
+  }
+  .canalBarra {
+    block-size: 0.4rem;
+    border-radius: var(--radius-pill);
+    background: var(--hairline);
+    overflow: hidden;
+  }
+  .canalRelleno {
+    display: block;
+    block-size: 100%;
+    inline-size: var(--parte, 0%);
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+  }
+  .canalCifra {
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-muted);
+    white-space: nowrap;
+    font-size: var(--text-xs);
+  }
+  .canalFlecha {
+    opacity: 0.55;
+  }
+
+  .lista {
+    margin: 0;
+    display: grid;
+    gap: var(--space-1);
+  }
+  .filaDato {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding-block: var(--space-1);
+    border-block-end: 1px solid var(--hairline);
+    font-size: var(--text-sm);
+  }
+  .filaDato:last-child {
+    border-block-end: 0;
+  }
+  .filaDato dt {
+    color: var(--fg-muted);
+  }
+  .filaDato dd {
+    margin: 0;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .enlace {
+    margin-block-start: var(--space-2);
+    color: var(--accent);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-align: start;
+  }
+  .vacio {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+  .error {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+
+  @media (max-width: 760px) {
+    .pantalla {
+      grid-template-columns: 1fr;
+      grid-template-areas: 'barra' 'contenido';
+    }
+  }
+}

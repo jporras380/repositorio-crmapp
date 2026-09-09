@@ -17,6 +17,7 @@ import estilos from './Bandeja.module.css';
 interface Props {
   sesion: Sesion;
   conversacionInicial: string | null;
+  vistaInicial: 'sinRespuesta' | null;
   alSalir: () => void;
 }
 
@@ -26,11 +27,13 @@ const CADA_MS = 10_000;
  * Tres paneles (Kommo): lista, hilo, contacto. La bandeja no decide nada:
  * pide, pinta y vuelve a pedir. Sondeo cada 10 s hasta que exista WebSocket.
  */
-export function Bandeja({ sesion, conversacionInicial, alSalir }: Props) {
+export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: Props) {
   const api = useMemo(() => crearApi(sesion.token), [sesion.token]);
   const [yo, setYo] = useState<Yo | null>(null);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
-  const [filtros, setFiltros] = useState<FiltrosDeBandeja>({});
+  const [filtros, setFiltros] = useState<FiltrosDeBandeja>(
+    vistaInicial === 'sinRespuesta' ? { sinRespuesta: true } : {},
+  );
   const [items, setItems] = useState<ResumenDeConversacion[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   // La conversación abierta vive en la URL (#c=<id>): se puede recargar y compartir.
@@ -96,7 +99,7 @@ export function Bandeja({ sesion, conversacionInicial, alSalir }: Props) {
 
   return (
     <div className={`${estilos.bandeja} ${seleccionada ? '' : estilos.sinSeleccion}`}>
-      <Barra yo={yo} alSalir={alSalir} />
+      <Barra yo={yo} activa="bandeja" alSalir={alSalir} />
 
       <section className={`glass ${estilos.lista}`} aria-label="Conversaciones">
         <Filtros
