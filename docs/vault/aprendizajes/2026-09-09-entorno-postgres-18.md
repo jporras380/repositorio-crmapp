@@ -41,3 +41,15 @@ allowBuilds:
 y hay que responder `true` o `false`. Que exija una decisión explícita por dependencia, en vez de una lista que se copia sin mirar, es acertado.
 
 Ver [[2026-09-09]].
+
+---
+
+## Turborepo filtra el entorno de las tareas
+
+La CI falló en `Tests` con `ECONNREFUSED 127.0.0.1:55432`: los tests apuntaban al puerto **local** aunque el workflow definía `TEST_PG_PORT=5432`.
+
+**Turborepo 2 corre cada tarea en modo estricto de entorno**: solo pasan las variables declaradas en `turbo.json` (`env` / `globalEnv` / `passThroughEnv`). Todo lo demás se elimina antes de lanzar el proceso, y no avisa. Nosotros solo teníamos `NODE_ENV`.
+
+Se nota poco en local porque los valores por defecto del código coinciden con el entorno de desarrollo; en CI, donde el entorno es distinto, la variable "desaparece".
+
+**Regla:** toda variable que un test o un script lea de `process.env` tiene que estar en `globalEnv` de `turbo.json`. Admite comodines (`TEST_PG_*`).
