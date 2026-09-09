@@ -1,13 +1,13 @@
 ---
 estado: vivo
-fecha: 2026-09-07
+fecha: 2026-09-09
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 7 de septiembre de 2026
+# Estado — 9 de septiembre de 2026
 
-Fase actual: **pre-fase 0**. No hay código de producto y no lo habrá hasta aprobar el ARCH (regla 10 del prompt maestro).
+Fase actual: **fase 0**. ARCH aprobado, andamiaje en marcha. Repositorio publicado en `github.com/jporras380/repositorio-crmapp`.
 
 ## Completado
 
