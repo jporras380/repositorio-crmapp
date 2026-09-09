@@ -16,8 +16,17 @@ const app = await NestFactory.create(
     ...(config.DATABASE_AUTH_URL ? { authDatabaseUrl: config.DATABASE_AUTH_URL } : {}),
     jwtSecret: config.JWT_SECRET,
     poolMax: config.DATABASE_POOL_MAX,
+    ...(config.META_WEBHOOK_VERIFY_TOKEN
+      ? { webhookVerifyToken: config.META_WEBHOOK_VERIFY_TOKEN }
+      : {}),
   }),
-  { logger: false },
+  {
+    logger: false,
+    // Sin esto, express descarta los bytes originales al parsear el JSON y la
+    // firma HMAC del webhook nunca cuadra. Es el fallo mas comun de este
+    // camino y no da ninguna pista util.
+    rawBody: true,
+  },
 );
 
 app.useGlobalFilters(new FiltroDeErrores((e) => log.error('error no controlado', e as Error)));

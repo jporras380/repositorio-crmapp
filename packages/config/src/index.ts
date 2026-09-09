@@ -66,6 +66,11 @@ export const esquemaConfig = z.object({
   MASTER_ENCRYPTION_KEY_VERSION: z.coerce.number().int().min(1).default(1),
 
   JWT_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
+
+  // Opcional hasta que haya un canal real conectado: exigirla en fase 0
+  // obligaria a inventarse un valor, y un valor inventado en una variable de
+  // secreto acaba en produccion.
+  META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
 });
 
 export type Config = z.infer<typeof esquemaConfig>;

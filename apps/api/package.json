@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@crmapp/channels": "workspace:*",
     "@crmapp/config": "workspace:*",
     "@crmapp/core": "workspace:*",
     "@crmapp/crypto": "workspace:*",

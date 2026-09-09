@@ -13,3 +13,5 @@
 export const TOKEN_DB = Symbol('BaseDeDatos');
 export const TOKEN_AUTH = Symbol('AuthService');
 export const TOKEN_CONFIG = Symbol('Config');
+
+export const TOKEN_INGESTA = Symbol('IngestaService');

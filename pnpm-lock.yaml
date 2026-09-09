@@ -121,6 +121,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@crmapp/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
       '@crmapp/config':
         specifier: workspace:*
         version: link:../../packages/config

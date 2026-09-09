@@ -93,6 +93,23 @@ export class BaseDeDatos implements OnModuleDestroy {
   }
 
   /**
+   * Escritura SIN inquilino, con el rol de aplicacion.
+   *
+   * Un unico caso de uso legitimo: registrar un webhook cuya cuenta no
+   * reconocemos. Esa fila lleva `tenant_id` nulo y **ningun inquilino puede
+   * leerla** —`NULL = <su id>` no es TRUE—, asi que no es una fuga: es un
+   * registro de diagnostico que solo ve un operador con el rol de migraciones.
+   * La politica que lo permite es explicita y acotada (migracion 0009).
+   *
+   * Nombre feo a proposito. No sustituye a `enTransaccion()`: si aparece en un
+   * camino que SI conoce el inquilino, es un bug, y quiero que se vea en
+   * cualquier busqueda y en cualquier revision.
+   */
+  async sinInquilino<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+    return withSystemTransaction(this.pool, fn);
+  }
+
+  /**
    * Crea un inquilino nuevo dentro de su propio contexto.
    *
    * El truco que evita un escape: se pide el identificador a la base ANTES de
