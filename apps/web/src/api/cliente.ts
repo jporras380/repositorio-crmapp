@@ -7,7 +7,10 @@
  * pintar; el mensaje se muestra tal cual, viene ya redactado para personas.
  */
 import type {
+  CuentaDeCanal,
   Etiqueta,
+  PlantillaDeWhatsapp,
+  ResumenDeUso,
   FiltrosDeBandeja,
   Mensaje,
   Pagina,
@@ -137,6 +140,35 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { mime, bytes, nombre },
       }),
+    // --- Ajustes -----------------------------------------------------------
+    canales: () => peticion<CuentaDeCanal[]>('/v1/canales', t),
+    conectarWhatsapp: (cred: {
+      phoneNumberId: string;
+      wabaId: string;
+      accessToken: string;
+      appSecret: string;
+      displayName?: string;
+    }) => peticion<CuentaDeCanal>('/v1/canales/whatsapp', { ...t, metodo: 'POST', cuerpo: cred }),
+    desconectarCanal: (id: string) =>
+      peticion<void>(`/v1/canales/${id}`, { ...t, metodo: 'DELETE' }),
+    plantillasDeCanal: (channelAccountId: string) =>
+      peticion<PlantillaDeWhatsapp[]>(`/v1/canales/${channelAccountId}/plantillas`, t),
+    sincronizarPlantillas: (channelAccountId: string) =>
+      peticion<{ total: number; nuevas: number; actualizadas: number }>(
+        `/v1/canales/${channelAccountId}/plantillas/sincronizar`,
+        { ...t, metodo: 'POST' },
+      ),
+    crearRapida: (d: { atajo: string; titulo: string; cuerpo: string; mediaAssetId?: string }) =>
+      peticion<RespuestaRapida>('/v1/respuestas-rapidas', { ...t, metodo: 'POST', cuerpo: d }),
+    editarRapida: (id: string, d: { atajo?: string; titulo?: string; cuerpo?: string }) =>
+      peticion<RespuestaRapida>(`/v1/respuestas-rapidas/${id}`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: d,
+      }),
+    archivarRapida: (id: string) =>
+      peticion<void>(`/v1/respuestas-rapidas/${id}`, { ...t, metodo: 'DELETE' }),
+    uso: () => peticion<ResumenDeUso>('/v1/cuenta/uso', t),
     confirmarSubida: (mediaAssetId: string) =>
       peticion<{ mediaAssetId: string }>(`/v1/medios/subidas/${mediaAssetId}/confirmar`, {
         ...t,

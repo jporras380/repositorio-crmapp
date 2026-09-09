@@ -11,6 +11,7 @@ Fase actual: **fase 1, código completo** (WhatsApp, webhooks, bandeja, multimed
 
 ## Completado
 
+- **PR-18, Ajustes en la web** ([[web]]): enrutado por hash sin dependencia (`#ajustes/<seccion>`), y cuatro secciones sobre la API existente: canales (conectar WhatsApp con los cuatro datos, desconectar), plantillas (sincronizar con Meta, estado con motivo de rechazo), respuestas rápidas (crear, editar → versión nueva, archivar) y uso del plan (barras contra `plans.limits`, ámbar al 80 %, rojo al 100 %). 21 tests en la web.
 - **Contraseñas de rol unificadas** (chore): los tests usan `crmapp_dev`, la misma que `pnpm db:dev-roles`. Antes cada ejecución de tests dejaba la API de desarrollo sin poder conectar (los roles son del clúster). Verificado: tras la suite completa, la API en 3000 sigue respondiendo.
 - **Prueba real en marcha**: número de prueba de Meta **conectado** (`POST /v1/canales/whatsapp` verificó contra Graph), `cloudflared` instalado, túnel activo y reto de verificación respondido a través de él. Falta que el usuario pegue URL y token en el panel de Meta y active el campo `messages`.
 - **PR-17, `apps/web`** ([[web]], [[ADR-010-css-en-web]]): acceso y bandeja de tres paneles con vidrio iOS, tokens en `packages/ui`, etiquetas de color como filtro y franja (Zenvia), ventana de sesión pintada desde el instante de la API, compositor que obedece los 409 con `plantillasSugeridas`, respuestas rápidas con «/», adjuntos por subida directa, ficha de contacto (asignar, estado, etiquetas). P-23 resuelta. Guardas nuevas: nada en línea, sin CSS-in-JS, la web no importa `core`. 16 tests + capturas reales claro/oscuro en `adjuntos/`. Antes, `GET /v1/etiquetas` en la API.
@@ -72,7 +73,7 @@ Nada.
 2. **Editor de HSM** (crear y enviar a revisión desde el CRM) y paginación de `syncTemplates`; ver pendientes en [[plantillas]].
 3. Miniaturas/transcodificación en la cola `media` y CORS del bucket cuando llegue `apps/web`.
 4. Smoke test de arranque en CI (lección del 2026-09-09).
-5. Pantallas de plantillas/canales/uso en la web; WebSocket; semilla de demo.
+5. WebSocket para no sondear; semilla de demo; editor de HSM.
 6. **Decidir P-21** (qué se cobra: asientos + IA por defecto según Kommo) y qué pasa al superar `conversaciones_mes`: hoy solo se muestra.
 5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.
 

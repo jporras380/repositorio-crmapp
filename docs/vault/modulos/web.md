@@ -37,11 +37,15 @@ Sujeto: un agente de una pyme peruana de autopartes atendiendo WhatsApp e Instag
 ```
 src/
   api/        cliente.ts (fetch + ErrorDeApi), tipos.ts (formas de la API, tal cual)
-  estado/     sesion.ts (token en localStorage; #sesion= solo en desarrollo)
+  estado/     sesion.ts (token en localStorage; #sesion= solo en desarrollo), ruta.ts (hash: #c=<id>, #ajustes/<seccion>)
   vista/      tiempo.ts (formatos)
-  pantallas/  Acceso, Bandeja (tres paneles: lista · hilo · contacto; el contacto se oculta sin selección)
+  pantallas/  Acceso, Bandeja (tres paneles: lista · hilo · contacto; el contacto se oculta sin selección), Ajustes (PR-18)
   componentes/ Barra, Filtros, ListaDeConversaciones, Hilo (+Medio), Compositor, PanelDeContacto
+  componentes/ajustes/ Canales (conectar/desconectar WhatsApp), Plantillas (sincronizar con Meta, estado y motivo),
+               RespuestasRapidas (crear/editar/archivar), Uso (barras contra plans.limits)
 ```
+
+**Roles en la web**: `gestor = rol !== 'agent'` solo decide qué botones se muestran; quien decide de verdad es la API (403). Un agente ve canales, plantillas y respuestas, pero no puede tocarlos.
 
 Datos: sondeo cada 10 s la lista y cada 5 s el hilo abierto; WebSocket queda para después. Conversación abierta en la URL (`#c=<id>`). Vite hace proxy de `/api` a la API (sin CORS).
 
@@ -57,5 +61,4 @@ pnpm --filter @crmapp/web test   # 16 tests: cliente, tiempo, Acceso, Lista, Com
 
 - Semilla de demo para ver la bandeja sin Meta (existe como script de sesión; convertir en `pnpm demo:semilla`).
 - WebSocket para no sondear; virtualización de la lista si pasa de ~200 filas.
-- Pantallas de plantillas, respuestas rápidas, canales y uso (la API ya existe).
 - Campos configurables en la ficha (P-25). Playwright para el recorrido completo.

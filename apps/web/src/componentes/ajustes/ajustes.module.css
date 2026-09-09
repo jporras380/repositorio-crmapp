@@ -1,0 +1,266 @@
+/* Estilos compartidos por las secciones de ajustes: cabecera, tarjetas, tablas, formularios. */
+@layer components {
+  .seccion {
+    display: grid;
+    gap: var(--space-4);
+    max-inline-size: 60rem;
+  }
+  .cabecera {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .titulo {
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .descripcion {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    max-inline-size: 48rem;
+  }
+
+  .primario,
+  .secundario,
+  .peligro {
+    padding: 0.55rem 0.9rem;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .primario {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .secundario {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .peligro {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+  .primario:disabled,
+  .secundario:disabled,
+  .peligro:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .tarjetas {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .tarjeta {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+  }
+  .canalPunto {
+    inline-size: 0.9rem;
+    block-size: 0.9rem;
+    border-radius: 50%;
+    background: var(--fg-faint);
+  }
+  .canal_whatsapp {
+    background: var(--channel-whatsapp);
+  }
+  .canal_instagram {
+    background: var(--channel-instagram);
+  }
+  .tarjetaTitulo {
+    font-weight: 600;
+    font-size: var(--text-md);
+  }
+  .tarjetaDetalle {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+  .acciones {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .estado {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--hairline);
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+  .estado_ok {
+    background: var(--ok-soft);
+    color: var(--ok);
+  }
+  .estado_warn {
+    background: var(--warn-soft);
+    color: var(--warn);
+  }
+  .estado_danger {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+
+  .tabla {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  .tabla th {
+    text-align: start;
+    font-weight: 600;
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+    padding: var(--space-2) var(--space-3);
+    border-block-end: 1px solid var(--hairline);
+  }
+  .tabla td {
+    padding: var(--space-2) var(--space-3);
+    border-block-end: 1px solid var(--hairline);
+    vertical-align: top;
+  }
+  .tablaEnvoltorio {
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+  }
+
+  .formulario {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+  }
+  .campos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-3);
+  }
+  .campo {
+    display: grid;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .campo input,
+  .campo textarea,
+  .campo select {
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--fg);
+    font-size: var(--text-md);
+  }
+  .campo textarea {
+    resize: vertical;
+    min-block-size: 4.5rem;
+  }
+  .campo input:focus-visible,
+  .campo textarea:focus-visible,
+  .campo select:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+  }
+  .ayuda {
+    font-size: var(--text-xs);
+    color: var(--fg-faint);
+  }
+  .formularioAcciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  .aviso {
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+  }
+  .aviso_error {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+  .aviso_ok {
+    background: var(--ok-soft);
+    color: var(--ok);
+  }
+  .aviso_info {
+    background: var(--accent-soft);
+    color: var(--fg);
+  }
+  .vacio {
+    padding: var(--space-5);
+    text-align: center;
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--hairline);
+  }
+
+  .barraUso {
+    display: grid;
+    gap: var(--space-1);
+  }
+  .barraUsoCabecera {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--text-sm);
+  }
+  .barraUsoPista {
+    block-size: 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--hairline);
+    overflow: hidden;
+  }
+  .barraUsoRelleno {
+    block-size: 100%;
+    inline-size: var(--porcentaje, 0%);
+    background: var(--accent);
+    border-radius: var(--radius-pill);
+    transition: inline-size 300ms ease;
+  }
+  .barraUsoRelleno_warn {
+    background: var(--warn);
+  }
+  .barraUsoRelleno_danger {
+    background: var(--danger);
+  }
+  .metricas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: var(--space-3);
+  }
+  .metrica {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    display: grid;
+    gap: 2px;
+  }
+  .metricaValor {
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .metricaNombre {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+}

@@ -16,6 +16,7 @@ import estilos from './Bandeja.module.css';
 
 interface Props {
   sesion: Sesion;
+  conversacionInicial: string | null;
   alSalir: () => void;
 }
 
@@ -25,7 +26,7 @@ const CADA_MS = 10_000;
  * Tres paneles (Kommo): lista, hilo, contacto. La bandeja no decide nada:
  * pide, pinta y vuelve a pedir. Sondeo cada 10 s hasta que exista WebSocket.
  */
-export function Bandeja({ sesion, alSalir }: Props) {
+export function Bandeja({ sesion, conversacionInicial, alSalir }: Props) {
   const api = useMemo(() => crearApi(sesion.token), [sesion.token]);
   const [yo, setYo] = useState<Yo | null>(null);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
@@ -33,9 +34,7 @@ export function Bandeja({ sesion, alSalir }: Props) {
   const [items, setItems] = useState<ResumenDeConversacion[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   // La conversación abierta vive en la URL (#c=<id>): se puede recargar y compartir.
-  const [seleccionadaId, setSeleccionadaIdEstado] = useState<string | null>(() =>
-    location.hash.startsWith('#c=') ? location.hash.slice(3) : null,
-  );
+  const [seleccionadaId, setSeleccionadaIdEstado] = useState<string | null>(conversacionInicial);
   const setSeleccionadaId = useCallback((id: string | null) => {
     setSeleccionadaIdEstado(id);
     history.replaceState(null, '', id ? `#c=${id}` : location.pathname);

@@ -77,7 +77,7 @@ El token temporal de Meta caduca en 24 h; el permanente sale de un usuario del s
 
 ## Uso del plan
 
-`GET /v1/cuenta/uso` devuelve el consumo del mes (mensajes recibidos y entregados, plantillas, conversaciones abiertas, bytes almacenados) frente a los límites del plan. Solo informa: no bloquea nada.
+En la web: **Ajustes → Uso del plan**. `GET /v1/cuenta/uso` devuelve el consumo del mes (mensajes recibidos y entregados, plantillas, conversaciones abiertas, bytes almacenados) frente a los límites del plan. Solo informa: no bloquea nada.
 
 ## Medios (fotos, audios, documentos)
 

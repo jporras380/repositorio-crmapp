@@ -78,6 +78,38 @@ export type PeticionDeEnvio =
   | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
   | { tipo: 'quick_reply'; quickReplyId: string };
 
+export interface CuentaDeCanal {
+  id: string;
+  canal: string;
+  externalId: string;
+  providerAccountId: string | null;
+  displayName: string;
+  status: 'connected' | 'degraded' | 'blocked' | 'disconnected' | string;
+  lastEventAt: string | null;
+  createdAt: string;
+}
+
+export interface PlantillaDeWhatsapp {
+  id: string;
+  nombre: string;
+  idioma: string;
+  estado: string;
+  categoriaDeclarada: string | null;
+  categoriaEfectiva: string | null;
+  calidad: string | null;
+  motivoDeRechazo: string | null;
+  metaTemplateId: string | null;
+  ultimaSincronizacion: string | null;
+}
+
+export interface ResumenDeUso {
+  periodo: string;
+  desde: string;
+  plan: string | null;
+  uso: Record<string, number>;
+  limites: Record<string, { limite: number | null; usado: number | null }>;
+}
+
 export interface FiltrosDeBandeja {
   canal?: string | undefined;
   estado?: string | undefined;

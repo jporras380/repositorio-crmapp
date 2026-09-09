@@ -12,9 +12,10 @@ function leer(): Sesion | null {
       const params = new URLSearchParams(location.hash.slice(1));
       const s = JSON.parse(params.get('sesion') ?? 'null') as Sesion;
       localStorage.setItem(CLAVE, JSON.stringify(s));
-      // Se conserva la conversación pedida (#c=…) para que la bandeja la abra.
+      // Se conserva el destino pedido: una conversación (#c=…) o una ruta (#ajustes/…).
       const c = params.get('c');
-      history.replaceState(null, '', c ? `#c=${c}` : location.pathname);
+      const ir = params.get('ir');
+      history.replaceState(null, '', c ? `#c=${c}` : ir ? `#${ir}` : location.pathname);
       return s;
     }
     const crudo = localStorage.getItem(CLAVE);
