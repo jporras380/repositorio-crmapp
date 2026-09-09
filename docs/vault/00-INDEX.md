@@ -48,13 +48,16 @@ Previstos: bandeja, plantillas, salesbots, ia, usuarios, facturacion, panel, int
 
 ## Aprendizajes
 
-Lo que salió mal y por qué. Una nota por incidente. Vacío por ahora, y eso es buena señal.
+Lo que salió mal y por qué. Una nota por incidente.
+
+- [[2026-09-09-entorno-postgres-18]] — punto de montaje de PostgreSQL 18, colisión en el 5432 y bloqueo de builds de pnpm.
 
 ## Sesiones
 
 Bitácora diaria.
 
 - [[2026-09-07]] — arranque: inventario de skills, vault, esquema propuesto, tres ADR.
+- [[2026-09-09]] — PR-2: `packages/db`, RLS y particionado con tests.
 
 ## Reglas de este vault
 

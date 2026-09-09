@@ -1,3 +1,13 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# pnpm bloquea los scripts de instalación por defecto, y hace bien: un
+# postinstall es ejecución de código arbitrario en cada `pnpm install`.
+# Se autoriza uno a uno y cada alta debería justificarse aquí.
+#
+# esbuild: lo usan vitest y tsx. Su script enlaza el binario nativo de la
+#   plataforma. Es un paquete muy usado y el script es necesario para que
+#   funcione; se autoriza.
+allowBuilds:
+  esbuild: true

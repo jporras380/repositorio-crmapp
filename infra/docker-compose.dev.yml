@@ -13,9 +13,17 @@ services:
       POSTGRES_PASSWORD: crmapp_dev
       POSTGRES_DB: crmapp
     ports:
-      - '5432:5432'
+      # 55432 y no 5432: es habitual tener un PostgreSQL nativo instalado como
+      # servicio ocupando el puerto estándar. Ceder el puerto es más barato que
+      # pedirle a cada quien que pare su servicio.
+      - '55432:5432'
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # OJO: en PostgreSQL 18+ el montaje va aquí y NO en .../data.
+      # La imagen oficial cambió a directorios con el nombre de la versión mayor
+      # para que `pg_upgrade --link` no cruce el límite del punto de montaje.
+      # Montar en /var/lib/postgresql/data hace que el contenedor arranque y
+      # muera con "unused mount/volume".
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U crmapp -d crmapp']
       interval: 5s

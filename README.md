@@ -29,10 +29,14 @@ pnpm infra:up            # postgres, redis, minio, mailpit
 
 | Servicio   | Dónde                                           |
 | ---------- | ----------------------------------------------- |
-| PostgreSQL | `localhost:5432` — usuario y base `crmapp`      |
+| PostgreSQL | `localhost:55432` — usuario y base `crmapp`     |
 | Redis      | `localhost:6379`                                |
 | MinIO      | API `localhost:9000` · consola `localhost:9001` |
 | Mailpit    | `localhost:8025`                                |
+
+> PostgreSQL escucha en **55432**, no en el 5432 estándar: es habitual tener un
+> PostgreSQL nativo instalado como servicio ocupando ese puerto, y ceder el
+> puerto es más barato que pedir que cada quien pare su servicio.
 
 `pnpm infra:down` para parar, `pnpm infra:reset` para parar **borrando los datos**.
 

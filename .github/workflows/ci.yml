@@ -12,6 +12,30 @@ concurrency:
 jobs:
   verificar:
     runs-on: ubuntu-latest
+
+    # Los tests de RLS necesitan una base real: la única forma de probar que
+    # el aislamiento lo hace PostgreSQL y no nuestra aplicación es preguntarle
+    # a PostgreSQL. Debe ser 18 o mayor por uuidv7().
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: crmapp
+          POSTGRES_PASSWORD: crmapp_dev
+          POSTGRES_DB: crmapp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crmapp -d crmapp"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      # En CI el service container expone el puerto estándar; en local se cede
+      # el 5432 por si hay un PostgreSQL nativo instalado (ver README).
+      TEST_PG_PORT: '5432'
+
     steps:
       - uses: actions/checkout@v4
 

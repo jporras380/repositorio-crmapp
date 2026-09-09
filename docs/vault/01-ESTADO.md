@@ -15,6 +15,7 @@ Fase actual: **fase 0**. ARCH aprobado, andamiaje en marcha. Repositorio publica
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
+- **PR-2, `packages/db`**: cinco migraciones SQL con su reversa, esquema Drizzle, cliente con `withTenant`, y 18 tests contra PostgreSQL real. **Los dos tests de RLS del ARCH §6 pasan**, más reversibilidad de migraciones, idempotencia e integridad del esquema. Ver [[2026-09-09]].
 - **PR-1, andamiaje del monorepo**: pnpm workspaces, Turborepo, TypeScript estricto, Prettier, CI de GitHub Actions, `docker-compose` de desarrollo (PostgreSQL 18, Redis 7, MinIO, Mailpit) y **guardas de arquitectura ejecutables**.
 - **`docs/ARCH.md` completo**: alcance, supuestos, principios, componentes, modelo de datos, RLS, ingesta, contrato de adaptador, colas, secretos, multimedia, observabilidad, privacidad, fases y riesgos.
 - **Los siete ADR escritos y en estado `aceptado`.** ADR-001/002/003 cerrados; ADR-005 (RLS), ADR-006 (particionado e idempotencia) y ADR-007 (identidad de contactos) nuevos.
@@ -45,10 +46,9 @@ Nada.
 
 ## Qué sigue
 
-1. **PR-2: `packages/db`** — esquema base, migraciones, políticas RLS y **los dos tests de RLS del ARCH §6**. Es el primer código de producto y el que fija ADR-005 y ADR-006.
-2. PR-3: `packages/config`, `packages/crypto`, `packages/observability`. Cimientos sin lógica de negocio.
-3. PR-4: auth, `memberships`, invitaciones, outbox. Cierra fase 0.
-4. Responder P-04, P-05 y P-06 antes de fase 1.
+1. **PR-3**: `packages/config`, `packages/crypto` (envelope encryption y redacción en logs, con test que inyecte un token y falle si aparece en la salida) y `packages/observability`.
+2. PR-4: auth, invitaciones y el relay del outbox. Cierra fase 0.
+3. Responder P-04, P-05 y P-06 antes de fase 1.
 
 ## Cambio propuesto al plan de fases
 
