@@ -9,6 +9,8 @@ const base: ResumenDeConversacion = {
   id: 'c1',
   canal: 'whatsapp',
   estado: 'open',
+  tipo: 'dm',
+  publicacionId: null,
   contacto: { id: 'p1', nombre: 'Ana Pérez', handle: '+51999' },
   agenteId: null,
   noLeidos: 3,

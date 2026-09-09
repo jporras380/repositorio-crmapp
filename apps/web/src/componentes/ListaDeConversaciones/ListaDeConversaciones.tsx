@@ -107,7 +107,13 @@ function Fila({
             )}
           </span>
           <span className={estilos.pie}>
-            <span className={`${estilos.ventana} ${estilos[`ventana_${v.tono}`]}`}>{v.texto}</span>
+            {c.tipo === 'comment_thread' ? (
+              <span className={estilos.comentario}>Comentario</span>
+            ) : (
+              <span className={`${estilos.ventana} ${estilos[`ventana_${v.tono}`]}`}>
+                {v.texto}
+              </span>
+            )}
             {c.etiquetas.slice(0, 2).map((e) => (
               <span key={e.id} className={estilos.etiqueta} ref={pintar(e.color)}>
                 {e.nombre}

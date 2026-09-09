@@ -41,6 +41,8 @@ import {
 
 export interface FiltrosDeBandeja {
   canal?: string | undefined;
+  /** `dm` o `comment_thread`. Sin filtro, ambos. */
+  tipo?: string | undefined;
   estado?: string | undefined;
   agenteId?: string | undefined;
   etiquetaId?: string | undefined;
@@ -54,6 +56,10 @@ export interface ResumenDeConversacion {
   id: string;
   canal: string;
   estado: string;
+  /** `dm` o `comment_thread`: se responden de forma distinta y se ven distinto. */
+  tipo: string;
+  /** Publicación de la que cuelga el hilo, cuando es de comentarios. */
+  publicacionId: string | null;
   contacto: { id: string; nombre: string | null; handle: string | null };
   agenteId: string | null;
   noLeidos: number;
@@ -81,6 +87,11 @@ export type PeticionDeEnvio =
   /** Respuesta a un comentario público (Instagram): en el hilo o por privado. */
   | {
       tipo: 'comment_reply';
+      /**
+       * Por defecto `privada`: es donde se captura el lead, y es lo que hacen
+       * Kommo y Zenvia. Pública es una decisión explícita porque la ve todo el
+       * mundo. La privada solo se puede enviar UNA vez por comentario.
+       */
       modo: 'publica' | 'privada';
       texto: string;
       /** Si falta, se responde al último comentario recibido en la conversación. */
@@ -144,6 +155,7 @@ export class BandejaService {
     if (filtros.canal) condiciones.push(`ca.channel = ${p(filtros.canal)}`);
     if (filtros.estado) condiciones.push(`c.status = ${p(filtros.estado)}`);
     if (filtros.agenteId) condiciones.push(`c.assignee_user_id = ${p(filtros.agenteId)}`);
+    if (filtros.tipo) condiciones.push(`c.kind = ${p(filtros.tipo)}`);
     if (filtros.etiquetaId) {
       condiciones.push(
         `EXISTS (SELECT 1 FROM conversation_tags ct WHERE ct.conversation_id = c.id AND ct.tag_id = ${p(filtros.etiquetaId)})`,
@@ -174,6 +186,7 @@ export class BandejaService {
 
       const { rows } = await c.query<FilaResumen>(
         `SELECT c.id, ca.channel AS canal, c.status AS estado, c.assignee_user_id,
+                c.kind, c.external_thread_id,
                 c.unread_count, c.last_inbound_at, c.last_outbound_at,
                 c.session_expires_at, c.created_at,
                 co.id AS contact_id, co.display_name, ci.handle,
@@ -784,6 +797,8 @@ interface FilaResumen {
   id: string;
   canal: string;
   estado: string;
+  kind: string;
+  external_thread_id: string | null;
   assignee_user_id: string | null;
   unread_count: number;
   last_inbound_at: Date | null;
@@ -823,6 +838,8 @@ function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
     id: f.id,
     canal: f.canal,
     estado: f.estado,
+    tipo: f.kind,
+    publicacionId: f.external_thread_id,
     contacto: { id: f.contact_id, nombre: f.display_name, handle: f.handle },
     agenteId: f.assignee_user_id,
     noLeidos: f.unread_count,

@@ -27,6 +27,9 @@ export interface ResumenDeConversacion {
   id: string;
   canal: 'whatsapp' | 'instagram' | 'tiktok' | string;
   estado: 'open' | 'pending' | 'snoozed' | 'closed' | string;
+  /** `dm` o `comment_thread`: se responden distinto. */
+  tipo: 'dm' | 'comment_thread' | string;
+  publicacionId: string | null;
   contacto: { id: string; nombre: string | null; handle: string | null };
   agenteId: string | null;
   noLeidos: number;
@@ -76,7 +79,8 @@ export type PeticionDeEnvio =
   | { tipo: 'text'; texto: string }
   | { tipo: 'image' | 'video' | 'audio' | 'document'; mediaAssetId: string; pieDeFoto?: string }
   | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
-  | { tipo: 'quick_reply'; quickReplyId: string };
+  | { tipo: 'quick_reply'; quickReplyId: string }
+  | { tipo: 'comment_reply'; modo: 'publica' | 'privada'; texto: string; comentarioId?: string };
 
 export interface CuentaDeCanal {
   id: string;
@@ -114,6 +118,7 @@ export interface ResumenDeUso {
 
 export interface FiltrosDeBandeja {
   canal?: string | undefined;
+  tipo?: string | undefined;
   estado?: string | undefined;
   agenteId?: string | undefined;
   etiquetaId?: string | undefined;

@@ -499,6 +499,31 @@ describe('respuesta a comentarios (Instagram)', () => {
     expect(m.rows[0]!.payload).toMatchObject({ comentario: { id: 'c.777', modo: 'privada' } });
   });
 
+  it('el modo por defecto es privado, y la lista distingue el hilo de comentarios', async () => {
+    const conv = await hiloDeComentarios('Omar');
+    // Sin `modo`: privada, como en Kommo. Es donde se captura el lead.
+    const r = await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', texto: 'Te escribo' })
+      .expect(202);
+    const o = await admin.query<{ payload: { peticion: { modo: string } } }>(
+      `SELECT payload FROM outbox WHERE event_type = 'mensaje.enviar' AND aggregate_id = $1`,
+      [r.body.id],
+    );
+    expect(o.rows[0]!.payload.peticion.modo).toBe('privada');
+
+    // Y el listado deja filtrar por tipo de hilo.
+    const lista = await http.get('/v1/conversaciones?tipo=comment_thread').set(auth()).expect(200);
+    expect(lista.body.items.length).toBeGreaterThan(0);
+    expect(lista.body.items.every((c: { tipo: string }) => c.tipo === 'comment_thread')).toBe(true);
+    const item = lista.body.items.find((c: { id: string }) => c.id === conv);
+    expect(item).toMatchObject({ tipo: 'comment_thread', publicacionId: 'post.7' });
+
+    const dms = await http.get('/v1/conversaciones?tipo=dm').set(auth()).expect(200);
+    expect(dms.body.items.every((c: { tipo: string }) => c.tipo === 'dm')).toBe(true);
+  });
+
   it('un texto libre en ese mismo hilo sigue chocando con la ventana', async () => {
     const conv = await hiloDeComentarios('Leo');
     const r = await http

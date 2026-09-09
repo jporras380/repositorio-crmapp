@@ -150,6 +150,14 @@
     color: var(--fg-muted);
     background: var(--hairline);
   }
+  .comentario {
+    font-size: var(--text-xs);
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-pill);
+    color: var(--accent);
+    background: var(--accent-soft);
+    white-space: nowrap;
+  }
   .etiqueta {
     font-size: var(--text-xs);
     padding: 0.1rem 0.45rem;

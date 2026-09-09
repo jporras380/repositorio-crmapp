@@ -11,6 +11,7 @@ Fase actual: **fase 1 DEMOSTRADA CON TRÁFICO REAL** (2026-09-09: mensaje entran
 
 ## Completado
 
+- **PR-22, web de comentarios** ([[instagram]] §Señal de producto): la bandeja distingue hilos de comentarios (vista «Comentarios», etiqueta en la fila, cabecera sin ventana) y su compositor tiene dos acciones con consecuencias distintas — **«En privado» por defecto** (donde se captura el lead, como Kommo) y «En público». Un privado rechazado se explica sin alarmar y ofrece el público. La API expone `tipo` y `publicacionId` y filtra por `?tipo=`. 4 tests de web, 1 de API.
 - **PR-21, el canal ya no se conecta sordo**: `conectarWhatsapp` **suscribe la WABA a nuestra app** (`POST /{waba-id}/subscribed_apps`) y guarda el resultado en `channel_accounts.webhook_subscribed` (migración 0014). Si el token no tiene permiso de gestión, el canal se conecta igual y la web avisa en rojo «No recibe mensajes»; renovar el token con permiso lo arregla sin reconectar. Además, el **`handle` de WhatsApp pasa a ser el teléfono** en vez del nombre de perfil (llegó un contacto real llamado «.»). 4 tests nuevos.
 - **Prueba real de punta a punta** ([[whatsapp]] §Aprendizajes con tráfico REAL): entrante firmado → contacto, conversación, ventana de 24 h y uso medido; saliente desde el CRM → `delivered` confirmado por Meta. **El fallo que lo bloqueaba no era del código**: la WABA estaba suscrita a la app interna de pruebas de Meta, no a la del usuario (`POST /{waba-id}/subscribed_apps`).
 - **PR-20, renovar credenciales**: `PATCH /v1/canales/:id/credenciales` verifica contra Meta antes de guardar, mantiene la MISMA cuenta (desconectar+reconectar habría perdido conversaciones y plantillas) y reconecta si estaba desconectada. `pnpm wa:conectar` renueva cuando el número ya está conectado; botón «Renovar token» en Ajustes → Canales. 5 tests.
@@ -78,7 +79,7 @@ Nada.
 2. **Editor de HSM** (crear y enviar a revisión desde el CRM) y paginación de `syncTemplates`; ver pendientes en [[plantillas]].
 3. Miniaturas/transcodificación en la cola `media` y CORS del bucket cuando llegue `apps/web`.
 4. Smoke test de arranque en CI (lección del 2026-09-09).
-5. **Web de comentarios**: distinguir hilos de comentarios en la lista y ofrecer «responder en público / en privado» en el compositor.
+5. ~~Web de comentarios~~ (hecho, PR-22). Siguiente: distinguir hilos de comentarios en la lista y ofrecer «responder en público / en privado» en el compositor.
 6. WebSocket para no sondear; editor de HSM.
 6. **Decidir P-21** (qué se cobra: asientos + IA por defecto según Kommo) y qué pasa al superar `conversaciones_mes`: hoy solo se muestra.
 5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.

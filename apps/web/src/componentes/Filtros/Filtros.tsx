@@ -22,17 +22,20 @@ export function Filtros({ filtros, etiquetas, userId, alCambiar, alCrearEtiqueta
   const vista =
     filtros.estado === 'closed'
       ? 'cerradas'
-      : filtros.sinRespuesta
-        ? 'sinRespuesta'
-        : filtros.agenteId
-          ? 'mias'
-          : 'todas';
+      : filtros.tipo === 'comment_thread'
+        ? 'comentarios'
+        : filtros.sinRespuesta
+          ? 'sinRespuesta'
+          : filtros.agenteId
+            ? 'mias'
+            : 'todas';
 
   function verVista(v: typeof vista) {
     const base: FiltrosDeBandeja = { canal: filtros.canal, etiquetaId: filtros.etiquetaId };
     if (v === 'sinRespuesta') base.sinRespuesta = true;
     if (v === 'mias') base.agenteId = userId;
     if (v === 'cerradas') base.estado = 'closed';
+    if (v === 'comentarios') base.tipo = 'comment_thread';
     alCambiar(base);
   }
   function verCanal(canal: string | undefined) {
@@ -72,6 +75,7 @@ export function Filtros({ filtros, etiquetas, userId, alCambiar, alCrearEtiqueta
             ['todas', 'Todas'],
             ['sinRespuesta', 'Sin respuesta'],
             ['mias', 'Mías'],
+            ['comentarios', 'Comentarios'],
             ['cerradas', 'Cerradas'],
           ] as const
         ).map(([v, texto]) => (

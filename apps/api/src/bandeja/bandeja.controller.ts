@@ -19,6 +19,7 @@ import type { BandejaService, PeticionDeEnvio } from './bandeja.service.js';
 
 const Filtros = z.object({
   canal: z.enum(['whatsapp', 'instagram', 'tiktok']).optional(),
+  tipo: z.enum(['dm', 'comment_thread']).optional(),
   estado: z.enum(['open', 'pending', 'snoozed', 'closed']).optional(),
   agenteId: z.string().uuid().optional(),
   etiquetaId: z.string().uuid().optional(),
@@ -35,7 +36,7 @@ const Paginacion = z.object({
   limite: z.coerce.number().int().min(1).max(100).optional(),
 });
 
-const Envio: z.ZodType<PeticionDeEnvio> = z.discriminatedUnion('tipo', [
+const Envio: z.ZodType<PeticionDeEnvio, z.ZodTypeDef, unknown> = z.discriminatedUnion('tipo', [
   z.object({ tipo: z.literal('text'), texto: z.string().min(1).max(4096) }),
   z.object({
     tipo: z.enum(['image', 'video', 'audio', 'document']),
@@ -52,7 +53,7 @@ const Envio: z.ZodType<PeticionDeEnvio> = z.discriminatedUnion('tipo', [
   z.object({ tipo: z.literal('quick_reply'), quickReplyId: z.string().uuid() }),
   z.object({
     tipo: z.literal('comment_reply'),
-    modo: z.enum(['publica', 'privada']),
+    modo: z.enum(['publica', 'privada']).default('privada'),
     texto: z.string().min(1).max(1000),
     comentarioId: z.string().min(1).max(200).optional(),
   }),

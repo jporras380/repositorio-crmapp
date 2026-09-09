@@ -3,6 +3,7 @@ import type { Api } from '../../api/cliente.ts';
 import type { Mensaje, ResumenDeConversacion } from '../../api/tipos.ts';
 import { horaDeMensaje, inicial, ventana } from '../../vista/tiempo.ts';
 import { Compositor } from '../Compositor/Compositor.tsx';
+import { CompositorDeComentario } from '../Compositor/CompositorDeComentario.tsx';
 import { Medio } from './Medio.tsx';
 import estilos from './Hilo.module.css';
 
@@ -74,14 +75,21 @@ export function Hilo({ api, conversacion, alCambiar }: Props) {
           <p className={estilos.detalle}>
             {CANAL[conversacion.canal] ?? conversacion.canal}
             {conversacion.contacto.handle ? ` · ${conversacion.contacto.handle}` : ''}
+            {conversacion.tipo === 'comment_thread' ? ' · publicación' : ''}
           </p>
         </div>
-        <span
-          className={`${estilos.ventana} ${estilos[`ventana_${v.tono}`]}`}
-          title="Tiempo para responder sin plantilla"
-        >
-          {v.texto}
-        </span>
+        {conversacion.tipo === 'comment_thread' ? (
+          <span className={estilos.hiloComentarios} title="Comentarios de una publicación">
+            Comentarios
+          </span>
+        ) : (
+          <span
+            className={`${estilos.ventana} ${estilos[`ventana_${v.tono}`]}`}
+            title="Tiempo para responder sin plantilla"
+          >
+            {v.texto}
+          </span>
+        )}
       </header>
 
       <div className={estilos.mensajes} role="log" aria-live="polite" aria-busy={cargando}>
@@ -99,14 +107,25 @@ export function Hilo({ api, conversacion, alCambiar }: Props) {
         <div ref={fondo} />
       </div>
 
-      <Compositor
-        api={api}
-        conversacion={conversacion}
-        alEnviado={() => {
-          void cargar();
-          alCambiar();
-        }}
-      />
+      {conversacion.tipo === 'comment_thread' ? (
+        <CompositorDeComentario
+          api={api}
+          conversacion={conversacion}
+          alEnviado={() => {
+            void cargar();
+            alCambiar();
+          }}
+        />
+      ) : (
+        <Compositor
+          api={api}
+          conversacion={conversacion}
+          alEnviado={() => {
+            void cargar();
+            alCambiar();
+          }}
+        />
+      )}
     </div>
   );
 }

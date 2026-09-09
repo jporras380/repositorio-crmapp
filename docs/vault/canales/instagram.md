@@ -32,6 +32,15 @@ El usuario de Instagram llega con un identificador *scoped* a nuestra app. **No 
 - Worker: un comentario abre o continúa un hilo `comment_thread` por publicación (`external_thread_id` = id del post) y contacto; no abre ventana. La API responde con `tipo: 'comment_reply'` (`modo: 'publica' | 'privada'`), que **no pasa por la ventana**: las reglas de una privada por comentario y siete días las aplica Meta y vuelven mapeadas.
 - Conexión BYO: `POST /v1/canales/instagram {igUserId, accessToken, appSecret}`; se verifica con `GET /{ig-user-id}?fields=username` antes de guardar. El webhook resuelve la cuenta por `entry[].id` = `external_id`.
 
+## Señal de producto: cómo lo hace Kommo (usuario, 2026-09-09)
+
+El usuario mostró su Kommo real (Nippon Autoparts), con Facebook Messenger, Comentarios, Instagram, TikTok y WhatsApp instalados. Lo que confirmó de su experiencia usándolo:
+
+- **Llega el comentario, y al responder el usuario lo recibe como mensaje privado** por Messenger/Instagram. O sea: en Kommo el camino principal de un comentario es **convertirlo en conversación privada**, no discutir en público. Es coherente con el objetivo: el comentario es una fuente de leads.
+- **Que la respuesta privada falle es corriente y no es un problema**: mucha gente tiene los mensajes restringidos. Palabras del usuario: «algunos usuarios tienen una opción de que no le escriban, por lo cual si saliera error en ese mensaje no hay problema».
+
+**Decisión que sale de aquí (PR-22):** en el compositor de un hilo de comentarios, `modo` es **`privada` por defecto** —también en la API, `z.enum([...]).default('privada')`— y «En público» es un botón aparte, porque la ve cualquiera. Cuando el privado se rechaza, la web **no lo trata como avería**: explica en tono normal que esa persona no acepta mensajes privados o que ya se le envió uno, y ofrece responder en el comentario.
+
 ## Aprendizajes verificados
 
 Ninguno con tráfico real todavía: el adaptador está probado sin red (17 tests) y por HTTP con el sandbox y con un payload real firmado.
