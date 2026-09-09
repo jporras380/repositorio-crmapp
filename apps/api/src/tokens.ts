@@ -17,3 +17,6 @@ export const TOKEN_CONFIG = Symbol('Config');
 export const TOKEN_INGESTA = Symbol('IngestaService');
 
 export const TOKEN_BANDEJA = Symbol('BandejaService');
+
+export const TOKEN_CANALES = Symbol('CanalesService');
+export const TOKEN_CIFRADOR = Symbol('Cifrador');

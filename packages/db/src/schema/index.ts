@@ -142,6 +142,8 @@ export const channelAccounts = pgTable(
     channel: text('channel').notNull(),
     externalId: text('external_id').notNull(),
     displayName: text('display_name').notNull(),
+    /** WABA en WhatsApp, cuenta de negocio en Instagram. No es secreto. */
+    providerAccountId: text('provider_account_id'),
     status: text('status').notNull().default('disconnected'),
     quality: jsonb('quality').notNull().default({}),
     limits: jsonb('limits').notNull().default({}),

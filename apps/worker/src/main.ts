@@ -8,7 +8,15 @@ import { Pool } from 'pg';
 import { DelayedError, Queue, Worker } from 'bullmq';
 import { cargarConfig, configParaLog } from '@crmapp/config';
 import { crearLogger } from '@crmapp/observability';
-import { AdaptadorSandbox, IngestaSandbox, type ChannelAdapter } from '@crmapp/channels';
+import {
+  AdaptadorSandbox,
+  AdaptadorWhatsapp,
+  IngestaSandbox,
+  IngestaWhatsapp,
+  type ChannelAdapter,
+} from '@crmapp/channels';
+import { Cifrador, parsearClaveMaestra } from '@crmapp/crypto';
+import { crearResolverDeCredencialesWhatsapp } from '@crmapp/db';
 import {
   COLAS,
   OPCIONES_POR_DEFECTO,
@@ -35,12 +43,31 @@ const poolRelay = new Pool({
 const conexion = { url: config.REDIS_URL };
 const redis = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null });
 
+// Credenciales de canal: se leen con el rol de solo lectura y se descifran
+// con la clave maestra. Sin DATABASE_AUTH_URL el pool de aplicacion no las
+// veria (RLS) y el envio fallaria con "cuenta no existe".
+const poolAuth = new Pool({
+  connectionString: config.DATABASE_AUTH_URL ?? config.DATABASE_URL,
+  max: 2,
+});
+const cifrador = new Cifrador({
+  versionActual: config.MASTER_ENCRYPTION_KEY_VERSION,
+  claves: {
+    [config.MASTER_ENCRYPTION_KEY_VERSION]: parsearClaveMaestra(config.MASTER_ENCRYPTION_KEY),
+  },
+});
+
 const ingesta = new Map([
-  ['whatsapp', new IngestaSandbox('whatsapp')],
+  ['whatsapp', new IngestaWhatsapp()],
   ['instagram', new IngestaSandbox('instagram')],
 ]);
 const canales = new Map<string, ChannelAdapter>([
-  ['whatsapp', new AdaptadorSandbox({ canal: 'whatsapp' })],
+  [
+    'whatsapp',
+    new AdaptadorWhatsapp({
+      resolverCredenciales: crearResolverDeCredencialesWhatsapp(poolAuth, cifrador),
+    }),
+  ],
   ['instagram', new AdaptadorSandbox({ canal: 'instagram' })],
 ]);
 
@@ -170,6 +197,7 @@ const apagar = async () => {
   await redis.quit();
   await pool.end();
   await poolRelay.end();
+  await poolAuth.end();
   process.exit(0);
 };
 process.on('SIGTERM', apagar);

@@ -14,6 +14,7 @@
     "@crmapp/channels": "workspace:*",
     "@crmapp/config": "workspace:*",
     "@crmapp/core": "workspace:*",
+    "@crmapp/crypto": "workspace:*",
     "@crmapp/db": "workspace:*",
     "@crmapp/observability": "workspace:*",
     "@crmapp/queue": "workspace:*",

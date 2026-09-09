@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@crmapp/crypto": "workspace:*",
     "drizzle-orm": "^0.44.7",
     "pg": "^8.16.3"
   },

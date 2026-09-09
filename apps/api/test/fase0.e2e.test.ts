@@ -57,6 +57,7 @@ beforeAll(async () => {
       databaseUrl: url(DB, 'crmapp_app', CLAVE_APP),
       authDatabaseUrl: url(DB, 'crmapp_auth', CLAVE_AUTH),
       jwtSecret: JWT,
+      masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
     }),
     { logger: false },
   );

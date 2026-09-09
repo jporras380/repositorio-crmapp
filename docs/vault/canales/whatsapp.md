@@ -84,6 +84,12 @@ Tomados de la documentación y codificados en `AdaptadorWhatsapp`. Lo importante
 | 131052, 131053 | Medio inválido o demasiado grande | No |
 | 1, 2, 131000, 131016, HTTP 5xx | Fallo temporal de Meta | Sí |
 
+## Conexión BYO: qué hay que sacar del panel de Meta
+
+Para `POST /v1/canales/whatsapp` hacen falta cuatro datos, todos en *WhatsApp → Configuración de la API* de la app en developers.facebook.com: **phone_number_id**, **id de la WABA**, **token** (el temporal caduca a las 24 h; para uno estable, *system user* en Business Manager) y el **app secret** (en *Configuración → Básica*). El webhook se registra con la URL pública `/webhooks/whatsapp` y el `verify_token` que elijamos.
+
+**Para desarrollar no hace falta comprar número:** Meta da un número de prueba gratuito que envía a hasta 5 destinatarios verificados. El móvil personal del usuario sirve como destinatario. **El número de producción de Nippon no se toca hasta el final**: está en uso en Kommo.
+
 ## Aprendizajes propios verificados
 
 Ninguno todavía. Esta sección se llena cuando toquemos la API de verdad, y es la parte de esta nota que más va a valer dentro de tres meses.

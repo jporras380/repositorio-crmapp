@@ -39,6 +39,16 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/v1/cuentas -ContentTyp
 
 Devuelve un `token`; con él, `GET /v1/yo` (cabecera `Authorization: Bearer <token>`) responde con el estado de la suscripción.
 
+## Conectar un número de WhatsApp (BYO)
+
+Con el token de propietario, pega las credenciales de tu app de Meta. Se verifican contra Meta antes de guardarse, se guardan **cifradas** y no se devuelven nunca:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/v1/canales/whatsapp -ContentType application/json -Headers @{Authorization="Bearer <token>"} -Body '{"phoneNumberId":"<phone_number_id>","wabaId":"<id de la WABA>","accessToken":"<token de Meta>","appSecret":"<app secret>"}'
+```
+
+Después, en el panel de Meta, el webhook apunta a `https://<tu-url-publica>/webhooks/whatsapp` con el `META_WEBHOOK_VERIFY_TOKEN` del `.env`. Para desarrollo hace falta un túnel (`cloudflared` o `ngrok`): Meta no puede llamar a `localhost`.
+
 | Servicio   | Dónde                                                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | API        | `localhost:3000`                                                                                                                 |

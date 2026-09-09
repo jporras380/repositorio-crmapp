@@ -7,7 +7,7 @@ tags: [estado, sesion]
 
 # Estado — 9 de septiembre de 2026
 
-Fase actual: **fase 1 en curso**. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
+Fase actual: **fase 1, código completo**. Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
 
 ## Completado
 
@@ -15,6 +15,7 @@ Fase actual: **fase 1 en curso**. Fase 0 **completada**, con su criterio de sali
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
+- **PR-13, conexión BYO**: `POST /v1/canales/whatsapp` verifica contra Meta y guarda cifrado; resolvers compartidos en `@crmapp/db` con el rol de solo lectura; API y worker usan el adaptador y la ingesta reales por defecto (sandbox solo con `modoSandbox`). Test de punta a punta: credenciales → webhook real firmado → inquilino correcto. 16 tests.
 - **PR-12, WhatsApp real**: P-24 cerrado (vocabulario en inglés) y `AdaptadorWhatsapp` + `IngestaWhatsapp` implementando el contrato sin ampliarlo, con 23 tests sin red. **`ChannelAdapter` entra en la lista de parada.** Sin cablear aún: falta la conexión BYO (PR-13).
 - **Arranque real verificado** (no solo tests): `pnpm dev:api` y `pnpm dev:worker` levantan con el `.env`; alta de cuenta por HTTP y `/v1/yo` con suscripción en prueba. Comandos en el README.
 - **PR-11, visibilidad entre agentes**: P-09 resuelto con `decision-eval` ([[ADR-008-visibilidad-entre-agentes]]). Política por cuenta, aplicada en lista, lectura y envío con la misma regla. 11 tests.
@@ -60,7 +61,10 @@ Nada.
 
 **Fase 1**: adaptador de WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla. Criterio de salida: un agente atiende WhatsApp de punta a punta.
 
-1. **PR-13, conexión BYO de WhatsApp**: endpoint para guardar `phone_number_id`, WABA, token y app secret cifrados en `channel_secrets`; `resolverCredenciales` y `resolverCuenta` leyendo y descifrando; sustituir el sandbox por el adaptador real en API y worker cuando la cuenta esté conectada. Con eso, **un agente atiende WhatsApp de punta a punta** con un número real.
+1. **Prueba con número real** (la hace el usuario): app en developers.facebook.com, número de prueba de Meta, su móvil como destinatario, túnel para el webhook. Es el criterio de salida de fase 1 demostrado de verdad.
+2. **PR-14, multimedia**: al llegar `mediaId` en un entrante, el worker descarga con `fetchMedia` antes de que caduque la URL y guarda en S3/MinIO; miniaturas en background.
+3. **PR-15, plantillas**: respuestas rápidas y HSM con `syncTemplates`, y llenar `plantillasSugeridas` del 409 de fuera de ventana.
+4. Smoke test de arranque en CI (lección del 2026-09-09).
 3. PR-13: multimedia — descarga de medios entrantes antes de que caduque la URL, subida a S3/MinIO, miniaturas.
 4. PR-14: plantillas (respuestas rápidas y HSM con sincronización de estado), que además llena `plantillasSugeridas` del 409 de fuera de ventana.
 5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.

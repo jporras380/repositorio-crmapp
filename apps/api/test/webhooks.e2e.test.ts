@@ -73,6 +73,8 @@ beforeAll(async () => {
       databaseUrl: url(DB, 'crmapp_app', CLAVE_APP),
       authDatabaseUrl: url(DB, 'crmapp_auth', CLAVE_AUTH),
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
+      masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
+      modoSandbox: true,
       webhookVerifyToken: VERIFY_TOKEN,
       // En produccion esto leera channel_secrets y descifrara con
       // @crmapp/crypto. Aqui se inyecta para no mezclar dos cosas en un test.

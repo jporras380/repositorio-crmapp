@@ -103,6 +103,8 @@ beforeAll(async () => {
       databaseUrl: url(DB, 'crmapp_app', 'crmapp_test_app'),
       authDatabaseUrl: url(DB, 'crmapp_auth', 'crmapp_test_auth'),
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
+      masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
+      modoSandbox: true,
       ahora: () => ahora,
     }),
     { logger: false, rawBody: true },

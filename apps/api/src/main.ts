@@ -16,6 +16,8 @@ const app = await NestFactory.create(
     ...(config.DATABASE_AUTH_URL ? { authDatabaseUrl: config.DATABASE_AUTH_URL } : {}),
     jwtSecret: config.JWT_SECRET,
     poolMax: config.DATABASE_POOL_MAX,
+    masterKey: config.MASTER_ENCRYPTION_KEY,
+    masterKeyVersion: config.MASTER_ENCRYPTION_KEY_VERSION,
     ...(config.META_WEBHOOK_VERIFY_TOKEN
       ? { webhookVerifyToken: config.META_WEBHOOK_VERIFY_TOKEN }
       : {}),
