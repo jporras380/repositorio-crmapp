@@ -59,6 +59,5 @@ pnpm --filter @crmapp/web test   # 16 tests: cliente, tiempo, Acceso, Lista, Com
 
 ## Pendiente
 
-- Semilla de demo para ver la bandeja sin Meta (existe como script de sesión; convertir en `pnpm demo:semilla`).
 - WebSocket para no sondear; virtualización de la lista si pasa de ~200 filas.
 - Campos configurables en la ficha (P-25). Playwright para el recorrido completo.

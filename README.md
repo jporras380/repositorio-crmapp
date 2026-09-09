@@ -30,6 +30,7 @@ pnpm db:dev-roles             # da LOGIN a crmapp_app, crmapp_auth y crmapp_rela
 pnpm dev:api                  # API en http://localhost:3000
 pnpm dev:worker               # en otra terminal: relay del outbox + consumidores
 pnpm dev:web                  # bandeja web en http://localhost:5173 (proxy /api → 3000)
+pnpm demo:semilla             # opcional: seis conversaciones de ejemplo en la cuenta de desarrollo
 ```
 
 Después de cada `git pull`: `pnpm db:migrate` (las migraciones nuevas no se aplican solas). Si la API responde `Error interno` al entrar, `pnpm db:dev-roles` restaura las contraseñas de los roles.

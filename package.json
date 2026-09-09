@@ -25,7 +25,8 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "wa:conectar": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env scripts/conectar-whatsapp.mts",
-    "dev:web": "pnpm --filter @crmapp/web dev"
+    "dev:web": "pnpm --filter @crmapp/web dev",
+    "demo:semilla": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env apps/api/scripts/semilla-demo.mts"
   },
   "devDependencies": {
     "prettier": "^3.4.2",
