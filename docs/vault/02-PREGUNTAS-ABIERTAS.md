@@ -53,7 +53,17 @@ Sin una cifra no puedo decidir entre réplica de lectura sí o no, Redis gestion
 Con el costo de mensajería fuera, ¿qué es consumo facturable? Referencia de Kommo, documentada en [[whatsapp]]: suscripción **por asiento** y la **IA como único consumo medido**, con packs de recarga; contactos, leads y campos son límites de plan, no consumo facturado. Es coherente — la IA es lo único donde también le pagamos a un proveedor — y simplifica mucho `usage_events`.
 *(Por defecto, si no hay respuesta: copiamos esa estructura.)*
 
+### P-22 · ¿Librería de logging (pino) o el logger propio? *(lista de parada)*
+PR-3 trae un logger escrito a mano —JSON por línea, niveles, contexto heredado y redacción— porque añadir una librería de logging es una dependencia de peso y eso se pregunta antes.
+
+Lo que gana pino: transportes, rendimiento medido, muestreo, y no mantener código de infraestructura que no es nuestro negocio. Lo que cuesta: una dependencia más en el camino caliente de todo el sistema.
+
+**El cambio es barato porque la redacción vive en `@crmapp/crypto`, no en el logger.** Lo específico del proyecto no depende de quién escriba la línea.
+
 ## Menores — decido yo si no hay respuesta
+
+### P-23 · CSS Modules o CSS plano
+Convención fijada por el usuario el 2026-09-09: todo el estilo en CSS aparte, nada en línea ni CSS-in-JS. Queda elegir entre CSS Modules (aislamiento automático de nombres) o CSS plano con convención tipo BEM. Ambas cumplen la regla. Se decide al escribir el primer componente. Ver [[web]].
 
 ### P-03 · Qué cuenta como "conversación mensual" *(bajada de bloqueante a menor el 2026-09-07)*
 A efectos del límite de plan: ¿la ventana de 24 h, o nuestro ciclo abrir/cerrar?
