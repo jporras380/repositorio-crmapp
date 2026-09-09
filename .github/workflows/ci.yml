@@ -31,6 +31,19 @@ jobs:
           --health-timeout 3s
           --health-retries 20
 
+      # El semáforo por inquilino y el cableado de BullMQ se prueban contra
+      # Redis real: lo que se comprueba —atomicidad de un script Lua,
+      # serialización de msgpackr— no existe fuera de Redis.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
     env:
       # En CI el service container expone el puerto estándar; en local se cede
       # el 5432 por si hay un PostgreSQL nativo instalado (ver README).

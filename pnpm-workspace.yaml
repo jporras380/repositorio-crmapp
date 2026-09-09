@@ -11,3 +11,9 @@ packages:
 #   funcione; se autoriza.
 allowBuilds:
   esbuild: true
+  # msgpackr-extract: acelerador nativo de msgpack que arrastra BullMQ.
+  #   Se DENIEGA: msgpackr funciona sin el con su implementacion en JS, y
+  #   evitar una compilacion nativa mantiene la instalacion portable a CI y a
+  #   imagenes sin compilador. Hay un test que comprueba que BullMQ sigue
+  #   serializando bien sin el.
+  msgpackr-extract: false

@@ -15,6 +15,7 @@ Fase actual: **fase 0**. ARCH aprobado, andamiaje en marcha. Repositorio publica
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
+- **PR-4, `packages/queue`**: relay del outbox con `FOR UPDATE SKIP LOCKED`, semáforo de concurrencia por inquilino en Lua, y definición tipada de colas. 23 tests contra PostgreSQL y Redis reales. Ver [[2026-09-09]].
 - **PR-3, cimientos**: `packages/config` (validación con Zod que falla al arrancar), `packages/crypto` (envelope encryption con rotación barata, y redacción de logs en dos capas) y `packages/observability` (logger estructurado). **El test que el ARCH §11 pide por su nombre ya existe y pasa.** Ver [[2026-09-09]].
 - **PR-2, `packages/db`**: cinco migraciones SQL con su reversa, esquema Drizzle, cliente con `withTenant`, y 18 tests contra PostgreSQL real. **Los dos tests de RLS del ARCH §6 pasan**, más reversibilidad de migraciones, idempotencia e integridad del esquema. Ver [[2026-09-09]].
 - **PR-1, andamiaje del monorepo**: pnpm workspaces, Turborepo, TypeScript estricto, Prettier, CI de GitHub Actions, `docker-compose` de desarrollo (PostgreSQL 18, Redis 7, MinIO, Mailpit) y **guardas de arquitectura ejecutables**.
@@ -47,7 +48,7 @@ Nada.
 
 ## Qué sigue
 
-1. **PR-4**: auth, invitaciones y el relay del outbox. Cierra fase 0. Criterio de salida: crear cuenta e invitar usuario.
+1. **PR-5**: `apps/api` con auth e invitaciones. **Cierra fase 0**, criterio de salida: crear cuenta e invitar usuario.
 2. Responder P-04, P-05 y P-06 antes de fase 1, y P-22 (pino) cuando quieras.
 
 ## Cambio propuesto al plan de fases
