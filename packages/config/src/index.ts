@@ -56,6 +56,9 @@ export const esquemaConfig = z.object({
   // consulta corre sin inquilino y RLS no deja ver nada. Opcional para que un
   // worker, que no autentica a nadie, no tenga que definirla.
   DATABASE_AUTH_URL: urlPostgres.optional(),
+  // Rol `crmapp_relay` (migracion 0006): ve el outbox de todos los inquilinos.
+  // Solo la necesita el worker.
+  DATABASE_RELAY_URL: urlPostgres.optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(10),
 
   REDIS_URL: z.string().startsWith('redis'),
@@ -86,6 +89,7 @@ const CAMPOS_SECRETOS = [
   'DATABASE_URL',
   'DATABASE_MIGRATION_URL',
   'DATABASE_AUTH_URL',
+  'DATABASE_RELAY_URL',
   'REDIS_URL',
   'MASTER_ENCRYPTION_KEY',
   'JWT_SECRET',

@@ -15,6 +15,7 @@ Fase actual: **fase 1 en curso**. Fase 0 **completada**, con su criterio de sali
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
+- **PR-9, `apps/worker`**: procesamiento de webhooks en una transacción por inquilino — idempotencia contra `message_keys` (con test de carrera), identidad y persona separadas, reapertura de conversación, ventana recalculada con la política del adaptador, estados de entrega que nunca retroceden, y omisión por suspensión. Bootstrap con relay → BullMQ y semáforo por inquilino. 17 tests contra PostgreSQL real.
 - **PR-8, ingesta de webhooks**: firma HMAC sobre bytes crudos, persistencia del crudo incluso con firma inválida, evento al outbox y 200 en menos de un segundo. Migración 0009 y `BaseDeDatos.sinInquilino()`. 18 tests e2e.
 - **PR-7, `packages/channels`**: contrato `ChannelAdapter` con capacidades declaradas, errores tipados con `reintentable`, registro y adaptador sandbox. Más la primitiva de ventana de sesión en `core`. **El contrato entra en la lista de parada a partir de aquí.** 20 tests.
 - **PR-6, `apps/api`**: alta de cuenta, inicio de sesión, invitaciones y auditoría sobre NestJS. **Cierra fase 0**: 16 tests e2e por HTTP real contra PostgreSQL real, con la API corriendo como rol de aplicación sujeto a RLS. Más el rol `crmapp_auth` de solo lectura (migración 0008) y hash de contraseñas con scrypt.
@@ -54,10 +55,9 @@ Nada.
 
 **Fase 1**: adaptador de WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla. Criterio de salida: un agente atiende WhatsApp de punta a punta.
 
-1. **PR-9**: worker de procesamiento — consumir el evento del outbox, deduplicar contra `message_keys` (ADR-006), resolver contacto e identidad, abrir conversación y recalcular `session_expires_at`.
-2. PR-10: bandeja y envío, con la puerta de suscripción del ARCH §9 y la validación de ventana.
-3. PR-11: adaptador real de WhatsApp Cloud API contra el contrato ya cerrado.
-4. Pendiente de responder: P-04, P-05, P-06 y P-22.
+1. **PR-10**: bandeja y envío — listar conversaciones y mensajes, enviar texto/medios/plantilla pasando por la puerta del ARCH §9 (suscripción → ventana → capacidades del canal), y cola de salida por canal.
+2. PR-11: adaptador real de WhatsApp Cloud API contra el contrato ya cerrado. **Antes, resolver P-24** (unificar vocabulario de tipos), porque después el contrato entra en la lista de parada.
+3. Pendiente de responder: P-04, P-05, P-06 y P-22.
 
 ## Cambio propuesto al plan de fases
 

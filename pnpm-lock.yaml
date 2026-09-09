@@ -192,6 +192,52 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@24.13.3)(tsx@4.23.13)
 
+  apps/worker:
+    dependencies:
+      '@crmapp/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
+      '@crmapp/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@crmapp/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@crmapp/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@crmapp/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@crmapp/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
+      bullmq:
+        specifier: ^5.34.2
+        version: 5.81.4
+      ioredis:
+        specifier: ^5.4.2
+        version: 5.11.1
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.13.3
+      '@types/pg':
+        specifier: ^8.15.6
+        version: 8.23.1
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.13
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@24.13.3)(tsx@4.23.13)
+
   packages/channels:
     dependencies:
       '@crmapp/core':

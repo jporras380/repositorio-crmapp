@@ -62,6 +62,10 @@ Lo que gana pino: transportes, rendimiento medido, muestreo, y no mantener códi
 
 ## Menores — decido yo si no hay respuesta
 
+### P-24 · Vocabulario de tipos de mensaje: español en el contrato, inglés en la base
+`TipoDeMensaje` del contrato de canal usa `texto`, `imagen`…; la columna `messages.type` usa `text`, `image`… por la regla "inglés en tablas y variables". Hoy la traducción vive en un solo sitio del worker (`TIPO_EN_BASE`) y falla ruidosa ante un tipo desconocido. Dos vocabularios para lo mismo son deuda: **se unifica antes del primer canal real**, que es cuando el contrato entra en la lista de parada. *(Por defecto: el contrato pasa a inglés, porque los valores de un tipo son identificadores de código.)*
+
+
 ### P-23 · CSS Modules o CSS plano
 Convención fijada por el usuario el 2026-09-09: todo el estilo en CSS aparte, nada en línea ni CSS-in-JS. Queda elegir entre CSS Modules (aislamiento automático de nombres) o CSS plano con convención tipo BEM. Ambas cumplen la regla. Se decide al escribir el primer componente. Ver [[web]].
 
