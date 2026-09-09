@@ -7,7 +7,7 @@ tags: [estado, sesion]
 
 # Estado — 9 de septiembre de 2026
 
-Fase actual: **fase 0**. ARCH aprobado, andamiaje en marcha. Repositorio publicado en `github.com/jporras380/repositorio-crmapp`.
+Fase actual: **fase 1 en curso**. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
 
 ## Completado
 
@@ -15,6 +15,8 @@ Fase actual: **fase 0**. ARCH aprobado, andamiaje en marcha. Repositorio publica
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
+- **PR-7, `packages/channels`**: contrato `ChannelAdapter` con capacidades declaradas, errores tipados con `reintentable`, registro y adaptador sandbox. Más la primitiva de ventana de sesión en `core`. **El contrato entra en la lista de parada a partir de aquí.** 20 tests.
+- **PR-6, `apps/api`**: alta de cuenta, inicio de sesión, invitaciones y auditoría sobre NestJS. **Cierra fase 0**: 16 tests e2e por HTTP real contra PostgreSQL real, con la API corriendo como rol de aplicación sujeto a RLS. Más el rol `crmapp_auth` de solo lectura (migración 0008) y hash de contraseñas con scrypt.
 - **PR-5, `packages/core`**: ciclo de vida de la suscripción — prueba de un mes, siete días de gracia con solo texto, suspensión con desconexión de canales. 49 tests, todos sin base de datos ni reloj real. Más migración 0007 con `plans` y `subscriptions`. Ver [[facturacion]].
 - **PR-4, `packages/queue`**: relay del outbox con `FOR UPDATE SKIP LOCKED`, semáforo de concurrencia por inquilino en Lua, y definición tipada de colas. 23 tests contra PostgreSQL y Redis reales. Ver [[2026-09-09]].
 - **PR-3, cimientos**: `packages/config` (validación con Zod que falla al arrancar), `packages/crypto` (envelope encryption con rotación barata, y redacción de logs en dos capas) y `packages/observability` (logger estructurado). **El test que el ARCH §11 pide por su nombre ya existe y pasa.** Ver [[2026-09-09]].
@@ -49,8 +51,12 @@ Nada.
 
 ## Qué sigue
 
-1. **PR-6**: `apps/api` con auth e invitaciones. **Cierra fase 0**, criterio de salida: crear cuenta e invitar usuario. El alta creará ya la suscripción en prueba.
-2. Responder P-04, P-05 y P-06 antes de fase 1, y P-22 (pino) cuando quieras.
+**Fase 1**: adaptador de WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla. Criterio de salida: un agente atiende WhatsApp de punta a punta.
+
+1. **PR-8**: ingesta de webhooks — validar firma, persistir el crudo, encolar y responder 200 en menos de un segundo, con idempotencia sobre `message_keys`.
+2. PR-9: bandeja y envío, con la puerta de suscripción del ARCH §9 y la validación de ventana.
+3. PR-10: adaptador real de WhatsApp Cloud API contra el contrato ya cerrado.
+4. Pendiente de responder: P-04, P-05, P-06 y P-22.
 
 ## Cambio propuesto al plan de fases
 
