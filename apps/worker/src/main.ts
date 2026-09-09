@@ -15,10 +15,12 @@ import {
   SemaforoPorInquilino,
   SIN_CUPO,
   arrancarRelay,
+  type TrabajoDeEnvio,
   type TrabajoDeIngesta,
 } from '@crmapp/queue';
 import { Redis } from 'ioredis';
 import { marcarFallo, procesarEventoEntrante } from './procesar-entrante.js';
+import { enviarMensajeSaliente, type CargaDeEnvio } from './enviar-saliente.js';
 
 const config = cargarConfig();
 const log = crearLogger({ nivel: config.LOG_LEVEL, contexto: { proceso: 'worker' } });
@@ -46,6 +48,17 @@ const colaIngesta = new Queue(COLAS.ingestaEntrante, {
   connection: conexion,
   defaultJobOptions: OPCIONES_POR_DEFECTO,
 });
+// Una cola de salida por canal: sus límites de tasa son distintos (ARCH §10).
+const colasDeSalida: Record<string, Queue> = {
+  whatsapp: new Queue(COLAS.salidaWhatsapp, {
+    connection: conexion,
+    defaultJobOptions: OPCIONES_POR_DEFECTO,
+  }),
+  instagram: new Queue(COLAS.salidaInstagram, {
+    connection: conexion,
+    defaultJobOptions: OPCIONES_POR_DEFECTO,
+  }),
+};
 
 // --- Relay: outbox → BullMQ ------------------------------------------------
 const pararRelay = arrancarRelay({
@@ -62,6 +75,18 @@ const pararRelay = arrancarRelay({
       // menos una vez), BullMQ descarta el duplicado en vez de procesarlo dos
       // veces.
       await colaIngesta.add('webhook', trabajo, { jobId: `outbox-${evento.id}` });
+    }
+    if (evento.eventType === 'mensaje.enviar') {
+      const carga = evento.payload as CargaDeEnvio;
+      const cola = colasDeSalida[carga.canal];
+      if (!cola) throw new Error(`Sin cola de salida para el canal "${carga.canal}".`);
+      const trabajo: TrabajoDeEnvio = {
+        tenantId: evento.tenantId,
+        correlationId: evento.id,
+        messageId: carga.messageId,
+        carga,
+      };
+      await cola.add('enviar', trabajo, { jobId: `outbox-${evento.id}` });
     }
     // Otros tipos de evento se enrutarán aquí a medida que existan consumidores.
   },
@@ -101,6 +126,34 @@ const worker = new Worker<TrabajoDeIngesta>(
   { connection: conexion, concurrency: 8 },
 );
 
+// --- Consumidores de salida, uno por canal --------------------------------
+const workersDeSalida = Object.entries(colasDeSalida).map(
+  ([canal, cola]) =>
+    new Worker<TrabajoDeEnvio>(
+      cola.name,
+      async (job) => {
+        const { tenantId, carga } = job.data;
+        const r = await semaforo.ejecutar(tenantId, () =>
+          enviarMensajeSaliente({ pool, canales }, tenantId, carga as CargaDeEnvio),
+        );
+        if (r === SIN_CUPO) {
+          await job.moveToDelayed(Date.now() + 500, job.token);
+          throw new DelayedError();
+        }
+        log.info('mensaje saliente', {
+          canal,
+          tenantId,
+          messageId: job.data.messageId,
+          resultado: r,
+        });
+      },
+      { connection: conexion, concurrency: 4 },
+    ),
+);
+for (const w of workersDeSalida) {
+  w.on('failed', (job, error) => log.error('envío fallido', { jobId: job?.id, error }));
+}
+
 worker.on('failed', (job, error) =>
   log.error('job fallido', { jobId: job?.id, tenantId: job?.data.tenantId, error }),
 );
@@ -111,7 +164,9 @@ const apagar = async () => {
   log.info('apagando worker');
   await pararRelay();
   await worker.close();
+  await Promise.all(workersDeSalida.map((w) => w.close()));
   await colaIngesta.close();
+  await Promise.all(Object.values(colasDeSalida).map((q) => q.close()));
   await redis.quit();
   await pool.end();
   await poolRelay.end();

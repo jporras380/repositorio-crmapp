@@ -17,7 +17,9 @@ export class FiltroDeErrores implements ExceptionFilter {
     const res = host.switchToHttp().getResponse();
 
     if (error instanceof ErrorDeNegocio) {
-      res.status(error.httpStatus).json({ codigo: error.codigo, mensaje: error.message });
+      res
+        .status(error.httpStatus)
+        .json({ codigo: error.codigo, mensaje: error.message, ...(error.detalle ?? {}) });
       return;
     }
     if (error instanceof SinContextoDeInquilino) {

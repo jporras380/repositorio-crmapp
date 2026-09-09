@@ -56,6 +56,12 @@ export interface TrabajoDeIngesta extends TrabajoBase {
   inboundEventCreatedAt: string;
 }
 
+export interface TrabajoDeEnvio extends TrabajoBase {
+  messageId: string;
+  /** Carga completa del outbox; el worker no vuelve a leer la peticion. */
+  carga: unknown;
+}
+
 export interface TrabajoDeMantenimiento extends TrabajoBase {
   tarea: 'precrear_particiones' | 'purgar_message_keys' | 'refrescar_vistas';
 }
@@ -63,6 +69,8 @@ export interface TrabajoDeMantenimiento extends TrabajoBase {
 export interface MapaDeTrabajos {
   [COLAS.correo]: TrabajoDeCorreo;
   [COLAS.ingestaEntrante]: TrabajoDeIngesta;
+  [COLAS.salidaWhatsapp]: TrabajoDeEnvio;
+  [COLAS.salidaInstagram]: TrabajoDeEnvio;
   [COLAS.mantenimiento]: TrabajoDeMantenimiento;
 }
 

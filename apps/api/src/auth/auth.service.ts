@@ -21,6 +21,8 @@ export class ErrorDeNegocio extends Error {
     readonly codigo: string,
     mensaje: string,
     readonly httpStatus = 400,
+    /** Datos que la interfaz necesita para actuar (p. ej. plantillas sugeridas). */
+    readonly detalle?: Record<string, unknown>,
   ) {
     super(mensaje);
     this.name = 'ErrorDeNegocio';

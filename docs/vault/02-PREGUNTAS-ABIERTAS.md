@@ -13,6 +13,8 @@ Ordenadas por urgencia. **Bloqueante** significa que el ARCH no se escribe sin l
 
 Quedan tres. P-01 y P-02 se resolvieron el 2026-09-07 con [[ADR-004-modelo-whatsapp]]; P-03 bajó a menor.
 
+> **Señal del 2026-09-09:** el usuario compartió una captura de su cuenta real de Kommo (Nippon Autoparts, Perú: `+51`, moneda `S/`). Apunta a **P-04 = Perú/LatAm**, **P-05 = sí hay primer cliente: el propio usuario**, y **P-10 = facturación en PEN**. No se cierran hasta confirmación explícita, pero los valores por defecto del ARCH deberían moverse en esa dirección.
+
 ### P-04 · Región de datos y marco legal
 UE, EEUU o LatAm. GDPR, LFPDPPP, u otro. Decide dónde vive PostgreSQL y si hacen falta DPA con subencargados. Cambiarlo después es una migración de datos personales, no un cambio de configuración.
 
@@ -61,6 +63,10 @@ Lo que gana pino: transportes, rendimiento medido, muestreo, y no mantener códi
 **El cambio es barato porque la redacción vive en `@crmapp/crypto`, no en el logger.** Lo específico del proyecto no depende de quién escriba la línea.
 
 ## Menores — decido yo si no hay respuesta
+
+### P-25 · Campos configurables por cuenta en la conversación
+La ficha de Kommo muestra campos definidos por el cliente (presupuesto, dirección de entrega, razón de pérdida…). `contacts.attributes` cubre los del contacto; falta decidir si la conversación/lead necesita los suyos y si se definen con un esquema por inquilino. *(Por defecto: `jsonb` en la conversación con esquema declarado por inquilino, validado en la API.)*
+
 
 ### P-24 · Vocabulario de tipos de mensaje: español en el contrato, inglés en la base
 `TipoDeMensaje` del contrato de canal usa `texto`, `imagen`…; la columna `messages.type` usa `text`, `image`… por la regla "inglés en tablas y variables". Hoy la traducción vive en un solo sitio del worker (`TIPO_EN_BASE`) y falla ruidosa ante un tipo desconocido. Dos vocabularios para lo mismo son deuda: **se unifica antes del primer canal real**, que es cuando el contrato entra en la lista de parada. *(Por defecto: el contrato pasa a inglés, porque los valores de un tipo son identificadores de código.)*

@@ -1,0 +1,131 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { z } from 'zod';
+import { TOKEN_BANDEJA } from '../tokens.js';
+import { AuthGuard, conContextoDePeticion } from '../auth/auth.guard.js';
+import { ErrorDeNegocio } from '../auth/auth.service.js';
+import type { BandejaService, PeticionDeEnvio } from './bandeja.service.js';
+
+const Filtros = z.object({
+  canal: z.enum(['whatsapp', 'instagram', 'tiktok']).optional(),
+  estado: z.enum(['open', 'pending', 'snoozed', 'closed']).optional(),
+  agenteId: z.string().uuid().optional(),
+  etiquetaId: z.string().uuid().optional(),
+  sinRespuesta: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
+  cursor: z.string().optional(),
+  limite: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const Paginacion = z.object({
+  cursor: z.string().optional(),
+  limite: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const Envio: z.ZodType<PeticionDeEnvio> = z.discriminatedUnion('tipo', [
+  z.object({ tipo: z.literal('texto'), texto: z.string().min(1).max(4096) }),
+  z.object({
+    tipo: z.enum(['imagen', 'video', 'audio', 'documento']),
+    url: z.string().url(),
+    pieDeFoto: z.string().max(1024).optional(),
+  }),
+  z.object({
+    tipo: z.literal('plantilla'),
+    nombre: z.string().min(1),
+    idioma: z.string().min(2).max(10),
+    parametros: z.array(z.string()).max(20),
+  }),
+]);
+
+const Asignacion = z.object({ agenteId: z.string().uuid().nullable() });
+const Estado = z.object({ estado: z.enum(['open', 'pending', 'snoozed', 'closed']) });
+const Etiquetado = z.object({ tagId: z.string().uuid(), poner: z.boolean().default(true) });
+const NuevaEtiqueta = z.object({
+  nombre: z.string().min(1).max(40),
+  // Color como en Zenvia: es el filtro visual de primer nivel.
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, 'color en formato #RRGGBB')
+    .nullable()
+    .default(null),
+});
+
+function validar<T>(esquema: z.ZodType<T, z.ZodTypeDef, unknown>, datos: unknown): T {
+  const r = esquema.safeParse(datos);
+  if (!r.success) {
+    const detalle = r.error.issues
+      .map((i) => `${i.path.join('.') || '(raiz)'}: ${i.message}`)
+      .join('; ');
+    throw new ErrorDeNegocio('datos_invalidos', detalle, 400);
+  }
+  return r.data;
+}
+
+type Req = { contexto?: unknown };
+
+@Controller('v1')
+@UseGuards(AuthGuard)
+export class BandejaController {
+  constructor(@Inject(TOKEN_BANDEJA) private readonly bandeja: BandejaService) {}
+
+  @Get('conversaciones')
+  listar(@Req() req: Req, @Query() query: unknown) {
+    const f = validar(Filtros, query);
+    return conContextoDePeticion(req, () => this.bandeja.listar(f));
+  }
+
+  @Get('conversaciones/:id/mensajes')
+  mensajes(@Req() req: Req, @Param('id') id: string, @Query() query: unknown) {
+    const p = validar(Paginacion, query);
+    return conContextoDePeticion(req, () => this.bandeja.mensajes(id, p));
+  }
+
+  /** 202: el mensaje queda encolado; la entrega la confirma el worker. */
+  @Post('conversaciones/:id/mensajes')
+  @HttpCode(202)
+  enviar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const peticion = validar(Envio, body);
+    return conContextoDePeticion(req, () => this.bandeja.enviar(id, peticion));
+  }
+
+  @Patch('conversaciones/:id/asignacion')
+  @HttpCode(204)
+  async asignar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const { agenteId } = validar(Asignacion, body);
+    await conContextoDePeticion(req, () => this.bandeja.asignar(id, agenteId));
+  }
+
+  @Patch('conversaciones/:id/estado')
+  @HttpCode(204)
+  async estado(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const { estado } = validar(Estado, body);
+    await conContextoDePeticion(req, () => this.bandeja.cambiarEstado(id, estado));
+  }
+
+  @Patch('conversaciones/:id/etiquetas')
+  @HttpCode(204)
+  async etiquetar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const { tagId, poner } = validar(Etiquetado, body);
+    await conContextoDePeticion(req, () => this.bandeja.etiquetar(id, tagId, poner));
+  }
+
+  @Post('etiquetas')
+  @HttpCode(201)
+  crearEtiqueta(@Req() req: Req, @Body() body: unknown) {
+    const { nombre, color } = validar(NuevaEtiqueta, body);
+    return conContextoDePeticion(req, () => this.bandeja.crearEtiqueta(nombre, color));
+  }
+}

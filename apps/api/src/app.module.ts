@@ -1,11 +1,18 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import { Pool } from 'pg';
 import { BaseDeDatos } from './db.js';
-import { TOKEN_AUTH, TOKEN_DB, TOKEN_INGESTA } from './tokens.js';
+import { TOKEN_AUTH, TOKEN_BANDEJA, TOKEN_DB, TOKEN_INGESTA } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthGuard } from './auth/auth.guard.js';
-import { IngestaSandbox, type AdaptadorDeIngesta } from '@crmapp/channels';
+import {
+  AdaptadorSandbox,
+  IngestaSandbox,
+  type AdaptadorDeIngesta,
+  type ChannelAdapter,
+} from '@crmapp/channels';
+import { BandejaService } from './bandeja/bandeja.service.js';
+import { BandejaController } from './bandeja/bandeja.controller.js';
 import { IngestaService, type ResolverCuenta } from './webhooks/ingesta.service.js';
 import { WebhooksController } from './webhooks/webhooks.controller.js';
 
@@ -26,6 +33,8 @@ export interface OpcionesDeApp {
   adaptadoresDeIngesta?: Map<string, AdaptadorDeIngesta>;
   /** Resolucion de cuenta y secreto. En fase 1 leera channel_secrets. */
   resolverCuenta?: ResolverCuenta;
+  /** Adaptadores de canal para capacidades y politica de ventana. Sandbox por defecto. */
+  canales?: Map<string, ChannelAdapter>;
 }
 
 @Module({})
@@ -41,7 +50,7 @@ export class AppModule {
   static forRoot(opciones: OpcionesDeApp): DynamicModule {
     return {
       module: AppModule,
-      controllers: [AuthController, WebhooksController],
+      controllers: [AuthController, WebhooksController, BandejaController],
       providers: [
         {
           provide: TOKEN_DB,
@@ -80,9 +89,24 @@ export class AppModule {
               verifyToken: opciones.webhookVerifyToken ?? '',
             }),
         },
+        {
+          provide: TOKEN_BANDEJA,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) =>
+            new BandejaService({
+              db,
+              canales:
+                opciones.canales ??
+                new Map<string, ChannelAdapter>([
+                  ['whatsapp', new AdaptadorSandbox({ canal: 'whatsapp' })],
+                  ['instagram', new AdaptadorSandbox({ canal: 'instagram' })],
+                ]),
+              ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
+            }),
+        },
         AuthGuard,
       ],
-      exports: [TOKEN_DB, TOKEN_AUTH, TOKEN_INGESTA],
+      exports: [TOKEN_DB, TOKEN_AUTH, TOKEN_INGESTA, TOKEN_BANDEJA],
     };
   }
 }
