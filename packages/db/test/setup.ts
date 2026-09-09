@@ -13,7 +13,10 @@ const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
 const PORT = process.env['TEST_PG_PORT'] ?? '55432';
 const SUPERUSER = process.env['TEST_PG_SUPERUSER'] ?? 'crmapp';
 const SUPERPASS = process.env['TEST_PG_SUPERPASS'] ?? 'crmapp_dev';
-const APP_PASS = 'crmapp_test_app';
+// La MISMA contraseña que `pnpm db:dev-roles`. Los roles son del clúster, no
+// de la base: si los tests pusieran otra, cada ejecución dejaría al `.env`
+// de desarrollo sin poder conectar (pasó; ver sesión 2026-09-09).
+const APP_PASS = 'crmapp_dev';
 
 export const urlAdmin = (db: string) =>
   `postgres://${SUPERUSER}:${SUPERPASS}@${HOST}:${PORT}/${db}`;

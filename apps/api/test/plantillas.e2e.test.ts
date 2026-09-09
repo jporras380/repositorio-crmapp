@@ -105,16 +105,16 @@ beforeAll(async () => {
 
   const conf = new Client({ connectionString: url(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_test_app'`);
-  await conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD 'crmapp_test_auth'`);
+  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_dev'`);
+  await conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD 'crmapp_dev'`);
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app, crmapp_auth`);
   await conf.end();
   admin = new Pool({ connectionString: url(DB) });
 
   app = await NestFactory.create(
     AppModule.forRoot({
-      databaseUrl: url(DB, 'crmapp_app', 'crmapp_test_app'),
-      authDatabaseUrl: url(DB, 'crmapp_auth', 'crmapp_test_auth'),
+      databaseUrl: url(DB, 'crmapp_app', 'crmapp_dev'),
+      authDatabaseUrl: url(DB, 'crmapp_auth', 'crmapp_dev'),
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
       canales: new Map<string, ChannelAdapter>([['whatsapp', sandbox]]),

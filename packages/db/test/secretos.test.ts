@@ -34,7 +34,7 @@ beforeAll(async () => {
   admin = poolAdmin(DB);
   const conf = new Client({ connectionString: urlAdmin(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD 'crmapp_test_auth'`);
+  await conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD 'crmapp_dev'`);
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_auth`);
   tenantId = (
     await conf.query<{ id: string }>(
@@ -50,10 +50,10 @@ beforeAll(async () => {
   ).rows[0]!.id;
   await conf.end();
   app = new Pool({
-    connectionString: `postgres://crmapp_app:crmapp_test_app@${HOST}:${PORT}/${DB}`,
+    connectionString: `postgres://crmapp_app:crmapp_dev@${HOST}:${PORT}/${DB}`,
   });
   auth = new Pool({
-    connectionString: `postgres://crmapp_auth:crmapp_test_auth@${HOST}:${PORT}/${DB}`,
+    connectionString: `postgres://crmapp_auth:crmapp_dev@${HOST}:${PORT}/${DB}`,
   });
 });
 

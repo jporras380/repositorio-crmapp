@@ -23,10 +23,10 @@ beforeAll(async () => {
   await prepararBaseDeDatos(DB);
   admin = poolAdmin(DB);
   app = new Pool({ connectionString: urlApp(DB) });
-  await admin.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD 'crmapp_test_relay'`);
+  await admin.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD 'crmapp_dev'`);
   await admin.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_relay`);
   relay = new Pool({
-    connectionString: `postgres://crmapp_relay:crmapp_test_relay@${HOST}:${PORT}/${DB}`,
+    connectionString: `postgres://crmapp_relay:crmapp_dev@${HOST}:${PORT}/${DB}`,
   });
   const t = await admin.query<{ id: string }>(
     `INSERT INTO tenants (name, slug) VALUES ('A','a'), ('B','b') RETURNING id`,

@@ -49,14 +49,14 @@ beforeAll(async () => {
   await migrar(url(DB));
   const conf = new Client({ connectionString: url(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_test_app'`);
+  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_dev'`);
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app`);
   await conf.end();
   admin = new Pool({ connectionString: url(DB) });
 
   app = await NestFactory.create(
     AppModule.forRoot({
-      databaseUrl: url(DB, 'crmapp_app', 'crmapp_test_app'),
+      databaseUrl: url(DB, 'crmapp_app', 'crmapp_dev'),
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
       modoSandbox: true,

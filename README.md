@@ -32,7 +32,7 @@ pnpm dev:worker               # en otra terminal: relay del outbox + consumidore
 pnpm dev:web                  # bandeja web en http://localhost:5173 (proxy /api → 3000)
 ```
 
-Después de cada `git pull`: `pnpm db:migrate` (las migraciones nuevas no se aplican solas).
+Después de cada `git pull`: `pnpm db:migrate` (las migraciones nuevas no se aplican solas). Si la API responde `Error interno` al entrar, `pnpm db:dev-roles` restaura las contraseñas de los roles.
 
 Comprobación rápida de que la API está viva:
 

@@ -35,7 +35,7 @@ beforeAll(async () => {
   await migrar(url(DB));
   const conf = new Client({ connectionString: url(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_test_app'`);
+  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_dev'`);
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app`);
   const t = await conf.query<{ id: string }>(
     `INSERT INTO tenants (name, slug) VALUES ('A','a'), ('B','b') RETURNING id`,
@@ -50,7 +50,7 @@ beforeAll(async () => {
   ).rows[0]!.id;
   await conf.end();
   admin = new Pool({ connectionString: url(DB) });
-  app = new Pool({ connectionString: url(DB, 'crmapp_app', 'crmapp_test_app') });
+  app = new Pool({ connectionString: url(DB, 'crmapp_app', 'crmapp_dev') });
 });
 
 afterAll(async () => {

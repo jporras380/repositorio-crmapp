@@ -25,10 +25,10 @@ beforeAll(async () => {
   await migrar(url(DB));
   const conf = new Client({ connectionString: url(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD 'crmapp_test_relay'`);
+  await conf.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD 'crmapp_dev'`);
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_relay`);
   await conf.end();
-  relay = new Pool({ connectionString: url(DB, 'crmapp_relay', 'crmapp_test_relay') });
+  relay = new Pool({ connectionString: url(DB, 'crmapp_relay', 'crmapp_dev') });
 });
 
 afterAll(async () => {

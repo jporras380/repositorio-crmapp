@@ -21,7 +21,7 @@ const PORT = process.env['TEST_PG_PORT'] ?? '55432';
 const SU = process.env['TEST_PG_SUPERUSER'] ?? 'crmapp';
 const PASS = process.env['TEST_PG_SUPERPASS'] ?? 'crmapp_dev';
 const DB = 'crmapp_test_worker';
-const CLAVE_APP = 'crmapp_test_app';
+const CLAVE_APP = 'crmapp_dev';
 const url = (db: string, u = SU, p = PASS) => `postgres://${u}:${p}@${HOST}:${PORT}/${db}`;
 
 // Primer dia del mes actual y no una fecha fija: las particiones de `messages`

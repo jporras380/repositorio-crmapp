@@ -22,8 +22,8 @@ const PORT = process.env['TEST_PG_PORT'] ?? '55432';
 const SU = process.env['TEST_PG_SUPERUSER'] ?? 'crmapp';
 const PASS = process.env['TEST_PG_SUPERPASS'] ?? 'crmapp_dev';
 const DB = 'crmapp_test_webhooks';
-const CLAVE_APP = 'crmapp_test_app';
-const CLAVE_AUTH = 'crmapp_test_auth';
+const CLAVE_APP = 'crmapp_dev';
+const CLAVE_AUTH = 'crmapp_dev';
 const SECRETO = 'secreto-de-la-app-de-meta';
 const VERIFY_TOKEN = 'token-de-verificacion-elegido-por-nosotros';
 
