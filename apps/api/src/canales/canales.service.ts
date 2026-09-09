@@ -289,6 +289,79 @@ export class CanalesService {
   }
 
   /** Desconecta: estado, y los secretos se BORRAN, no se dejan por si acaso. */
+  /**
+   * Renueva las credenciales de un canal ya conectado.
+   *
+   * Existe porque el token de Meta caduca —el temporal del panel, en 24 h— y
+   * la alternativa era desconectar y volver a conectar, que borra los
+   * secretos y crea una cuenta nueva: se perderían las conversaciones y las
+   * plantillas sincronizadas. Aquí la cuenta es la misma; solo cambian sus
+   * secretos.
+   *
+   * Se verifica contra Meta ANTES de guardar, igual que al conectar: pegar un
+   * token malo no puede dejar el canal peor de lo que estaba. Y si la cuenta
+   * estaba desconectada, renovar la reconecta: es lo que el usuario quiere.
+   */
+  async renovarCredenciales(
+    id: string,
+    datos: { accessToken: string; appSecret?: string | undefined },
+  ): Promise<CuentaDeCanal> {
+    const ctx = this.#exigirAdmin();
+
+    const cuenta = await this.#db.enTransaccion((c) => this.#leer(c, id));
+    if (!cuenta) throw new ErrorDeNegocio('canal_no_encontrado', 'El canal no existe.', 404);
+
+    // Fuera de la transacción: es una llamada de red.
+    if (cuenta.canal === 'whatsapp') {
+      await this.#verificar({ phoneNumberId: cuenta.externalId, accessToken: datos.accessToken });
+    } else if (cuenta.canal === 'instagram') {
+      await this.#verificarInstagram({
+        igUserId: cuenta.externalId,
+        accessToken: datos.accessToken,
+      });
+    } else {
+      throw new ErrorDeNegocio(
+        'canal_no_soportado',
+        `No se sabe verificar credenciales de "${cuenta.canal}".`,
+        422,
+      );
+    }
+
+    return this.#db.enTransaccion(async (c) => {
+      await guardarSecretoDeCanal(c, this.#cifrador, {
+        tenantId: ctx.tenantId,
+        channelAccountId: id,
+        kind: 'access_token',
+        valor: datos.accessToken,
+      });
+      if (datos.appSecret) {
+        await guardarSecretoDeCanal(c, this.#cifrador, {
+          tenantId: ctx.tenantId,
+          channelAccountId: id,
+          kind: 'app_secret',
+          valor: datos.appSecret,
+        });
+      }
+      await c.query(
+        `UPDATE channel_accounts
+            SET status = 'connected', last_synced_at = now(), updated_at = now()
+          WHERE id = $1`,
+        [id],
+      );
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'canal.credenciales_renovadas', 'channel_account', $3, $4)`,
+        [
+          ctx.tenantId,
+          ctx.userId,
+          id,
+          JSON.stringify({ canal: cuenta.canal, appSecretTambien: Boolean(datos.appSecret) }),
+        ],
+      );
+      return (await this.#leer(c, id))!;
+    });
+  }
+
   async desconectar(id: string): Promise<void> {
     const ctx = this.#exigirAdmin();
     await this.#db.enTransaccion(async (c) => {

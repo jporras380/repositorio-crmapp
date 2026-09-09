@@ -151,6 +151,12 @@ export function crearApi(token: string | null) {
     }) => peticion<CuentaDeCanal>('/v1/canales/whatsapp', { ...t, metodo: 'POST', cuerpo: cred }),
     desconectarCanal: (id: string) =>
       peticion<void>(`/v1/canales/${id}`, { ...t, metodo: 'DELETE' }),
+    renovarCredenciales: (id: string, d: { accessToken: string; appSecret?: string }) =>
+      peticion<CuentaDeCanal>(`/v1/canales/${id}/credenciales`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: d,
+      }),
     plantillasDeCanal: (channelAccountId: string) =>
       peticion<PlantillaDeWhatsapp[]>(`/v1/canales/${channelAccountId}/plantillas`, t),
     sincronizarPlantillas: (channelAccountId: string) =>

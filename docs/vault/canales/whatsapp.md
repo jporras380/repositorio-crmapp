@@ -93,3 +93,40 @@ Para `POST /v1/canales/whatsapp` hacen falta cuatro datos, todos en *WhatsApp �
 ## Aprendizajes propios verificados
 
 Ninguno todavía. Esta sección se llena cuando toquemos la API de verdad, y es la parte de esta nota que más va a valer dentro de tres meses.
+
+
+## Aprendizajes con tráfico REAL (2026-09-09)
+
+Primera conversación real de punta a punta con el número de prueba de Meta. Lo que costó horas y no está en el flujo guiado del panel:
+
+### 1. Configurar el webhook NO basta: hay que suscribir la WABA a tu app
+
+El panel te lleva a poner URL y token de verificación en la app, y el reto responde 200. Pero los mensajes siguen sin llegar. El motivo: la **WABA** tiene su propia lista de apps suscritas, y la del número de prueba viene suscrita a **`WA DevX Webhook Events 1P App`** (id `2202427980234937`), la app interna del panel de Meta. Mientras esa sea la única, los webhooks se los queda ella.
+
+```
+GET  /{waba-id}/subscribed_apps    → ver quién recibe
+POST /{waba-id}/subscribed_apps    → suscribir la tuya (el token decide cuál es "la tuya")
+DELETE /{waba-id}/subscribed_apps  → revertir
+```
+
+**Consecuencia de producto:** el alta BYO debe hacer este POST, o el cliente conectará su número y no recibirá nada sin saber por qué. Es trabajo pendiente en `conectarWhatsapp`.
+
+### 2. El botón «Probar» del panel manda identificadores ficticios
+
+Envía `entry[].id = "0"`, `phone_number_id = "123456123"`, número `16505551111`. No resuelve a ninguna cuenta nuestra, así que no hay app secret con el que verificar la firma → `signature_ok: false` y 401. **Es el comportamiento correcto**, pero parece un fallo: al depurar, mirar `phone_number_id` antes de sospechar de la firma.
+
+### 3. Que Meta te envíe un mensaje no genera webhook entrante
+
+El «hello_world» del panel va del número de prueba al móvil. El webhook entrante lo genera **la respuesta desde el móvil**.
+
+### 4. El token temporal del panel caduca en 24 h
+
+Y cuando lo hace, Graph responde `code: 190, error_subcode: 463` con «Session has expired». Recibir sigue funcionando (la firma usa el app secret, que no caduca); **enviar, no**. De aquí sale `PATCH /v1/canales/:id/credenciales`. Lo permanente sale de un usuario del sistema en Business Manager con `whatsapp_business_messaging` y `whatsapp_business_management`.
+
+### 5. `profile.name` puede ser cualquier cosa
+
+El contacto real llegó con nombre `.` porque así se llama el perfil de WhatsApp. Guardamos ese valor en `contact_identities.handle`, y la bandeja lo pinta. Para WhatsApp el `handle` debería ser el teléfono (`phone_e164`), que sí es útil. Pendiente.
+
+### Evidencia
+
+Entrante: `wamid.HBgLNTE5MjUzMDAyMjQ…`, texto «Respuesta», firma verificada, ventana calculada a 24 h, uso medido. Saliente desde el CRM: `delivered` confirmado por Meta con su propio `wamid`. Los dos sentidos, con el mismo código que corre en los tests.

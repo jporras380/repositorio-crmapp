@@ -53,6 +53,15 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/v1/canales/whatsapp -C
 
 Después, en el panel de Meta, el webhook apunta a `https://<tu-url-publica>/webhooks/whatsapp` con el `META_WEBHOOK_VERIFY_TOKEN` del `.env`. Para desarrollo hace falta un túnel (`cloudflared` o `ngrok`): Meta no puede llamar a `localhost`.
 
+> **Sin esto no llega ni un mensaje:** además de configurar el webhook, hay que **suscribir la WABA a tu app**. El número de prueba viene suscrito a la app interna de Meta.
+>
+> ```bash
+> curl -X POST "https://graph.facebook.com/v21.0/<waba-id>/subscribed_apps" -H "Authorization: Bearer <token>"
+> curl "https://graph.facebook.com/v21.0/<waba-id>/subscribed_apps" -H "Authorization: Bearer <token>"   # comprobar
+> ```
+>
+> Si el token caduca (el temporal del panel dura 24 h), **no hace falta reconectar**: `pnpm wa:conectar` renueva, o Ajustes → Canales → «Renovar token».
+
 ### Atajo para el número de prueba de Meta
 
 Sin pegar credenciales en ninguna terminal: rellena en `.env` `DEV_WA_PHONE_NUMBER_ID`, `DEV_WA_WABA_ID`, `DEV_WA_ACCESS_TOKEN` (panel de Meta → WhatsApp → Configuración de la API) y `META_APP_SECRET` (Configuración de la app → Básica → Clave secreta), y ejecuta:

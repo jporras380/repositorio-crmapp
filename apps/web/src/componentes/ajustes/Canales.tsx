@@ -25,6 +25,7 @@ export function Canales({ api, gestor }: Props) {
   const [cuentas, setCuentas] = useState<CuentaDeCanal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conectando, setConectando] = useState(false);
+  const [renovando, setRenovando] = useState<CuentaDeCanal | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -71,6 +72,18 @@ export function Canales({ api, gestor }: Props) {
         <p className={`${estilos.aviso} ${estilos.aviso_error}`} role="alert">
           {error}
         </p>
+      )}
+
+      {renovando && (
+        <FormularioRenovar
+          api={api}
+          cuenta={renovando}
+          alCancelar={() => setRenovando(null)}
+          alRenovar={async () => {
+            setRenovando(null);
+            await cargar();
+          }}
+        />
       )}
 
       {conectando && (
@@ -121,6 +134,11 @@ export function Canales({ api, gestor }: Props) {
                     onClick={() => irA({ pantalla: 'ajustes', seccion: 'plantillas' })}
                   >
                     Plantillas
+                  </button>
+                )}
+                {gestor && (
+                  <button className={estilos.secundario} onClick={() => setRenovando(c)}>
+                    Renovar token
                   </button>
                 )}
                 {gestor && c.status !== 'disconnected' && (
@@ -228,6 +246,87 @@ function FormularioWhatsapp({
         </button>
         <button type="submit" className={estilos.primario} disabled={enviando}>
           {enviando ? 'Verificando con Meta…' : 'Conectar'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Renovar el token de un canal ya conectado. Es lo que hace falta cuando Meta
+ * lo caduca: la cuenta y sus conversaciones siguen siendo las mismas.
+ */
+function FormularioRenovar({
+  api,
+  cuenta,
+  alCancelar,
+  alRenovar,
+}: {
+  api: Api;
+  cuenta: CuentaDeCanal;
+  alCancelar: () => void;
+  alRenovar: () => Promise<void>;
+}) {
+  const [accessToken, setAccessToken] = useState('');
+  const [appSecret, setAppSecret] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    setError(null);
+    try {
+      await api.renovarCredenciales(cuenta.id, {
+        accessToken: accessToken.trim(),
+        ...(appSecret.trim() ? { appSecret: appSecret.trim() } : {}),
+      });
+      await alRenovar();
+    } catch (err) {
+      setError(err instanceof ErrorDeApi ? err.message : 'No se pudo renovar.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <form className={estilos.formulario} onSubmit={enviar}>
+      <p className={estilos.descripcion}>
+        Nuevo token para <strong>{cuenta.displayName}</strong>. Se verifica con Meta antes de
+        guardarlo; si falla, el canal se queda como está. Un token de usuario del sistema no caduca.
+      </p>
+      <div className={estilos.campos}>
+        <label className={estilos.campo}>
+          <span>Token de acceso</span>
+          <input
+            required
+            type="password"
+            autoComplete="off"
+            value={accessToken}
+            onChange={(e) => setAccessToken(e.target.value)}
+          />
+        </label>
+        <label className={estilos.campo}>
+          <span>Clave secreta de la app (solo si cambió)</span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={appSecret}
+            onChange={(e) => setAppSecret(e.target.value)}
+          />
+        </label>
+      </div>
+      {error && (
+        <p className={`${estilos.aviso} ${estilos.aviso_error}`} role="alert">
+          {error}
+        </p>
+      )}
+      <div className={estilos.formularioAcciones}>
+        <button type="button" className={estilos.secundario} onClick={alCancelar}>
+          Cancelar
+        </button>
+        <button type="submit" className={estilos.primario} disabled={enviando}>
+          {enviando ? 'Verificando con Meta…' : 'Renovar'}
         </button>
       </div>
     </form>

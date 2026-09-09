@@ -6,6 +6,7 @@ import {
   HttpCode,
   Inject,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -29,6 +30,12 @@ const AltaInstagram = z.object({
   accessToken: z.string().min(20),
   appSecret: z.string().min(16),
   displayName: z.string().min(1).max(80).optional(),
+});
+
+const RenovarCredenciales = z.object({
+  accessToken: z.string().min(20),
+  /** Opcional: normalmente solo caduca el token, no la clave secreta de la app. */
+  appSecret: z.string().min(16).optional(),
 });
 
 function validar<T>(esquema: z.ZodType<T, z.ZodTypeDef, unknown>, datos: unknown): T {
@@ -71,6 +78,21 @@ export class CanalesController {
   conectarInstagram(@Req() req: Req, @Body() body: unknown) {
     const cred = validar(AltaInstagram, body);
     return conContextoDePeticion(req, () => this.canales.conectarInstagram(cred));
+  }
+
+  /**
+   * Renueva el token (y opcionalmente el app secret) de un canal conectado.
+   * PATCH y no POST: la cuenta ya existe y sigue siendo la misma.
+   */
+  @Patch(':id/credenciales')
+  renovar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const d = validar(RenovarCredenciales, body);
+    return conContextoDePeticion(req, () =>
+      this.canales.renovarCredenciales(id, {
+        accessToken: d.accessToken,
+        ...(d.appSecret ? { appSecret: d.appSecret } : {}),
+      }),
+    );
   }
 
   @Delete(':id')

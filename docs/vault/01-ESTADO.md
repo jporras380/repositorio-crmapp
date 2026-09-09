@@ -7,10 +7,12 @@ tags: [estado, sesion]
 
 # Estado — 9 de septiembre de 2026
 
-Fase actual: **fase 2 empezada** (Instagram DM y comentarios, PR-19) sobre una fase 1 completa con web (PR-17/18). `packages/core` no se tocó para meter el segundo canal: el criterio de salida de fase 2 se cumple en el núcleo; falta la web de comentarios y la prueba real. Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
+Fase actual: **fase 1 DEMOSTRADA CON TRÁFICO REAL** (2026-09-09: mensaje entrante verificado y saliente `delivered` con el número de prueba de Meta) y **fase 2 empezada** (Instagram DM y comentarios, PR-19) sobre una fase 1 completa con web (PR-17/18). `packages/core` no se tocó para meter el segundo canal: el criterio de salida de fase 2 se cumple en el núcleo; falta la web de comentarios y la prueba real. Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
 
 ## Completado
 
+- **Prueba real de punta a punta** ([[whatsapp]] §Aprendizajes con tráfico REAL): entrante firmado → contacto, conversación, ventana de 24 h y uso medido; saliente desde el CRM → `delivered` confirmado por Meta. **El fallo que lo bloqueaba no era del código**: la WABA estaba suscrita a la app interna de pruebas de Meta, no a la del usuario (`POST /{waba-id}/subscribed_apps`).
+- **PR-20, renovar credenciales**: `PATCH /v1/canales/:id/credenciales` verifica contra Meta antes de guardar, mantiene la MISMA cuenta (desconectar+reconectar habría perdido conversaciones y plantillas) y reconecta si estaba desconectada. `pnpm wa:conectar` renueva cuando el número ya está conectado; botón «Renovar token» en Ajustes → Canales. 5 tests.
 - **PR-19, Instagram (fase 2)** ([[instagram]]): `AdaptadorInstagram` + `IngestaInstagram` dentro del contrato existente; DMs, adjuntos por URL de CDN, comentarios como hilos `comment_thread` por publicación; `comment_reply` (pública/privada) en la puerta de envío sin pasar por la ventana; conexión BYO `POST /v1/canales/instagram`; sandbox que imita las capacidades de cada canal. **`core` sin cambios.** 17 tests de canal, +3 worker, +5 API.
 - **`pnpm demo:semilla`** (chore): seis conversaciones, cinco etiquetas y dos canales de ejemplo en la cuenta de desarrollo; idempotente; rehúsa correr con `NODE_ENV=production`.
 - **PR-18, Ajustes en la web** ([[web]]): enrutado por hash sin dependencia (`#ajustes/<seccion>`), y cuatro secciones sobre la API existente: canales (conectar WhatsApp con los cuatro datos, desconectar), plantillas (sincronizar con Meta, estado con motivo de rechazo), respuestas rápidas (crear, editar → versión nueva, archivar) y uso del plan (barras contra `plans.limits`, ámbar al 80 %, rojo al 100 %). 21 tests en la web.
@@ -75,8 +77,10 @@ Nada.
 2. **Editor de HSM** (crear y enviar a revisión desde el CRM) y paginación de `syncTemplates`; ver pendientes en [[plantillas]].
 3. Miniaturas/transcodificación en la cola `media` y CORS del bucket cuando llegue `apps/web`.
 4. Smoke test de arranque en CI (lección del 2026-09-09).
-5. **Web de comentarios** (PR-20): distinguir hilos de comentarios en la lista y ofrecer «responder en público / en privado» en el compositor.
-6. WebSocket para no sondear; editor de HSM.
+5. **`conectarWhatsapp` debe suscribir la WABA a la app** (`POST /{waba-id}/subscribed_apps`) o el cliente conectará su número y no recibirá nada. Es el fallo que costó la tarde.
+6. **`handle` de WhatsApp debería ser el teléfono**, no `profile.name` (llegó un contacto llamado «.»).
+7. **Web de comentarios**: distinguir hilos de comentarios en la lista y ofrecer «responder en público / en privado» en el compositor.
+8. WebSocket para no sondear; editor de HSM.
 6. **Decidir P-21** (qué se cobra: asientos + IA por defecto según Kommo) y qué pasa al superar `conversaciones_mes`: hoy solo se muestra.
 5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.
 

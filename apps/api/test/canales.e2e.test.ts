@@ -424,3 +424,98 @@ describe('conectar Instagram (BYO)', () => {
     });
   });
 });
+
+describe('renovar credenciales', () => {
+  /**
+   * El token de Meta caduca (el temporal, en 24 h). Renovar tiene que dejar la
+   * MISMA cuenta con secretos nuevos: desconectar y reconectar crearía otra y
+   * se perderían conversaciones y plantillas.
+   */
+  let idWa: string;
+  // Cuenta propia: otros bloques de este archivo desconectan la suya, y
+  // desconectar borra los secretos.
+  const PN_RENOV = '999888777666';
+
+  beforeAll(async () => {
+    const r = await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOwner))
+      .send({ ...CRED, phoneNumberId: PN_RENOV })
+      .expect(201);
+    idWa = r.body.id;
+  });
+
+  it('un agente no puede renovar', async () => {
+    await http
+      .patch(`/v1/canales/${idWa}/credenciales`)
+      .set(auth(tokenAgente))
+      .send({ accessToken: 'EAAG-token-nuevo-suficientemente-largo' })
+      .expect(403);
+  });
+
+  it('un token que Meta rechaza no toca lo guardado', async () => {
+    const antes = await admin.query<{ ciphertext: Buffer }>(
+      `SELECT ciphertext FROM channel_secrets WHERE channel_account_id = $1 AND kind = 'access_token'`,
+      [idWa],
+    );
+    await http
+      .patch(`/v1/canales/${idWa}/credenciales`)
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'MALO-token-suficientemente-largo' })
+      .expect(422);
+    const despues = await admin.query<{ ciphertext: Buffer }>(
+      `SELECT ciphertext FROM channel_secrets WHERE channel_account_id = $1 AND kind = 'access_token'`,
+      [idWa],
+    );
+    expect(despues.rows[0]!.ciphertext.equals(antes.rows[0]!.ciphertext)).toBe(true);
+  });
+
+  it('un token válido se verifica contra Meta, se guarda cifrado y la cuenta sigue siendo la misma', async () => {
+    verificaciones = [];
+    const antes = await admin.query<{ ciphertext: Buffer }>(
+      `SELECT ciphertext FROM channel_secrets WHERE channel_account_id = $1 AND kind = 'access_token'`,
+      [idWa],
+    );
+    const r = await http
+      .patch(`/v1/canales/${idWa}/credenciales`)
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'EAAG-token-renovado-de-usuario-del-sistema' })
+      .expect(200);
+
+    // Se verificó con el external_id de la cuenta, no con uno que venga del cuerpo.
+    expect(verificaciones).toEqual([`${PN_RENOV}:EAAG-tok`]);
+    expect(r.body).toMatchObject({ id: idWa, status: 'connected' });
+    expect(JSON.stringify(r.body)).not.toContain('EAAG-token-renovado');
+
+    const despues = await admin.query<{ ciphertext: Buffer }>(
+      `SELECT ciphertext FROM channel_secrets WHERE channel_account_id = $1 AND kind = 'access_token'`,
+      [idWa],
+    );
+    expect(despues.rows[0]!.ciphertext.equals(antes.rows[0]!.ciphertext)).toBe(false);
+
+    // La cuenta es la misma: renovar no crea otra.
+    const cuentas = await admin.query(
+      `SELECT 1 FROM channel_accounts WHERE tenant_id = $1 AND external_id = $2`,
+      [tenantId, PN_RENOV],
+    );
+    expect(cuentas.rows).toHaveLength(1);
+  });
+
+  it('renovar reconecta una cuenta desconectada', async () => {
+    await admin.query(`UPDATE channel_accounts SET status = 'disconnected' WHERE id = $1`, [idWa]);
+    const r = await http
+      .patch(`/v1/canales/${idWa}/credenciales`)
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'EAAG-token-otra-vez-valido-y-largo' })
+      .expect(200);
+    expect(r.body.status).toBe('connected');
+  });
+
+  it('una cuenta que no existe da 404', async () => {
+    await http
+      .patch('/v1/canales/00000000-0000-7000-8000-000000000000/credenciales')
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'EAAG-token-suficientemente-largo-x' })
+      .expect(404);
+  });
+});
