@@ -24,7 +24,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "wa:conectar": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env scripts/conectar-whatsapp.mts"
+    "wa:conectar": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env scripts/conectar-whatsapp.mts",
+    "dev:web": "pnpm --filter @crmapp/web dev"
   },
   "devDependencies": {
     "prettier": "^3.4.2",

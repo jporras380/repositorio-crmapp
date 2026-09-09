@@ -1,0 +1,103 @@
+/*
+ * Base compartida: capas, reset mínimo, tipografía y las dos utilidades de
+ * material que sí tienen sentido globales (vidrio y foco). Todo lo demás vive
+ * en el módulo CSS de cada componente (ADR-010).
+ */
+@layer tokens, base, components;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: var(--font-ui);
+    font-size: 16px;
+    line-height: var(--leading);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-variant-numeric: tabular-nums;
+    scrollbar-width: thin;
+    scrollbar-color: light-dark(oklch(0% 0 0 / 0.25), oklch(100% 0 0 / 0.25)) transparent;
+  }
+
+  body {
+    margin: 0;
+    min-block-size: 100dvb;
+    background-color: var(--bg-a);
+    background-image:
+      radial-gradient(60% 50% at 8% 0%, var(--bg-b) 0%, transparent 70%),
+      radial-gradient(50% 60% at 100% 100%, var(--bg-c) 0%, transparent 70%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Superficie de vidrio. Fondo de respaldo con contraste: ver tokens.css. */
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
+    backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-glass);
+  }
+  .glass-strong {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
+    backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-glass);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

@@ -67,9 +67,6 @@ Lo que gana pino: transportes, rendimiento medido, muestreo, y no mantener códi
 La ficha de Kommo muestra campos definidos por el cliente (presupuesto, dirección de entrega, razón de pérdida…). `contacts.attributes` cubre los del contacto; falta decidir si la conversación/lead necesita los suyos y si se definen con un esquema por inquilino. *(Por defecto: `jsonb` en la conversación con esquema declarado por inquilino, validado en la API.)*
 
 
-### P-23 · CSS Modules o CSS plano
-Convención fijada por el usuario el 2026-09-09: todo el estilo en CSS aparte, nada en línea ni CSS-in-JS. Queda elegir entre CSS Modules (aislamiento automático de nombres) o CSS plano con convención tipo BEM. Ambas cumplen la regla. Se decide al escribir el primer componente. Ver [[web]].
-
 ### P-03 · Qué cuenta como "conversación mensual" *(bajada de bloqueante a menor el 2026-09-07)*
 A efectos del límite de plan: ¿la ventana de 24 h, o nuestro ciclo abrir/cerrar?
 La versión original de esta pregunta asumía que el cliente compararía nuestro conteo con su factura de Meta. Ya no aplica: desde el 1 de julio de 2025 **Meta factura por mensaje entregado, no por conversación** (ver [[whatsapp]]), y con [[ADR-004-modelo-whatsapp]] esa factura ni siquiera pasa por nosotros. Queda como pregunta de producto — qué límite es justo y comprensible —, no de conciliación contable.
@@ -90,4 +87,5 @@ La versión original de esta pregunta asumía que el cliente compararía nuestro
 | **P-01** | Modelo de conexión a WhatsApp | **BYO-credentials.** Tech Provider con Embedded Signup queda como destino documentado, no como compromiso. Ver [[ADR-004-modelo-whatsapp]] | 2026-09-07 |
 | **P-24** | Vocabulario de tipos de mensaje | **Inglés en el contrato** (`text`, `image`…). Los valores de un tipo son identificadores de código. Los mapas de traducción desaparecen | 2026-09-09 |
 | **P-09** | Visibilidad entre agentes | **Configurable por cuenta, `all` por defecto** (como Kommo); `team` y `assigned` disponibles. Solo restringe al rol `agent`. Ver [[ADR-008-visibilidad-entre-agentes]] | 2026-09-09 |
+| **P-23** | CSS Modules o CSS plano | **Resuelta: CSS Modules por componente sobre tokens globales** ([[ADR-010-css-en-web]]). Empate técnico con BEM; decide el aislamiento, cuyo fallo aparece tarde y en silencio | 2026-09-09 |
 | **P-02** | Repercutir o absorber el costo de mensajería | **Disuelta.** El cliente paga a Meta directamente: no hay nada que repercutir. Sale de la lista de parada; se elimina el módulo de wallet del roadmap. Lo que queda es P-21 | 2026-09-07 |

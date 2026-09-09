@@ -52,6 +52,22 @@ if hits=$(grep -rInE "channels/(whatsapp|instagram|tiktok)" apps packages --incl
 fi
 
 # --- §11 del ARCH ----------------------------------------------------------
+# Estilo de la web solo en CSS aparte (ADR-010): nada en línea ni CSS-in-JS.
+if [ -d apps/web/src ]; then
+  if hits=$(grep -rnE "style=\{\{" apps/web/src --include='*.tsx' 2>/dev/null); then
+    fallar "estilos en línea en apps/web" "ADR-010. Todo estilo va en el .module.css del componente."
+    echo "$hits"
+  fi
+  if hits=$(grep -rnE "from '(styled-components|@emotion/[a-z]+|@stitches/[a-z]+|@vanilla-extract/[a-z]+)'" apps/web/src 2>/dev/null); then
+    fallar "CSS-in-JS en apps/web" "ADR-010. La convención del usuario lo excluye."
+    echo "$hits"
+  fi
+  if hits=$(grep -rnE "from '@crmapp/(core|db|channels|queue|crypto)'" apps/web/src 2>/dev/null); then
+    fallar "apps/web importa lógica de negocio" "ARCH §3. La web pinta estado; no lo decide."
+    echo "$hits"
+  fi
+fi
+
 # Cero credenciales en el repositorio. .env.example lleva nombres, no valores.
 if [ -f .env.example ]; then
   if hits=$(grep -nE '^[A-Z_][A-Z0-9_]*=.+' .env.example); then

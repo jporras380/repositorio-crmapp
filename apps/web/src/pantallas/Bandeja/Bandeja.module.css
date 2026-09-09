@@ -1,0 +1,76 @@
+@layer components {
+  .bandeja {
+    block-size: 100dvb;
+    display: grid;
+    grid-template-columns: 4rem minmax(18rem, 22rem) minmax(0, 1fr) minmax(16rem, 19rem);
+    grid-template-areas: 'barra lista hilo contacto';
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  /* Sin conversación abierta no hay ficha que mostrar: el hilo ocupa su sitio. */
+  .sinSeleccion {
+    grid-template-columns: 4rem minmax(18rem, 22rem) minmax(0, 1fr);
+    grid-template-areas: 'barra lista hilo';
+  }
+  .sinSeleccion .contacto {
+    display: none;
+  }
+
+  .lista,
+  .hilo,
+  .contacto {
+    border-radius: var(--radius-lg);
+    min-block-size: 0;
+    display: grid;
+    overflow: hidden;
+  }
+  .lista {
+    grid-area: lista;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .hilo {
+    grid-area: hilo;
+  }
+  .contacto {
+    grid-area: contacto;
+  }
+
+  .vacio {
+    display: grid;
+    place-content: center;
+    text-align: center;
+    padding: var(--space-6);
+    gap: var(--space-2);
+    max-inline-size: 28rem;
+    margin: auto;
+  }
+  .vacioTitulo {
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+  .vacioTexto {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+
+  @media (max-width: 1100px) {
+    .bandeja {
+      grid-template-columns: 4rem minmax(16rem, 20rem) minmax(0, 1fr);
+      grid-template-areas: 'barra lista hilo';
+    }
+    .contacto {
+      display: none;
+    }
+  }
+  @media (max-width: 760px) {
+    .bandeja {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-areas: 'barra' 'lista';
+    }
+    .hilo {
+      display: none;
+    }
+  }
+}

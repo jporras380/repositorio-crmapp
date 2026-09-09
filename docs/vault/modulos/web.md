@@ -2,41 +2,60 @@
 estado: vivo
 fecha: 2026-09-09
 modulo: web
-tags: [web, frontend, convenciones, css]
+tags: [web, frontend, convenciones, css, diseño]
 ---
 
 # Módulo — Aplicación web
 
-Fase 1 en adelante. Todavía no existe código.
+`apps/web`: React 19 + Vite 7, sin enrutador ni gestor de estado todavía (dos pantallas y un `useState`). PR-17. Capturas reales en `adjuntos/2026-09-09-bandeja-claro.png` y `-oscuro.png`.
 
-## Convención de estilo, fijada por el usuario el 2026-09-09
+![[2026-09-09-bandeja-claro.png]]
 
-**Todo el estilo va en CSS, en archivos separados del componente.** El código fuente concentrado bajo `src/`.
+## Convención de estilo (fijada por el usuario, decidida en [[ADR-010-css-en-web]])
 
-Queda fuera:
+**CSS Modules por componente** (`Nombre.tsx` + `Nombre.module.css`) sobre tokens y base globales en `packages/ui` (`tokens.css`, `base.css`). Nada en línea, nada de CSS-in-JS, ninguna utilidad en `className`. Lo vigila `scripts/check-architecture.sh` (busca `style={{`, imports de styled-components/emotion y de `@crmapp/core|db|…` desde la web).
 
-- Estilos en línea (`style={{ ... }}`).
-- CSS-in-JS (styled-components, emotion y similares).
-- Utilidades amontonadas en el `className` del marcado. Si se usara Tailwind, sería mediante `@apply` dentro del CSS, no en el JSX.
+La única excepción admitida: el **color de una etiqueta es dato del usuario**, no estilo nuestro. Se pasa como propiedad personalizada `--tag` al nodo mediante un `ref` (`pintar(color)` en `Filtros.tsx`); el CSS hace el resto con `color-mix()`.
 
-Razón: mantiene los componentes legibles y el estilo revisable de un vistazo, sin leer JSX para saber cómo se ve algo.
+## Dirección de diseño y por qué
 
-**Pendiente de decidir al escribir el primer componente:** CSS Modules o CSS plano con convención de nombres. Las dos opciones cumplen la regla; es P-23.
+Sujeto: un agente de una pyme peruana de autopartes atendiendo WhatsApp e Instagram. Trabajo principal: **responder rápido sin perder ninguna**; la información crítica es cuánto queda de ventana y qué conversaciones marcó el usuario como importantes.
 
-Los tokens de diseño viven en `packages/ui` como variables CSS, para que web y móvil compartan la misma paleta sin compartir componentes.
+- **Paleta**: grafito y cobalto como únicos colores de la interfaz (`--graphite-*`, `--cobalt-*`). El color lo aportan los canales (WhatsApp verde, Instagram magenta, TikTok negro) y las etiquetas del usuario. Se descartaron a propósito el crema+terracota y el negro+ácido: son los tics del diseño generado.
+- **Vidrio**: paneles `.glass` con `backdrop-filter` sobre un fondo con dos degradados radiales (el desenfoque necesita algo que desenfocar). `prefers-reduced-transparency` y `@supports not (backdrop-filter)` convierten el vidrio en superficie opaca **una sola vez, en tokens.css**, no componente a componente.
+- **Tipografía**: Instrument Sans (una sola familia), numerales tabulares para horas y contadores.
+- **Tema**: `light-dark()` + `color-scheme: light dark` en `:root`; `data-theme` fuerza uno. Sin JavaScript de tema.
+- **El elemento memorable** es la **franja de color** al borde de cada conversación (etiquetas apiladas, Zenvia) y las etiquetas como filtro visible arriba de la lista. Todo lo demás está callado a propósito.
+- **Ventana de sesión**: la API manda el instante (`ventanaExpiraEn`); la web pinta «23 h 33 min» en verde, ámbar bajo dos horas, gris cerrada. `vista/tiempo.ts` es presentación pura y tiene tests.
 
 ## Lo que no se negocia
 
-**Cero lógica de negocio aquí.** Las ventanas de sesión, los permisos y los límites de plan se calculan en la API. La web los pinta. Si algo se valida en React, está mal. El mecanismo que lo sostiene: la lógica vive en `packages/core`, y `web` no puede importarlo — lo vigila `scripts/check-architecture.sh`.
+**Cero lógica de negocio.** El compositor envía y, si la API dice 409 `fuera_de_ventana`, pinta el motivo y las `plantillasSugeridas` que vienen en la respuesta. No sabe qué es una ventana. Test: `Compositor.test.tsx`.
 
-## Dirección de diseño, fijada por el usuario el 2026-09-09
+## Estructura
 
-**Referencias:**
+```
+src/
+  api/        cliente.ts (fetch + ErrorDeApi), tipos.ts (formas de la API, tal cual)
+  estado/     sesion.ts (token en localStorage; #sesion= solo en desarrollo)
+  vista/      tiempo.ts (formatos)
+  pantallas/  Acceso, Bandeja (tres paneles: lista · hilo · contacto; el contacto se oculta sin selección)
+  componentes/ Barra, Filtros, ListaDeConversaciones, Hilo (+Medio), Compositor, PanelDeContacto
+```
 
-- **Kommo** (captura real de la cuenta del usuario): bandeja de tres paneles — lista de conversaciones con icono de canal y contador de no leídos; ficha del lead con campos configurables por cuenta (presupuesto, dirección de entrega, método de pago, razón de pérdida…); chat a la derecha. Filtro rápido "Sin respuesta". Acciones al pie: aceptar, adjuntar, eliminar.
-- **Zenvia**: **etiquetas con color como filtro de primer nivel**. El usuario marca lo importante con color y filtra por él. Ya existe `tags.color`; la bandeja debe exponer las etiquetas como filtro visible, no escondido en un menú.
-- **iPhone / iOS "glass"**: superficies translúcidas, desenfoque de fondo, jerarquía por profundidad más que por bordes. Se implementa con CSS nativo (`backdrop-filter`, `color-mix`), en archivos CSS aparte según la convención de arriba. **Cuando toque, cargar `frontend-design` y `modern-web-guidance` antes de escribir el primer componente**, y decidir P-23 con `decision-eval`.
+Datos: sondeo cada 10 s la lista y cada 5 s el hilo abierto; WebSocket queda para después. Conversación abierta en la URL (`#c=<id>`). Vite hace proxy de `/api` a la API (sin CORS).
 
-**Advertencia de accesibilidad que hay que respetar desde el primer componente:** el efecto glass reduce contraste. Todo texto sobre superficie translúcida necesita un fondo de respaldo con contraste suficiente y respetar `prefers-reduced-transparency`. Bonito y legible no son excluyentes, pero hay que decidirlo al principio.
+## Cómo verlo en cinco minutos
 
-**Campos configurables por cuenta** (como la ficha de Kommo): hoy existe `contacts.attributes jsonb`. Habrá que decidir si la conversación necesita los suyos (P-25).
+```
+pnpm dev:api          # API en 3000
+pnpm dev:web          # http://localhost:5173 (proxy /api → 3000)
+pnpm --filter @crmapp/web test   # 16 tests: cliente, tiempo, Acceso, Lista, Compositor
+```
+
+## Pendiente
+
+- Semilla de demo para ver la bandeja sin Meta (existe como script de sesión; convertir en `pnpm demo:semilla`).
+- WebSocket para no sondear; virtualización de la lista si pasa de ~200 filas.
+- Pantallas de plantillas, respuestas rápidas, canales y uso (la API ya existe).
+- Campos configurables en la ficha (P-25). Playwright para el recorrido completo.

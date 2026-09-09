@@ -7,10 +7,11 @@ tags: [estado, sesion]
 
 # Estado — 9 de septiembre de 2026
 
-Fase actual: **fase 1, código completo** (WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla). Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
+Fase actual: **fase 1, código completo** (WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla) **y la primera web funcionando** (PR-17). Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
 
 ## Completado
 
+- **PR-17, `apps/web`** ([[web]], [[ADR-010-css-en-web]]): acceso y bandeja de tres paneles con vidrio iOS, tokens en `packages/ui`, etiquetas de color como filtro y franja (Zenvia), ventana de sesión pintada desde el instante de la API, compositor que obedece los 409 con `plantillasSugeridas`, respuestas rápidas con «/», adjuntos por subida directa, ficha de contacto (asignar, estado, etiquetas). P-23 resuelta. Guardas nuevas: nada en línea, sin CSS-in-JS, la web no importa `core`. 16 tests + capturas reales claro/oscuro en `adjuntos/`. Antes, `GET /v1/etiquetas` en la API.
 - **PR-16, medición de uso** ([[uso]]): migración 0013 (`usage_events` particionada, `usage_event_keys`, `usage_rollups`), `registrarUso` en la transacción del hecho (entrantes, salientes aceptados, plantillas, conversaciones abiertas/reabiertas, bytes almacenados), `GET /v1/cuenta/uso` frente a `plans.limits` sin bloquear nada. De paso: **precreación diaria de particiones** desde el worker (función SECURITY DEFINER + `upsertJobScheduler`), que hasta hoy solo ocurría al migrar. 8 tests db, 5 worker, 3 API. **Qué se cobra sigue siendo P-21 (lista de parada).**
 - **PR-15, plantillas** ([[plantillas]]): migración 0012 (`quick_replies`/`_versions`, `wa_templates`/`_versions`), sincronización de HSM desde el proveedor, webhook de estado de plantilla resuelto por WABA y reflejado por el worker, puerta de envío que exige `aprobada` y devuelve `plantillasSugeridas`, respuestas rápidas con versiones y adjunto. 20 tests nuevos en API, 2 en worker.
 - **PR-14, multimedia** ([[ADR-009-medios]], [[medios]]): `packages/storage` (S3 por URL firmadas, nada público), descarga de entrantes por job propio con deduplicación por `sha256` dentro del inquilino, envío con `mediaAssetId` (la URL se firma en el worker al enviar), subida directa desde el navegador (`/v1/medios/subidas` → PUT → confirmar) y `GET /v1/medios/:id/url`. Se quitó la lectura anónima del bucket en el compose. MinIO en CI solo para `packages/storage`. 6 + 8 + 11 tests nuevos.
@@ -69,7 +70,9 @@ Nada.
 2. **Editor de HSM** (crear y enviar a revisión desde el CRM) y paginación de `syncTemplates`; ver pendientes en [[plantillas]].
 3. Miniaturas/transcodificación en la cola `media` y CORS del bucket cuando llegue `apps/web`.
 4. Smoke test de arranque en CI (lección del 2026-09-09).
-5. **Decidir P-21** (qué se cobra: asientos + IA por defecto según Kommo) y qué pasa al superar `conversaciones_mes`: hoy solo se muestra.
+5. **Arreglar el pisotón de contraseñas de los tests**: los tests hacen `ALTER ROLE crmapp_app … PASSWORD 'crmapp_test_app'` sobre roles del clúster; tras correrlos, `pnpm dev:api` falla hasta `pnpm db:dev-roles`. Unificar contraseña de test y desarrollo.
+6. Pantallas de plantillas/canales/uso en la web; WebSocket; semilla de demo.
+7. **Decidir P-21** (qué se cobra: asientos + IA por defecto según Kommo) y qué pasa al superar `conversaciones_mes`: hoy solo se muestra.
 5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.
 
 ## Cambio propuesto al plan de fases

@@ -1,0 +1,92 @@
+@layer components {
+  .pantalla {
+    min-block-size: 100dvb;
+    display: grid;
+    place-content: center;
+    padding: var(--space-5);
+  }
+
+  .tarjeta {
+    inline-size: min(100%, 22rem);
+    padding: var(--space-6) var(--space-5) var(--space-5);
+    border-radius: var(--radius-lg);
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .marca {
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    border-radius: 14px;
+    background: linear-gradient(145deg, var(--accent-strong), var(--accent));
+    display: grid;
+    place-content: center;
+    box-shadow: 0 10px 24px -10px var(--accent);
+    margin-block-end: var(--space-2);
+  }
+  .marcaPunto {
+    inline-size: 0.9rem;
+    block-size: 0.9rem;
+    border-radius: 50%;
+    background: var(--accent-fg);
+    opacity: 0.92;
+  }
+
+  .titulo {
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: var(--leading-tight);
+  }
+  .subtitulo {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    margin-block-end: var(--space-2);
+  }
+
+  .campo {
+    display: grid;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .campo input {
+    padding: 0.65rem 0.8rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--fg);
+    font-size: var(--text-md);
+  }
+  .campo input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+  }
+
+  .error {
+    font-size: var(--text-sm);
+    color: var(--danger);
+    background: var(--danger-soft);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+  }
+
+  .boton {
+    margin-block-start: var(--space-2);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-weight: 600;
+    font-size: var(--text-md);
+    transition: transform 120ms ease;
+  }
+  .boton:active {
+    transform: translateY(1px);
+  }
+  .boton:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}

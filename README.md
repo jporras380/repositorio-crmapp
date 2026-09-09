@@ -29,6 +29,7 @@ pnpm db:migrate               # aplica las migraciones a la base de desarrollo
 pnpm db:dev-roles             # da LOGIN a crmapp_app, crmapp_auth y crmapp_relay (solo desarrollo)
 pnpm dev:api                  # API en http://localhost:3000
 pnpm dev:worker               # en otra terminal: relay del outbox + consumidores
+pnpm dev:web                  # bandeja web en http://localhost:5173 (proxy /api → 3000)
 ```
 
 Después de cada `git pull`: `pnpm db:migrate` (las migraciones nuevas no se aplican solas).
@@ -84,6 +85,7 @@ Con `S3_*` en el `.env` (MinIO en desarrollo, R2 en producción), los medios ent
 
 | Servicio   | Dónde                                                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Web        | `localhost:5173` (Vite, `pnpm dev:web`)                                                                                            |
 | API        | `localhost:3000`                                                                                                                 |
 | PostgreSQL | `localhost:55432` — usuario y base `crmapp`. No es el 5432 estándar: se cede el puerto por si hay un PostgreSQL nativo instalado |
 | Redis      | `localhost:6379`                                                                                                                 |

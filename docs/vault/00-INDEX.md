@@ -31,6 +31,7 @@ Si algo se averigua leyendo el código en menos de un minuto, no va aquí. No ha
 | [[ADR-007-identidad-contactos]] | Identidad unificada de contactos | aceptado |
 | [[ADR-008-visibilidad-entre-agentes]] | Visibilidad entre agentes, configurable por cuenta | aceptado |
 | [[ADR-009-medios]] | Medios: nada público, URL firmadas, subida directa | aceptado |
+| [[ADR-010-css-en-web]] | CSS Modules por componente sobre tokens globales | aceptado |
 
 Los siete ADR previstos están escritos. El siguiente se creará cuando aparezca una decisión nueva, no antes.
 

@@ -1,0 +1,179 @@
+@layer components {
+  .cabecera {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-3);
+    border-block-end: 1px solid var(--hairline);
+  }
+  .fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .titulo {
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .canales {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .canal {
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    background: var(--hairline);
+    position: relative;
+    opacity: 0.55;
+    transition: opacity 120ms ease;
+  }
+  .canal::after {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border-radius: 50%;
+  }
+  .whatsapp::after {
+    background: var(--channel-whatsapp);
+  }
+  .instagram::after {
+    background: var(--channel-instagram);
+  }
+  .canal:hover,
+  .canalActivo {
+    opacity: 1;
+  }
+  .canalActivo {
+    border-color: var(--accent);
+  }
+
+  .vistas {
+    display: flex;
+    gap: var(--space-1);
+    padding: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--hairline);
+  }
+  .vista {
+    flex: 1 1 0;
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    white-space: nowrap;
+    transition:
+      background 120ms ease,
+      color 120ms ease;
+  }
+  .vistaActiva {
+    background: var(--surface-raised);
+    color: var(--fg);
+    font-weight: 600;
+    box-shadow: 0 1px 3px oklch(0% 0 0 / 0.12);
+  }
+
+  .etiquetas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .etiqueta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.6rem 0.25rem 0.4rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    font-size: var(--text-sm);
+    color: var(--fg);
+    background: color-mix(in oklch, var(--tag) 10%, transparent);
+    transition:
+      background 120ms ease,
+      border-color 120ms ease;
+  }
+  .etiqueta:hover {
+    background: color-mix(in oklch, var(--tag) 20%, transparent);
+  }
+  .etiquetaActiva {
+    border-color: var(--tag);
+    background: color-mix(in oklch, var(--tag) 24%, transparent);
+    font-weight: 600;
+  }
+  .punto {
+    inline-size: 0.6rem;
+    block-size: 0.6rem;
+    border-radius: 50%;
+    background: var(--tag);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--tag) 30%, transparent);
+  }
+  .nueva {
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-pill);
+    border: 1px dashed var(--hairline);
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .nueva:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .nuevaForma {
+    flex-basis: 100%;
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+  }
+  .paleta {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .muestra {
+    inline-size: 1.4rem;
+    block-size: 1.4rem;
+    border-radius: 50%;
+    background: var(--tag);
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 1px var(--hairline);
+  }
+  .muestraActiva {
+    border-color: var(--surface);
+    box-shadow: 0 0 0 2px var(--tag);
+  }
+  .nuevaEntrada {
+    padding: 0.5rem 0.65rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    font-size: var(--text-sm);
+  }
+  .error {
+    font-size: var(--text-xs);
+    color: var(--danger);
+  }
+  .acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+  .primario,
+  .secundario {
+    padding: 0.4rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  .primario {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .secundario {
+    color: var(--fg-muted);
+  }
+}

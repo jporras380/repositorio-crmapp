@@ -1,0 +1,122 @@
+/*
+ * Tokens de diseño (ADR-010). Una sola fuente para web y, más adelante, móvil.
+ *
+ * Dirección: superficies de vidrio (iOS) sobre un fondo con un degradado
+ * suave —el desenfoque necesita algo detrás que desenfocar—, grafito y
+ * cobalto como únicos colores de la interfaz. El color lo ponen el canal
+ * (WhatsApp, Instagram, TikTok) y las etiquetas del usuario (Zenvia); la
+ * interfaz se mantiene callada para que eso destaque.
+ *
+ * Tema: `light-dark()` con `color-scheme` en :root; `data-theme` fuerza uno.
+ */
+@layer tokens {
+  :root {
+    color-scheme: light dark;
+
+    /* --- Paleta base ------------------------------------------------- */
+    --graphite-900: oklch(16% 0.018 262);
+    --graphite-800: oklch(21% 0.02 262);
+    --graphite-700: oklch(28% 0.022 262);
+    --graphite-200: oklch(86% 0.012 262);
+    --aluminum-100: oklch(94% 0.012 255);
+    --aluminum-50: oklch(97.5% 0.006 255);
+    --cobalt-600: oklch(50% 0.2 262);
+    --cobalt-500: oklch(56% 0.2 262);
+    --cobalt-300: oklch(76% 0.13 262);
+
+    /* --- Fondo (lo que el vidrio desenfoca) ---------------------------- */
+    --bg-a: light-dark(var(--aluminum-100), var(--graphite-900));
+    --bg-b: light-dark(oklch(93% 0.035 262), oklch(19% 0.035 262));
+    --bg-c: light-dark(oklch(95% 0.025 200), oklch(17% 0.03 200));
+
+    /* --- Superficies ---------------------------------------------------- */
+    --glass: light-dark(oklch(100% 0 0 / 0.58), oklch(30% 0.02 262 / 0.5));
+    --glass-strong: light-dark(oklch(100% 0 0 / 0.78), oklch(24% 0.02 262 / 0.72));
+    --glass-border: light-dark(oklch(100% 0 0 / 0.75), oklch(100% 0 0 / 0.1));
+    --surface: light-dark(oklch(99% 0.003 255), var(--graphite-800));
+    --surface-raised: light-dark(oklch(100% 0 0), var(--graphite-700));
+    --hairline: light-dark(oklch(0% 0 0 / 0.08), oklch(100% 0 0 / 0.1));
+    --blur: 18px;
+    --saturate: 150%;
+
+    /* --- Texto ---------------------------------------------------------- */
+    --fg: light-dark(oklch(22% 0.02 262), oklch(95% 0.008 262));
+    --fg-muted: light-dark(oklch(48% 0.02 262), oklch(72% 0.015 262));
+    --fg-faint: light-dark(oklch(62% 0.015 262), oklch(56% 0.015 262));
+
+    /* --- Acento --------------------------------------------------------- */
+    --accent: light-dark(var(--cobalt-600), var(--cobalt-300));
+    --accent-strong: light-dark(var(--cobalt-500), oklch(82% 0.11 262));
+    --accent-fg: light-dark(oklch(100% 0 0), var(--graphite-900));
+    --accent-soft: light-dark(oklch(56% 0.2 262 / 0.12), oklch(76% 0.13 262 / 0.16));
+
+    /* --- Semánticos (ventana de sesión, estados) ------------------------ */
+    --ok: light-dark(oklch(58% 0.16 150), oklch(78% 0.16 150));
+    --warn: light-dark(oklch(70% 0.16 75), oklch(84% 0.15 80));
+    --danger: light-dark(oklch(55% 0.2 25), oklch(75% 0.17 25));
+    --ok-soft: light-dark(oklch(58% 0.16 150 / 0.14), oklch(78% 0.16 150 / 0.18));
+    --warn-soft: light-dark(oklch(70% 0.16 75 / 0.18), oklch(84% 0.15 80 / 0.2));
+    --danger-soft: light-dark(oklch(55% 0.2 25 / 0.12), oklch(75% 0.17 25 / 0.18));
+
+    /* --- Canales (identidad del proveedor, no nuestra) ------------------ */
+    --channel-whatsapp: oklch(66% 0.19 150);
+    --channel-instagram: oklch(62% 0.23 350);
+    --channel-tiktok: light-dark(oklch(18% 0 0), oklch(92% 0 0));
+
+    /* --- Tipografía ----------------------------------------------------- */
+    --font-ui:
+      'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --text-xs: 0.75rem;
+    --text-sm: 0.8125rem;
+    --text-md: 0.9375rem;
+    --text-lg: 1.0625rem;
+    --text-xl: 1.375rem;
+    --text-2xl: 1.75rem;
+    --leading-tight: 1.25;
+    --leading: 1.45;
+
+    /* --- Espacio, radio, sombra ---------------------------------------- */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 22px;
+    --radius-pill: 999px;
+    --shadow-glass: 0 1px 0 var(--glass-border) inset, 0 12px 40px -18px oklch(20% 0.03 262 / 0.35);
+    --shadow-pop: 0 18px 50px -20px oklch(20% 0.03 262 / 0.55);
+    --ring: 0 0 0 3px var(--accent-soft);
+
+    accent-color: var(--accent);
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+  }
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  /*
+   * Sin transparencia cuando el sistema lo pide o el navegador no desenfoca:
+   * el vidrio pasa a superficie opaca y el texto conserva el contraste. Esto
+   * se decide aquí, una vez, y no componente a componente.
+   */
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --glass: var(--surface);
+      --glass-strong: var(--surface);
+      --blur: 0px;
+      --saturate: 100%;
+    }
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    :root {
+      --glass: var(--surface);
+      --glass-strong: var(--surface);
+    }
+  }
+}

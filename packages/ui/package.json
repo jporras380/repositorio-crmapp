@@ -1,0 +1,16 @@
+{
+  "name": "@crmapp/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tokens de diseño y base CSS compartidos por web y móvil. Sin componentes.",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./base.css": "./src/base.css"
+  },
+  "scripts": {
+    "lint": "echo \"(sin linter todavía)\"",
+    "typecheck": "echo \"(solo CSS)\"",
+    "test": "echo \"(solo CSS)\""
+  }
+}
