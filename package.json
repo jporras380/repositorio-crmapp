@@ -23,7 +23,8 @@
     "infra:up": "docker compose -f infra/docker-compose.dev.yml up -d",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "wa:conectar": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env scripts/conectar-whatsapp.mts"
   },
   "devDependencies": {
     "prettier": "^3.4.2",

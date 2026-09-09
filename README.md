@@ -49,6 +49,24 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/v1/canales/whatsapp -C
 
 Después, en el panel de Meta, el webhook apunta a `https://<tu-url-publica>/webhooks/whatsapp` con el `META_WEBHOOK_VERIFY_TOKEN` del `.env`. Para desarrollo hace falta un túnel (`cloudflared` o `ngrok`): Meta no puede llamar a `localhost`.
 
+### Atajo para el número de prueba de Meta
+
+Sin pegar credenciales en ninguna terminal: rellena en `.env` `DEV_WA_PHONE_NUMBER_ID`, `DEV_WA_WABA_ID`, `DEV_WA_ACCESS_TOKEN` (panel de Meta → WhatsApp → Configuración de la API) y `META_APP_SECRET` (Configuración de la app → Básica → Clave secreta), y ejecuta:
+
+```powershell
+pnpm wa:conectar      # crea la cuenta de desarrollo si no existe y conecta el número
+```
+
+Orden completo de la prueba real:
+
+1. `pnpm dev:api` y, en otra terminal, `pnpm dev:worker`.
+2. Túnel: `cloudflared tunnel --url http://localhost:3000` (te da una URL `https://…trycloudflare.com`).
+3. Panel de Meta → Configuración de producción → **Configurar webhooks**: URL `https://<tunel>/webhooks/whatsapp`, token de verificación = el valor de `META_WEBHOOK_VERIFY_TOKEN` en tu `.env` (`Select-String META_WEBHOOK_VERIFY_TOKEN .env`). Verificar y guardar; luego suscribirse al campo **messages**.
+4. `pnpm wa:conectar`.
+5. En **Paso 1: Pruébalo**, añade tu móvil como destinatario y envía la plantilla `hello_world` desde el panel. Responde desde tu móvil: ese mensaje entra por el webhook y aparece en `GET /v1/conversaciones`.
+
+El token temporal de Meta caduca en 24 h; el permanente sale de un usuario del sistema en Business Manager.
+
 ## Medios (fotos, audios, documentos)
 
 Con `S3_*` en el `.env` (MinIO en desarrollo, R2 en producción), los medios entrantes se descargan solos y quedan bajo `tenants/<id>/media/`. Nada es público: la bandeja pide una URL firmada de 5 minutos con `GET /v1/medios/:id/url`. Para enviar un archivo propio: `POST /v1/medios/subidas {mime, bytes}` → `PUT` del archivo a `urlDeSubida` → `POST /v1/medios/subidas/:id/confirmar` → `POST …/mensajes {tipo:"image", mediaAssetId}`. Sin `S3_*`, esas rutas responden 503 y todo lo demás funciona.
