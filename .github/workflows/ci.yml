@@ -44,18 +44,6 @@ jobs:
           --health-timeout 3s
           --health-retries 20
 
-      # Solo packages/storage habla con S3 de verdad. La imagen de Bitnami
-      # arranca el servidor sin argumentos —los services de Actions no admiten
-      # comando— y crea el bucket por variable de entorno.
-      minio:
-        image: bitnami/minio:latest
-        env:
-          MINIO_ROOT_USER: crmapp
-          MINIO_ROOT_PASSWORD: crmapp_dev_secret
-          MINIO_DEFAULT_BUCKETS: crmapp-media
-        ports:
-          - 9000:9000
-
     env:
       # En CI el service container expone el puerto estándar; en local se cede
       # el 5432 por si hay un PostgreSQL nativo instalado (ver README).
@@ -87,6 +75,19 @@ jobs:
 
       - name: Tipos
         run: pnpm typecheck
+
+      # Solo packages/storage habla con S3 de verdad. Va como paso y no como
+      # service container: los services de Actions no admiten `command` y la
+      # imagen oficial de MinIO lo necesita (`server /data`). La de Bitnami,
+      # que no lo necesitaba, dejo de publicarse en Docker Hub.
+      - name: MinIO (solo para packages/storage)
+        run: |
+          docker run -d --name minio -p 9000:9000             -e MINIO_ROOT_USER=crmapp -e MINIO_ROOT_PASSWORD=crmapp_dev_secret             minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && break
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint sh minio/mc:latest -c             "mc alias set local http://localhost:9000 crmapp crmapp_dev_secret && mc mb --ignore-existing local/crmapp-media"
 
       - name: Tests
         run: pnpm test
