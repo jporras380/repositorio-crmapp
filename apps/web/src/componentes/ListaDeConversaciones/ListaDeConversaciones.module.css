@@ -5,6 +5,10 @@
     padding: var(--space-2);
     overflow-y: auto;
     display: grid;
+    /* Sin columna explícita, la implícita es `auto` y crece con la vista
+       previa más larga: la fila desborda el panel y la hora y el contador
+       se salen. `minmax(0, 1fr)` la ata al ancho disponible. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 2px;
     align-content: start;
     scrollbar-gutter: stable;
@@ -92,6 +96,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* Sin esto un hijo flex no baja de su contenido y empuja la hora fuera
+       del panel: el truncado no llega a aplicarse nunca. */
+    min-inline-size: 0;
   }
   .noLeida .nombre {
     font-weight: 700;
@@ -107,6 +114,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-inline-size: 0;
   }
   .noLeida .vistaPrevia {
     color: var(--fg);

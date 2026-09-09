@@ -57,6 +57,16 @@ pnpm dev:web          # http://localhost:5173 (proxy /api → 3000)
 pnpm --filter @crmapp/web test   # 16 tests: cliente, tiempo, Acceso, Lista, Compositor
 ```
 
+## Hilos de comentarios (PR-22)
+
+![[2026-09-09-bandeja-comentarios.png]]
+
+Un comentario no es un DM y la interfaz lo dice: vista «Comentarios» en los filtros, etiqueta en la fila en lugar de la ventana (un hilo de comentarios no tiene ventana que agotar), y un compositor propio con **dos acciones**: «En privado» —el principal, donde se captura el lead, igual que Kommo— y «En público». Si el privado se rechaza porque la persona no acepta mensajes, se explica en tono normal y se ofrece el público; no es una avería. Ver [[instagram]].
+
+## Defecto de CSS que costó dos capturas
+
+Un `display: grid` sin `grid-template-columns` usa una columna implícita `auto` que **crece con su contenido**. Los paneles de la bandeja y la lista lo eran, así que una vista previa larga ensanchaba la columna y la hora y el contador de no leídos se salían del recorte. `minmax(0, 1fr)` en los tres paneles y en el `ul` lo ata. Estaba desde PR-17 y solo se vio al sembrar textos más largos: **las capturas encuentran cosas que los tests no**.
+
 ## Pendiente
 
 - WebSocket para no sondear; virtualización de la lista si pasa de ~200 filas.

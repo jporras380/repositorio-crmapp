@@ -23,6 +23,10 @@
     border-radius: var(--radius-lg);
     min-block-size: 0;
     display: grid;
+    /* La columna implícita de un grid es `auto` y crece con su contenido: sin
+       esto, una vista previa larga ensancha el panel y la hora y el contador
+       de no leídos quedan fuera del recorte. */
+    grid-template-columns: minmax(0, 1fr);
     overflow: hidden;
   }
   .lista {
