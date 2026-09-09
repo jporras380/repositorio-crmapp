@@ -70,6 +70,41 @@ export function verificadorGraphInstagram(
   };
 }
 
+/**
+ * Suscribe la WABA a NUESTRA app. Sin esto el número queda conectado y sordo:
+ * la lista de apps suscritas es de la WABA, no de la app, y el número de
+ * prueba viene atado a la app interna del panel de Meta.
+ *
+ * Devuelve `false` en vez de lanzar cuando el token no tiene permiso: el canal
+ * se conecta igual y el aviso se muestra, porque un cliente que ya suscribió
+ * su WABA por su cuenta no debe quedarse sin conectar.
+ */
+export type SuscriptorDeWebhook = (cred: {
+  providerAccountId: string;
+  accessToken: string;
+}) => Promise<boolean>;
+
+export function suscriptorGraph(
+  opciones: { fetch?: typeof fetch; apiVersion?: string } = {},
+): SuscriptorDeWebhook {
+  const f = opciones.fetch ?? globalThis.fetch;
+  const v = opciones.apiVersion ?? 'v21.0';
+  return async ({ providerAccountId, accessToken }) => {
+    if (!providerAccountId) return false;
+    try {
+      const r = await f(`https://graph.facebook.com/${v}/${providerAccountId}/subscribed_apps`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!r.ok) return false;
+      const json = (await r.json()) as { success?: boolean };
+      return json.success === true;
+    } catch {
+      return false;
+    }
+  };
+}
+
 export interface IdentidadVerificada {
   numeroMostrado: string;
   nombreVerificado: string;
@@ -130,6 +165,8 @@ export interface CuentaDeCanal {
   providerAccountId: string | null;
   displayName: string;
   status: string;
+  /** `false` = conectado pero el proveedor no nos envía sus webhooks (0014). */
+  webhookSuscrito: boolean | null;
   lastEventAt: Date | null;
   createdAt: Date;
 }
@@ -139,6 +176,7 @@ export interface OpcionesDeCanales {
   cifrador: Cifrador;
   verificar: VerificadorDeCredenciales;
   verificarInstagram?: VerificadorDeInstagram;
+  suscribir?: SuscriptorDeWebhook;
 }
 
 export class CanalesService {
@@ -146,12 +184,14 @@ export class CanalesService {
   readonly #cifrador: Cifrador;
   readonly #verificar: VerificadorDeCredenciales;
   readonly #verificarInstagram: VerificadorDeInstagram;
+  readonly #suscribir: SuscriptorDeWebhook;
 
   constructor(o: OpcionesDeCanales) {
     this.#db = o.db;
     this.#cifrador = o.cifrador;
     this.#verificar = o.verificar;
     this.#verificarInstagram = o.verificarInstagram ?? verificadorGraphInstagram();
+    this.#suscribir = o.suscribir ?? suscriptorGraph();
     this.resolverCuenta = crearResolverDeCuenta(o.db.poolAuth, o.cifrador);
     this.resolverCredencialesWhatsapp = crearResolverDeCredencialesWhatsapp(
       o.db.poolAuth,
@@ -220,19 +260,28 @@ export class CanalesService {
     // retener conexión ni bloqueos mientras Meta responde.
     const identidad = await this.#verificar(cred);
 
+    // Y suscribir la WABA a nuestra app, o el número quedaría conectado y
+    // sordo. No aborta si falla: se guarda el estado y se avisa.
+    const suscrito = await this.#suscribir({
+      providerAccountId: cred.wabaId,
+      accessToken: cred.accessToken,
+    });
+
     return this.#db.enTransaccion(async (c) => {
       const id = await this.#db.nuevoId(c);
       try {
         await c.query(
           `INSERT INTO channel_accounts
-             (id, tenant_id, channel, external_id, provider_account_id, display_name, status, last_synced_at)
-           VALUES ($1, $2, 'whatsapp', $3, $4, $5, 'connected', now())`,
+             (id, tenant_id, channel, external_id, provider_account_id, display_name, status,
+              last_synced_at, webhook_subscribed)
+           VALUES ($1, $2, 'whatsapp', $3, $4, $5, 'connected', now(), $6)`,
           [
             id,
             ctx.tenantId,
             cred.phoneNumberId,
             cred.wabaId,
             cred.displayName ?? identidad.numeroMostrado,
+            suscrito,
           ],
         );
       } catch (error) {
@@ -269,7 +318,11 @@ export class CanalesService {
           ctx.tenantId,
           ctx.userId,
           id,
-          JSON.stringify({ canal: 'whatsapp', numero: identidad.numeroMostrado }),
+          JSON.stringify({
+            canal: 'whatsapp',
+            numero: identidad.numeroMostrado,
+            webhookSuscrito: suscrito,
+          }),
         ],
       );
 
@@ -281,7 +334,8 @@ export class CanalesService {
     this.#exigirContexto();
     return this.#db.enTransaccion(async (c) => {
       const { rows } = await c.query<FilaCuenta>(
-        `SELECT id, channel, external_id, provider_account_id, display_name, status, last_event_at, created_at
+        `SELECT id, channel, external_id, provider_account_id, display_name, status,
+                webhook_subscribed, last_event_at, created_at
            FROM channel_accounts ORDER BY created_at`,
       );
       return rows.map(aCuenta);
@@ -312,8 +366,17 @@ export class CanalesService {
     if (!cuenta) throw new ErrorDeNegocio('canal_no_encontrado', 'El canal no existe.', 404);
 
     // Fuera de la transacción: es una llamada de red.
+    let suscrito: boolean | null = cuenta.webhookSuscrito;
     if (cuenta.canal === 'whatsapp') {
       await this.#verificar({ phoneNumberId: cuenta.externalId, accessToken: datos.accessToken });
+      // Renovar es la ocasión de arreglar una suscripción que faltaba: el
+      // token nuevo puede tener el permiso que al anterior le faltaba.
+      if (cuenta.providerAccountId) {
+        suscrito = await this.#suscribir({
+          providerAccountId: cuenta.providerAccountId,
+          accessToken: datos.accessToken,
+        });
+      }
     } else if (cuenta.canal === 'instagram') {
       await this.#verificarInstagram({
         igUserId: cuenta.externalId,
@@ -344,9 +407,10 @@ export class CanalesService {
       }
       await c.query(
         `UPDATE channel_accounts
-            SET status = 'connected', last_synced_at = now(), updated_at = now()
+            SET status = 'connected', last_synced_at = now(), updated_at = now(),
+                webhook_subscribed = $2
           WHERE id = $1`,
-        [id],
+        [id, suscrito],
       );
       await c.query(
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
@@ -393,7 +457,8 @@ export class CanalesService {
 
   async #leer(c: PoolClient, id: string): Promise<CuentaDeCanal | null> {
     const { rows } = await c.query<FilaCuenta>(
-      `SELECT id, channel, external_id, provider_account_id, display_name, status, last_event_at, created_at
+      `SELECT id, channel, external_id, provider_account_id, display_name, status,
+              webhook_subscribed, last_event_at, created_at
          FROM channel_accounts WHERE id = $1`,
       [id],
     );
@@ -426,6 +491,7 @@ interface FilaCuenta {
   provider_account_id: string | null;
   display_name: string;
   status: string;
+  webhook_subscribed: boolean | null;
   last_event_at: Date | null;
   created_at: Date;
 }
@@ -438,6 +504,7 @@ function aCuenta(f: FilaCuenta): CuentaDeCanal {
     providerAccountId: f.provider_account_id,
     displayName: f.display_name,
     status: f.status,
+    webhookSuscrito: f.webhook_subscribed,
     lastEventAt: f.last_event_at,
     createdAt: f.created_at,
   };

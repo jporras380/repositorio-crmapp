@@ -125,6 +125,14 @@ export function Canales({ api, gestor }: Props) {
                 </p>
               </div>
               <div className={estilos.acciones}>
+                {c.webhookSuscrito === false && (
+                  <span
+                    className={`${estilos.estado} ${estilos.estado_danger}`}
+                    title="Meta no envía los mensajes de esta cuenta a esta aplicación. Renueva el token con permiso de gestión para arreglarlo."
+                  >
+                    No recibe mensajes
+                  </span>
+                )}
                 <span className={`${estilos.estado} ${e.tono ? estilos[`estado_${e.tono}`] : ''}`}>
                   {e.texto}
                 </span>

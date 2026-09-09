@@ -85,6 +85,8 @@ export interface CuentaDeCanal {
   providerAccountId: string | null;
   displayName: string;
   status: 'connected' | 'degraded' | 'blocked' | 'disconnected' | string;
+  /** `false` = conectado pero el proveedor no nos manda sus webhooks. */
+  webhookSuscrito: boolean | null;
   lastEventAt: string | null;
   createdAt: string;
 }

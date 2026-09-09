@@ -33,6 +33,7 @@ const CRED = {
   appSecret: 'app-secret-de-prueba-0123456789',
 };
 const VERIFY_TOKEN = 'mi-verify-token-elegido';
+let suscripciones: string[] = [];
 const CRED_IG = {
   igUserId: '17841400000000001',
   accessToken: 'EAAP-token-de-pagina-suficientemente-largo',
@@ -84,6 +85,11 @@ beforeAll(async () => {
           );
         }
         return { numeroMostrado: '+51 929 833 609', nombreVerificado: 'Nippon Autoparts' };
+      },
+      suscribir: async ({ providerAccountId, accessToken }) => {
+        suscripciones.push(providerAccountId);
+        // Un token sin permiso de gestión no puede suscribir: se conecta igual.
+        return !accessToken.startsWith('SINPERMISO');
       },
       verificarCredencialesInstagram: async ({ accessToken }) => {
         if (accessToken.startsWith('MALO')) {
@@ -517,5 +523,45 @@ describe('renovar credenciales', () => {
       .set(auth(tokenOwner))
       .send({ accessToken: 'EAAG-token-suficientemente-largo-x' })
       .expect(404);
+  });
+});
+
+describe('suscripción de la WABA a nuestra app', () => {
+  /**
+   * El fallo que costó una tarde con tráfico real: configurar la URL del
+   * webhook no basta. La WABA tiene su propia lista de apps suscritas y la del
+   * número de prueba venía atada a la app interna de Meta. El canal quedaba
+   * «conectado» y sordo, sin ningún error.
+   */
+  it('conectar suscribe la WABA y lo deja registrado', async () => {
+    suscripciones = [];
+    const r = await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOwner))
+      .send({ ...CRED, phoneNumberId: '111222333444' })
+      .expect(201);
+    expect(suscripciones).toEqual([CRED.wabaId]);
+    expect(r.body.webhookSuscrito).toBe(true);
+  });
+
+  it('si el token no puede suscribir, el canal se conecta igual pero avisa', async () => {
+    const r = await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOwner))
+      .send({
+        ...CRED,
+        phoneNumberId: '555666777888',
+        accessToken: 'SINPERMISO-token-suficientemente-largo',
+      })
+      .expect(201);
+    expect(r.body).toMatchObject({ status: 'connected', webhookSuscrito: false });
+
+    // Y renovar con un token que sí puede lo arregla, sin reconectar.
+    const arreglado = await http
+      .patch(`/v1/canales/${r.body.id}/credenciales`)
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'EAAG-token-con-permiso-de-gestion' })
+      .expect(200);
+    expect(arreglado.body).toMatchObject({ id: r.body.id, webhookSuscrito: true });
   });
 });

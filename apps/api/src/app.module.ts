@@ -36,6 +36,7 @@ import {
   CanalesService,
   verificadorGraph,
   type VerificadorDeCredenciales,
+  type SuscriptorDeWebhook,
   type VerificadorDeInstagram,
 } from './canales/canales.service.js';
 import { CanalesController } from './canales/canales.controller.js';
@@ -67,6 +68,8 @@ export interface OpcionesDeApp {
   /** Verificación de credenciales contra Meta. Se inyecta en tests. */
   verificarCredenciales?: VerificadorDeCredenciales;
   verificarCredencialesInstagram?: VerificadorDeInstagram;
+  /** Suscribe la WABA a nuestra app al conectar. Se inyecta en tests. */
+  suscribir?: SuscriptorDeWebhook;
   /**
    * Sandbox en vez de canal real. Solo para tests y demos sin Meta. En
    * producción el valor por defecto es el adaptador real de WhatsApp.
@@ -147,6 +150,7 @@ export class AppModule {
               ...(opciones.verificarCredencialesInstagram
                 ? { verificarInstagram: opciones.verificarCredencialesInstagram }
                 : {}),
+              ...(opciones.suscribir ? { suscribir: opciones.suscribir } : {}),
             }),
         },
         {

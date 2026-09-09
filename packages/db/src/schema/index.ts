@@ -150,6 +150,8 @@ export const channelAccounts = pgTable(
     limits: jsonb('limits').notNull().default({}),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
     lastEventAt: timestamp('last_event_at', { withTimezone: true }),
+    /** La WABA está suscrita a NUESTRA app. false = conectado pero no recibe (0014). */
+    webhookSubscribed: boolean('webhook_subscribed'),
     createdAt: creado,
     updatedAt: actualizado,
   },

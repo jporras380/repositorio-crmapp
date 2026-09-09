@@ -202,6 +202,22 @@ describe('mensaje nuevo', () => {
     });
   });
 
+  it('el handle de WhatsApp es el teléfono, no el nombre de perfil', async () => {
+    // Un contacto real llegó con profile.name = "." y la bandeja no decía a
+    // quién se estaba escribiendo.
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.handle', { nombre: '.', telefono: '+51925300224' })]),
+    );
+    const { rows } = await admin.query<{ handle: string; phone_e164: string }>(
+      `SELECT handle, phone_e164 FROM contact_identities WHERE external_user_id = 'wa-ana'`,
+    );
+    expect(rows[0]).toEqual({ handle: '+51925300224', phone_e164: '+51925300224' });
+    const c = await admin.query<{ display_name: string }>(`SELECT display_name FROM contacts`);
+    expect(c.rows[0]!.display_name).toBe('.');
+  });
+
   it('un comentario abre un hilo comment_thread por publicación; el siguiente lo continúa; el duplicado no', async () => {
     const comentario = (id: string, post: string, texto: string) => ({
       clase: 'comentario',

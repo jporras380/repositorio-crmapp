@@ -470,6 +470,17 @@ async function procesarComentario(
   return true;
 }
 
+/**
+ * Identificador PÚBLICO del contacto en su canal, que es lo que la bandeja
+ * pinta bajo el nombre. En WhatsApp es el teléfono; en Instagram, el @usuario.
+ * No es el nombre de perfil: llegó un contacto real cuyo perfil se llamaba
+ * «.» y la bandeja no decía a quién se estaba escribiendo.
+ */
+function handleDe(evento: EventoDeMensaje): string | null {
+  if (evento.canal === 'whatsapp') return evento.telefonoE164 ?? evento.externalUserId;
+  return evento.nombreDeContacto ?? evento.externalUserId;
+}
+
 const TIPOS_DE_MEDIO = new Set(['image', 'video', 'audio', 'document', 'sticker']);
 function esTipoDeMedio(tipo: string): tipo is 'image' | 'video' | 'audio' | 'document' | 'sticker' {
   return TIPOS_DE_MEDIO.has(tipo);
@@ -497,10 +508,11 @@ async function resolverIdentidad(
     // Se refresca el perfil sin tocar el contacto: el nombre de WhatsApp
     // cambia, la persona no.
     if (evento.nombreDeContacto) {
-      await c.query(`UPDATE contact_identities SET handle = $2, updated_at = now() WHERE id = $1`, [
-        existente.rows[0].id,
-        evento.nombreDeContacto,
-      ]);
+      await c.query(
+        `UPDATE contact_identities SET handle = $2, phone_e164 = COALESCE($3, phone_e164), updated_at = now()
+          WHERE id = $1`,
+        [existente.rows[0].id, handleDe(evento), evento.telefonoE164 ?? null],
+      );
     }
     return { identityId: existente.rows[0].id, contactId: existente.rows[0].contact_id };
   }
@@ -524,7 +536,7 @@ async function resolverIdentidad(
       fila.channel,
       fila.channel_account_id,
       evento.externalUserId,
-      evento.nombreDeContacto ?? null,
+      handleDe(evento),
       evento.telefonoE164 ?? null,
     ],
   );
