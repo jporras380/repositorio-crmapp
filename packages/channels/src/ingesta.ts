@@ -66,6 +66,8 @@ export interface EventoDeComentario extends EventoBase {
   externalPostId: string;
   texto: string;
   respondeAComentario?: string | undefined;
+  /** @usuario público, cuando el proveedor lo manda (Instagram sí). */
+  nombreDeUsuario?: string | undefined;
 }
 
 export interface EventoDePlantilla extends EventoBase {
@@ -238,6 +240,18 @@ export class IngestaSandbox implements AdaptadorDeIngesta {
           clase: 'estado',
           externalMessageId: e['externalMessageId'],
           estado: (e['estado'] as EventoDeEstado['estado']) ?? 'sent',
+        });
+      } else if (e['clase'] === 'comentario' && typeof e['externalCommentId'] === 'string') {
+        salida.push({
+          ...base,
+          clase: 'comentario',
+          externalCommentId: e['externalCommentId'],
+          externalUserId: String(e['externalUserId'] ?? ''),
+          externalPostId: String(e['externalPostId'] ?? 'post'),
+          texto: typeof e['texto'] === 'string' ? e['texto'] : '',
+          respondeAComentario:
+            typeof e['respondeAComentario'] === 'string' ? e['respondeAComentario'] : undefined,
+          nombreDeUsuario: typeof e['nombre'] === 'string' ? e['nombre'] : undefined,
         });
       } else if (e['clase'] === 'plantilla' && typeof e['nombre'] === 'string') {
         salida.push({

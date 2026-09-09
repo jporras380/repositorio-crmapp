@@ -255,3 +255,43 @@ describe('medio propio', () => {
     expect((await estadoDe(carga.messageId)).status).toBe('failed');
   });
 });
+
+describe('respuesta a comentario (Instagram)', () => {
+  it('llega al canal por replyToComment con el modo pedido', async () => {
+    const ig = new AdaptadorSandbox({ canal: 'instagram' });
+    const base = await encolado('Gracias por escribir');
+    const carga: CargaDeEnvio = {
+      ...base,
+      canal: 'instagram',
+      peticion: {
+        tipo: 'comment_reply',
+        modo: 'privada',
+        texto: 'Te escribo por privado',
+        comentarioId: 'c.9',
+      },
+    };
+    const r = await enviarMensajeSaliente(
+      { pool: app, canales: new Map([['instagram', ig]]) },
+      tenantId,
+      carga,
+    );
+    expect(r).toBe('enviado');
+    expect(ig.enviados[0]).toMatchObject({
+      tipo: 'comentario',
+      destino: 'c.9',
+      contenido: { modo: 'privada', texto: 'Te escribo por privado' },
+    });
+  });
+
+  it('en un canal sin comentarios el adaptador lo rechaza y el mensaje queda failed', async () => {
+    const base = await encolado('x');
+    const carga: CargaDeEnvio = {
+      ...base,
+      peticion: { tipo: 'comment_reply', modo: 'publica', texto: 'x', comentarioId: 'c.1' },
+    };
+    expect(await enviarMensajeSaliente({ pool: app, canales: canales() }, tenantId, carga)).toBe(
+      'fallido',
+    );
+    expect((await estadoDe(carga.messageId)).status).toBe('failed');
+  });
+});

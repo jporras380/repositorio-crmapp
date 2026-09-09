@@ -22,6 +22,7 @@ import {
 import type {
   AdaptadorDeIngesta,
   ChannelAdapter,
+  EventoDeComentario,
   EventoDeEstado,
   EventoDeMensaje,
   EventoDePlantilla,
@@ -39,6 +40,8 @@ export interface Dependencias {
 
 export interface ResultadoDeProcesamiento {
   mensajesNuevos: number;
+  /** Comentarios públicos nuevos (Instagram): abren o continúan un hilo `comment_thread`. */
+  comentariosNuevos: number;
   duplicados: number;
   estadosAplicados: number;
   /** Cambios de estado de plantillas HSM reflejados desde Meta. */
@@ -82,6 +85,7 @@ export async function procesarEventoEntrante(
 
     const resultado: ResultadoDeProcesamiento = {
       mensajesNuevos: 0,
+      comentariosNuevos: 0,
       duplicados: 0,
       estadosAplicados: 0,
       plantillasActualizadas: 0,
@@ -126,9 +130,11 @@ export async function procesarEventoEntrante(
       } else if (evento.clase === 'plantilla') {
         await procesarPlantilla(c, fila, evento, ahora());
         resultado.plantillasActualizadas += 1;
+      } else if (evento.clase === 'comentario') {
+        const nuevo = await procesarComentario(c, fila, evento, ahora());
+        if (nuevo) resultado.comentariosNuevos += 1;
+        else resultado.duplicados += 1;
       } else {
-        // Comentarios llegan con Instagram. Se cuentan para que no pasen
-        // desapercibidos en las métricas.
         resultado.ignorados += 1;
       }
     }
@@ -339,6 +345,129 @@ async function procesarMensaje(
 interface Identidad {
   identityId: string;
   contactId: string;
+}
+
+/**
+ * Un comentario público es un mensaje en un hilo `comment_thread` que cuelga
+ * de la publicación (`external_thread_id` = id del post) y del contacto. No
+ * abre ventana de sesión: la respuesta libre no existe; lo que existe es
+ * responder al comentario, en público o en privado (una vez), y eso lo pide
+ * la API con `comment_reply` sin pasar por la ventana.
+ */
+async function procesarComentario(
+  c: PoolClient,
+  fila: FilaEntrante,
+  evento: EventoDeComentario,
+  ahora: Date,
+): Promise<boolean> {
+  const messageId = await nuevoId(c);
+  const reserva = await c.query(
+    `INSERT INTO message_keys
+       (tenant_id, channel_account_id, external_message_id, message_id, message_created_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (channel_account_id, external_message_id) DO NOTHING`,
+    [fila.tenant_id, fila.channel_account_id, evento.externalCommentId, messageId, ahora],
+  );
+  if (reserva.rowCount === 0) return false;
+
+  const contacto = await resolverIdentidad(c, fila, {
+    clase: 'mensaje',
+    canal: evento.canal,
+    externalAccountId: evento.externalAccountId,
+    ocurridoEn: evento.ocurridoEn,
+    externalMessageId: evento.externalCommentId,
+    externalUserId: evento.externalUserId,
+    nombreDeContacto: evento.nombreDeUsuario,
+    tipo: 'text',
+  });
+
+  const hilo = await c.query<{ id: string; status: string }>(
+    `SELECT id, status FROM conversations
+      WHERE contact_identity_id = $1 AND kind = 'comment_thread' AND external_thread_id = $2
+      ORDER BY created_at DESC LIMIT 1
+      FOR UPDATE`,
+    [contacto.identityId, evento.externalPostId],
+  );
+  let conversationId = hilo.rows[0]?.id ?? null;
+  const estabaCerrado = hilo.rows[0]?.status === 'closed';
+  if (!conversationId) {
+    conversationId = await nuevoId(c);
+    await c.query(
+      `INSERT INTO conversations
+         (id, tenant_id, contact_identity_id, contact_id, channel_account_id, kind, status, external_thread_id)
+       VALUES ($1, $2, $3, $4, $5, 'comment_thread', 'open', $6)`,
+      [
+        conversationId,
+        fila.tenant_id,
+        contacto.identityId,
+        contacto.contactId,
+        fila.channel_account_id,
+        evento.externalPostId,
+      ],
+    );
+  }
+
+  await c.query(
+    `INSERT INTO messages
+       (id, tenant_id, conversation_id, channel_account_id, direction, type, body, payload,
+        external_message_id, status, sent_by, created_at)
+     VALUES ($1, $2, $3, $4, 'inbound', 'text', $5, $6, $7, 'delivered', 'human', $8)`,
+    [
+      messageId,
+      fila.tenant_id,
+      conversationId,
+      fila.channel_account_id,
+      evento.texto,
+      JSON.stringify({
+        comentario: {
+          id: evento.externalCommentId,
+          postId: evento.externalPostId,
+          parentId: evento.respondeAComentario ?? null,
+        },
+        proveedor: { ocurridoEn: evento.ocurridoEn.toISOString() },
+      }),
+      evento.externalCommentId,
+      ahora,
+    ],
+  );
+  await c.query(
+    `UPDATE conversations
+        SET last_inbound_at = $2,
+            unread_count = unread_count + 1,
+            status = CASE WHEN status = 'closed' THEN 'open' ELSE status END,
+            updated_at = now()
+      WHERE id = $1`,
+    [conversationId, ahora],
+  );
+
+  await registrarUso(c, {
+    tenantId: fila.tenant_id,
+    metric: 'messages.inbound',
+    dedupKey: `message:${messageId}:inbound`,
+    occurredAt: ahora,
+    meta: { channel: fila.channel, type: 'comment' },
+  });
+  if (!hilo.rows[0] || estabaCerrado) {
+    await registrarUso(c, {
+      tenantId: fila.tenant_id,
+      metric: 'conversations.opened',
+      dedupKey: `conversation:${conversationId}:opened:${messageId}`,
+      occurredAt: ahora,
+      meta: { channel: fila.channel, kind: 'comment_thread', reabierta: estabaCerrado },
+    });
+  }
+  await escribirEnOutbox(c, {
+    tenantId: fila.tenant_id,
+    aggregateType: 'message',
+    aggregateId: messageId,
+    eventType: 'comentario.recibido',
+    payload: {
+      conversationId,
+      postId: evento.externalPostId,
+      comentarioId: evento.externalCommentId,
+    },
+  });
+  return true;
 }
 
 const TIPOS_DE_MEDIO = new Set(['image', 'video', 'audio', 'document', 'sticker']);

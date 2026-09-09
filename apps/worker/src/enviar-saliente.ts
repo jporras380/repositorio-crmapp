@@ -36,7 +36,8 @@ export interface CargaDeEnvio {
         mediaAssetId?: string | null | undefined;
         pieDeFoto?: string | undefined;
       }
-    | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] };
+    | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
+    | { tipo: 'comment_reply'; modo: 'publica' | 'privada'; texto: string; comentarioId: string };
 }
 
 export interface DependenciasDeEnvio {
@@ -167,7 +168,8 @@ async function resolverMedioPropio(
   carga: CargaDeEnvio,
 ): Promise<CargaDeEnvio> {
   const p = carga.peticion;
-  if (p.tipo === 'text' || p.tipo === 'template' || !p.mediaAssetId) return carga;
+  if (p.tipo === 'text' || p.tipo === 'template' || p.tipo === 'comment_reply' || !p.mediaAssetId)
+    return carga;
   if (!deps.almacen) throw new Error('Medio propio sin almacén configurado.');
   const clave = await withTenant(deps.pool, tenantId, async (c) => {
     const { rows } = await c.query<{ storage_key: string | null; status: string }>(
@@ -198,6 +200,13 @@ async function entregar(adaptador: ChannelAdapter, carga: CargaDeEnvio): Promise
   switch (p.tipo) {
     case 'text':
       return adaptador.sendText({ ...destino, texto: p.texto });
+    case 'comment_reply':
+      return adaptador.replyToComment({
+        channelAccountId: carga.channelAccountId,
+        comentarioId: p.comentarioId,
+        texto: p.texto,
+        modo: p.modo,
+      });
     case 'template':
       return adaptador.sendTemplate({
         ...destino,

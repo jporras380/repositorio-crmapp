@@ -454,6 +454,79 @@ describe('la puerta de envío (ARCH §9)', () => {
   });
 });
 
+describe('respuesta a comentarios (Instagram)', () => {
+  /** Hilo de comentarios con un comentario recibido hace 30 h: ventana cerrada, pero se puede responder. */
+  async function hiloDeComentarios(nombre: string, conComentario = true) {
+    const conv = await conversacion(nombre, { haceHoras: 30, canal: 'instagram' });
+    await admin.query(
+      `UPDATE conversations SET kind = 'comment_thread', external_thread_id = 'post.7' WHERE id = $1`,
+      [conv],
+    );
+    if (conComentario) {
+      await admin.query(
+        `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, payload, status, created_at)
+         SELECT tenant_id, id, channel_account_id, 'inbound', 'text', 'Precio?',
+                '{"comentario":{"id":"c.777","postId":"post.7"}}', 'delivered', now() - interval '29 hours'
+           FROM conversations WHERE id = $1`,
+        [conv],
+      );
+    }
+    return conv;
+  }
+
+  it('responde al último comentario aunque la ventana esté cerrada, en público o en privado', async () => {
+    const conv = await hiloDeComentarios('Karen');
+    const r = await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'privada', texto: 'Te escribo por aquí' })
+      .expect(202);
+    const o = await admin.query<{ payload: { peticion: Record<string, unknown> } }>(
+      `SELECT payload FROM outbox WHERE event_type = 'mensaje.enviar' AND aggregate_id = $1`,
+      [r.body.id],
+    );
+    expect(o.rows[0]!.payload.peticion).toEqual({
+      tipo: 'comment_reply',
+      modo: 'privada',
+      texto: 'Te escribo por aquí',
+      comentarioId: 'c.777',
+    });
+    const m = await admin.query<{ type: string; body: string; payload: Record<string, unknown> }>(
+      `SELECT type, body, payload FROM messages WHERE id = $1`,
+      [r.body.id],
+    );
+    expect(m.rows[0]).toMatchObject({ type: 'text', body: 'Te escribo por aquí' });
+    expect(m.rows[0]!.payload).toMatchObject({ comentario: { id: 'c.777', modo: 'privada' } });
+  });
+
+  it('un texto libre en ese mismo hilo sigue chocando con la ventana', async () => {
+    const conv = await hiloDeComentarios('Leo');
+    const r = await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'text', texto: 'hola' })
+      .expect(409);
+    expect(r.body.codigo).toBe('fuera_de_ventana');
+  });
+
+  it('sin comentario al que responder → 400; en WhatsApp → 422', async () => {
+    const sinComentarios = await hiloDeComentarios('Mia', false);
+    const r = await http
+      .post(`/v1/conversaciones/${sinComentarios}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'publica', texto: 'x' })
+      .expect(400);
+    expect(r.body.codigo).toBe('comentario_requerido');
+    const wa = await conversacion('Nico', { haceHoras: 1 });
+    const r2 = await http
+      .post(`/v1/conversaciones/${wa}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'publica', texto: 'x', comentarioId: 'c.1' })
+      .expect(422);
+    expect(r2.body.codigo).toBe('canal_sin_comentarios');
+  });
+});
+
 describe('aislamiento y acciones', () => {
   it('la conversación de otra cuenta no existe: 404, no 403', async () => {
     const otra = await http

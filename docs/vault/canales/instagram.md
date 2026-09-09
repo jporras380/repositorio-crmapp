@@ -21,6 +21,17 @@ Fase 2. Criterio de salida: dos canales en una sola bandeja.
 
 El usuario de Instagram llega con un identificador *scoped* a nuestra app. **No es el `@handle` público y no sirve para cruzarlo con nada externo.** Es exactamente el motivo por el que `contact_identities` existe separada de `contacts`: la identidad del canal es un hecho del proveedor, la persona es interpretación nuestra. Ver P-08.
 
+## Implementación (PR-19, 2026-09-09)
+
+`AdaptadorInstagram` e `IngestaInstagram` en `packages/channels/src/instagram/`, **sin tocar `ChannelAdapter` ni `core`** (criterio de salida de fase 2 en lo que toca al núcleo).
+
+- Envío: `POST /{ig-user-id}/messages` con `recipient.id`; medios solo por URL (`attachment.payload.url`), el pie va como segundo mensaje; **buffer rechazado** antes de llamar a Meta. Respuesta privada a comentario: `recipient.comment_id`; pública: `POST /{comment-id}/replies`. Plantillas: `tipo_no_soportado`; `syncTemplates` devuelve `[]`.
+- Capacidades: text/image/video/audio; 1000 caracteres; imagen 8 MB, vídeo y audio 25 MB; `respuestasPrivadasPorComentario: 1`; ventana 24 h sin entrada gratuita.
+- Ingesta: `entry[].messaging[]` (DMs; se descartan `is_echo`, borrados y no soportados) y `entry[].changes[]` con `field: 'comments'` (se descartan los del propio negocio). Los adjuntos llegan como **URL del CDN que caduca**: `mediaId` es esa URL y `fetchMedia` la descarga sin token.
+- Errores: subcódigos propios (`2534022` fuera de ventana, `2534014` destinatario, `2534039/40` respuesta privada agotada o caducada). Tabla distinta de la de WhatsApp a propósito.
+- Worker: un comentario abre o continúa un hilo `comment_thread` por publicación (`external_thread_id` = id del post) y contacto; no abre ventana. La API responde con `tipo: 'comment_reply'` (`modo: 'publica' | 'privada'`), que **no pasa por la ventana**: las reglas de una privada por comentario y siete días las aplica Meta y vuelven mapeadas.
+- Conexión BYO: `POST /v1/canales/instagram {igUserId, accessToken, appSecret}`; se verifica con `GET /{ig-user-id}?fields=username` antes de guardar. El webhook resuelve la cuenta por `entry[].id` = `external_id`.
+
 ## Aprendizajes verificados
 
-Ninguno todavía.
+Ninguno con tráfico real todavía: el adaptador está probado sin red (17 tests) y por HTTP con el sandbox y con un payload real firmado.

@@ -80,6 +80,10 @@ El token temporal de Meta caduca en 24 h; el permanente sale de un usuario del s
 
 En la web: **Ajustes → Uso del plan**. `GET /v1/cuenta/uso` devuelve el consumo del mes (mensajes recibidos y entregados, plantillas, conversaciones abiertas, bytes almacenados) frente a los límites del plan. Solo informa: no bloquea nada.
 
+## Conectar Instagram
+
+Cuenta profesional de Instagram vinculada a una página de Facebook y token de página con `instagram_manage_messages` e `instagram_manage_comments`: `POST /v1/canales/instagram {"igUserId","accessToken","appSecret"}` (o desde Ajustes → Canales cuando llegue a la web). El webhook es el mismo `https://<tu-url-publica>/webhooks/instagram`, con el mismo token de verificación; suscribir `messages` y `comments` en el producto Instagram de la app de Meta.
+
 ## Medios (fotos, audios, documentos)
 
 Con `S3_*` en el `.env` (MinIO en desarrollo, R2 en producción), los medios entrantes se descargan solos y quedan bajo `tenants/<id>/media/`. Nada es público: la bandeja pide una URL firmada de 5 minutos con `GET /v1/medios/:id/url`. Para enviar un archivo propio: `POST /v1/medios/subidas {mime, bytes}` → `PUT` del archivo a `urlDeSubida` → `POST /v1/medios/subidas/:id/confirmar` → `POST …/mensajes {tipo:"image", mediaAssetId}`. Sin `S3_*`, esas rutas responden 503 y todo lo demás funciona.

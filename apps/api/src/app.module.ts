@@ -2,8 +2,10 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { Pool } from 'pg';
 import { Cifrador, parsearClaveMaestra } from '@crmapp/crypto';
 import {
+  AdaptadorInstagram,
   AdaptadorSandbox,
   AdaptadorWhatsapp,
+  IngestaInstagram,
   IngestaSandbox,
   IngestaWhatsapp,
   type AdaptadorDeIngesta,
@@ -34,6 +36,7 @@ import {
   CanalesService,
   verificadorGraph,
   type VerificadorDeCredenciales,
+  type VerificadorDeInstagram,
 } from './canales/canales.service.js';
 import { CanalesController } from './canales/canales.controller.js';
 import { MediosService } from './medios/medios.service.js';
@@ -63,6 +66,7 @@ export interface OpcionesDeApp {
   masterKeyVersion?: number;
   /** Verificación de credenciales contra Meta. Se inyecta en tests. */
   verificarCredenciales?: VerificadorDeCredenciales;
+  verificarCredencialesInstagram?: VerificadorDeInstagram;
   /**
    * Sandbox en vez de canal real. Solo para tests y demos sin Meta. En
    * producción el valor por defecto es el adaptador real de WhatsApp.
@@ -140,6 +144,9 @@ export class AppModule {
               db,
               cifrador,
               verificar: opciones.verificarCredenciales ?? verificadorGraph(),
+              ...(opciones.verificarCredencialesInstagram
+                ? { verificarInstagram: opciones.verificarCredencialesInstagram }
+                : {}),
             }),
         },
         {
@@ -155,7 +162,10 @@ export class AppModule {
                       ['whatsapp', new IngestaSandbox('whatsapp')],
                       ['instagram', new IngestaSandbox('instagram')],
                     ])
-                  : new Map<string, AdaptadorDeIngesta>([['whatsapp', new IngestaWhatsapp()]])),
+                  : new Map<string, AdaptadorDeIngesta>([
+                      ['whatsapp', new IngestaWhatsapp()],
+                      ['instagram', new IngestaInstagram()],
+                    ])),
               // Por defecto, la resolución real: cuenta y app secret desde la
               // base, descifrados con la clave maestra.
               resolverCuenta: opciones.resolverCuenta ?? canales.resolverCuenta,
@@ -179,6 +189,12 @@ export class AppModule {
                     'whatsapp',
                     new AdaptadorWhatsapp({
                       resolverCredenciales: canales.resolverCredencialesWhatsapp,
+                    }),
+                  ],
+                  [
+                    'instagram',
+                    new AdaptadorInstagram({
+                      resolverCredenciales: canales.resolverCredencialesInstagram,
                     }),
                   ],
                 ])),

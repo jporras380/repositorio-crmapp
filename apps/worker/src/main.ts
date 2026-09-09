@@ -9,14 +9,18 @@ import { DelayedError, Queue, Worker } from 'bullmq';
 import { cargarConfig, configParaLog } from '@crmapp/config';
 import { crearLogger } from '@crmapp/observability';
 import {
-  AdaptadorSandbox,
+  AdaptadorInstagram,
   AdaptadorWhatsapp,
-  IngestaSandbox,
+  IngestaInstagram,
   IngestaWhatsapp,
+  type AdaptadorDeIngesta,
   type ChannelAdapter,
 } from '@crmapp/channels';
 import { Cifrador, parsearClaveMaestra } from '@crmapp/crypto';
-import { crearResolverDeCredencialesWhatsapp } from '@crmapp/db';
+import {
+  crearResolverDeCredencialesInstagram,
+  crearResolverDeCredencialesWhatsapp,
+} from '@crmapp/db';
 import {
   COLAS,
   OPCIONES_POR_DEFECTO,
@@ -84,9 +88,9 @@ const almacen: Almacen | null =
     : null;
 if (!almacen) log.warn('S3 sin configurar: los medios entrantes no se descargarán');
 
-const ingesta = new Map([
+const ingesta = new Map<string, AdaptadorDeIngesta>([
   ['whatsapp', new IngestaWhatsapp()],
-  ['instagram', new IngestaSandbox('instagram')],
+  ['instagram', new IngestaInstagram()],
 ]);
 const canales = new Map<string, ChannelAdapter>([
   [
@@ -95,7 +99,12 @@ const canales = new Map<string, ChannelAdapter>([
       resolverCredenciales: crearResolverDeCredencialesWhatsapp(poolAuth, cifrador),
     }),
   ],
-  ['instagram', new AdaptadorSandbox({ canal: 'instagram' })],
+  [
+    'instagram',
+    new AdaptadorInstagram({
+      resolverCredenciales: crearResolverDeCredencialesInstagram(poolAuth, cifrador),
+    }),
+  ],
 ]);
 
 const colaIngesta = new Queue(COLAS.ingestaEntrante, {

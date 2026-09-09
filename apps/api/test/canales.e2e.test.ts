@@ -33,6 +33,11 @@ const CRED = {
   appSecret: 'app-secret-de-prueba-0123456789',
 };
 const VERIFY_TOKEN = 'mi-verify-token-elegido';
+const CRED_IG = {
+  igUserId: '17841400000000001',
+  accessToken: 'EAAP-token-de-pagina-suficientemente-largo',
+  appSecret: 'secreto-de-app-de-instagram-16',
+};
 
 let app: INestApplication;
 let admin: Pool;
@@ -79,6 +84,12 @@ beforeAll(async () => {
           );
         }
         return { numeroMostrado: '+51 929 833 609', nombreVerificado: 'Nippon Autoparts' };
+      },
+      verificarCredencialesInstagram: async ({ accessToken }) => {
+        if (accessToken.startsWith('MALO')) {
+          throw new ErrorDeNegocio('credenciales_rechazadas', 'Meta rechazó el token.', 422);
+        }
+        return { nombreDeUsuario: '@nipponautoparts' };
       },
     }),
     { logger: false, rawBody: true },
@@ -346,5 +357,70 @@ describe('conectar WhatsApp (BYO)', () => {
       .set('x-hub-signature-256', firmar(cuerpo, CRED.appSecret))
       .send(cuerpo)
       .expect(401);
+  });
+});
+
+describe('conectar Instagram (BYO)', () => {
+  let cuentaIg: string;
+
+  it('un agente no puede; el propietario sí, y el nombre viene de Meta', async () => {
+    await http.post('/v1/canales/instagram').set(auth(tokenAgente)).send(CRED_IG).expect(403);
+    const r = await http
+      .post('/v1/canales/instagram')
+      .set(auth(tokenOwner))
+      .send(CRED_IG)
+      .expect(201);
+    cuentaIg = r.body.id;
+    expect(r.body).toMatchObject({
+      canal: 'instagram',
+      externalId: CRED_IG.igUserId,
+      status: 'connected',
+      displayName: '@nipponautoparts',
+    });
+    expect(JSON.stringify(r.body)).not.toContain(CRED_IG.accessToken);
+    const lista = await http.get('/v1/canales').set(auth(tokenOwner)).expect(200);
+    expect(lista.body.map((c: { canal: string }) => c.canal).sort()).toEqual([
+      'instagram',
+      'whatsapp',
+    ]);
+  });
+
+  it('un DM real de Instagram firmado con SU app secret entra y queda con el inquilino', async () => {
+    const cuerpo = JSON.stringify({
+      object: 'instagram',
+      entry: [
+        {
+          id: CRED_IG.igUserId,
+          time: 1757440000000,
+          messaging: [
+            {
+              sender: { id: '1234567890' },
+              recipient: { id: CRED_IG.igUserId },
+              timestamp: 1757440000123,
+              message: { mid: 'mid.IG1', text: 'Hola, tienen stock?' },
+            },
+          ],
+        },
+      ],
+    });
+    const r = await http
+      .post('/webhooks/instagram')
+      .set('content-type', 'application/json')
+      .set('x-hub-signature-256', firmar(cuerpo, CRED_IG.appSecret))
+      .send(cuerpo)
+      .expect(200);
+    expect(r.body).toEqual({ recibido: true, eventos: 1 });
+    const { rows } = await admin.query<{
+      tenant_id: string;
+      channel_account_id: string;
+      signature_ok: boolean;
+    }>(
+      `SELECT tenant_id, channel_account_id, signature_ok FROM inbound_events ORDER BY created_at DESC LIMIT 1`,
+    );
+    expect(rows[0]).toEqual({
+      tenant_id: tenantId,
+      channel_account_id: cuentaIg,
+      signature_ok: true,
+    });
   });
 });

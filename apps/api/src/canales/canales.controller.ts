@@ -24,6 +24,13 @@ const AltaWhatsapp = z.object({
   displayName: z.string().min(1).max(80).optional(),
 });
 
+const AltaInstagram = z.object({
+  igUserId: z.string().regex(/^\d{5,25}$/, 'id de cuenta de Instagram numérico'),
+  accessToken: z.string().min(20),
+  appSecret: z.string().min(16),
+  displayName: z.string().min(1).max(80).optional(),
+});
+
 function validar<T>(esquema: z.ZodType<T, z.ZodTypeDef, unknown>, datos: unknown): T {
   const r = esquema.safeParse(datos);
   if (!r.success) {
@@ -56,6 +63,14 @@ export class CanalesController {
   conectarWhatsapp(@Req() req: Req, @Body() body: unknown) {
     const cred = validar(AltaWhatsapp, body);
     return conContextoDePeticion(req, () => this.canales.conectarWhatsapp(cred));
+  }
+
+  /** Conexión BYO de Instagram (cuenta profesional + token de página). */
+  @Post('instagram')
+  @HttpCode(201)
+  conectarInstagram(@Req() req: Req, @Body() body: unknown) {
+    const cred = validar(AltaInstagram, body);
+    return conContextoDePeticion(req, () => this.canales.conectarInstagram(cred));
   }
 
   @Delete(':id')

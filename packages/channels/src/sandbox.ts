@@ -71,20 +71,15 @@ export class AdaptadorSandbox implements ChannelAdapter {
   capacidades(): CapacidadesDeCanal {
     return {
       canal: this.canal,
-      tiposSoportados: [
-        'text',
-        'image',
-        'video',
-        'audio',
-        'document',
-        'sticker',
-        'location',
-        'template',
-      ],
-      soportaPlantillas: true,
-      soportaComentarios: false,
-      respuestasPrivadasPorComentario: null,
-      requiereUrlPublicaParaMedios: false,
+      tiposSoportados: (
+        ['text', 'image', 'video', 'audio', 'document', 'sticker', 'location', 'template'] as const
+      ).filter((t) => this.canal !== 'instagram' || t !== 'template'),
+      // Imita lo que cada canal real declara, para que los tests de API y
+      // worker ejerciten el mismo camino que en producción.
+      soportaPlantillas: this.canal !== 'instagram',
+      soportaComentarios: this.canal === 'instagram',
+      respuestasPrivadasPorComentario: this.canal === 'instagram' ? 1 : null,
+      requiereUrlPublicaParaMedios: this.canal === 'instagram',
       limitesDeMedios: {
         image: 5 * MB,
         video: 16 * MB,

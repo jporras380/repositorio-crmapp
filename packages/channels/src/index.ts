@@ -4,3 +4,5 @@ export * from './sandbox.js';
 export * from './ingesta.js';
 export * from './whatsapp/adaptador.js';
 export * from './whatsapp/ingesta.js';
+export * from './instagram/adaptador.js';
+export * from './instagram/ingesta.js';

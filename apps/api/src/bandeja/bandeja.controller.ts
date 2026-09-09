@@ -50,6 +50,12 @@ const Envio: z.ZodType<PeticionDeEnvio> = z.discriminatedUnion('tipo', [
     parametros: z.array(z.string()).max(20),
   }),
   z.object({ tipo: z.literal('quick_reply'), quickReplyId: z.string().uuid() }),
+  z.object({
+    tipo: z.literal('comment_reply'),
+    modo: z.enum(['publica', 'privada']),
+    texto: z.string().min(1).max(1000),
+    comentarioId: z.string().min(1).max(200).optional(),
+  }),
 ]);
 
 const Asignacion = z.object({ agenteId: z.string().uuid().nullable() });

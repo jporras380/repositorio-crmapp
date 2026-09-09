@@ -11,6 +11,7 @@ import type { PoolClient } from 'pg';
 import type { Cifrador } from '@crmapp/crypto';
 import {
   borrarSecretosDeCanal,
+  crearResolverDeCredencialesInstagram,
   crearResolverDeCredencialesWhatsapp,
   crearResolverDeCuenta,
   guardarSecretoDeCanal,
@@ -24,6 +25,49 @@ export interface CredencialesDeAlta {
   accessToken: string;
   appSecret: string;
   displayName?: string | undefined;
+}
+
+export interface CredencialesDeAltaInstagram {
+  /** Id de la cuenta profesional de Instagram (IG User). */
+  igUserId: string;
+  accessToken: string;
+  appSecret: string;
+  displayName?: string | undefined;
+}
+
+export type VerificadorDeInstagram = (
+  cred: Pick<CredencialesDeAltaInstagram, 'igUserId' | 'accessToken'>,
+) => Promise<{ nombreDeUsuario: string }>;
+
+/** `GET /{ig-user-id}?fields=username`: si el token no ve la cuenta, no se guarda nada. */
+export function verificadorGraphInstagram(
+  opciones: { fetch?: typeof fetch; apiVersion?: string } = {},
+): VerificadorDeInstagram {
+  const f = opciones.fetch ?? globalThis.fetch;
+  const v = opciones.apiVersion ?? 'v21.0';
+  return async ({ igUserId, accessToken }) => {
+    let r: Response;
+    try {
+      r = await f(`https://graph.facebook.com/${v}/${igUserId}?fields=username,name`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch (error) {
+      throw new ErrorDeNegocio(
+        'proveedor_no_disponible',
+        `No se pudo contactar con Meta: ${(error as Error).message}`,
+        503,
+      );
+    }
+    if (!r.ok) {
+      throw new ErrorDeNegocio(
+        'credenciales_rechazadas',
+        `Meta rechazó las credenciales (HTTP ${r.status}). Revisa el token y el id de la cuenta de Instagram.`,
+        422,
+      );
+    }
+    const json = (await r.json()) as { username?: string; name?: string };
+    return { nombreDeUsuario: json.username ? `@${json.username}` : (json.name ?? igUserId) };
+  };
 }
 
 export interface IdentidadVerificada {
@@ -94,22 +138,79 @@ export interface OpcionesDeCanales {
   db: BaseDeDatos;
   cifrador: Cifrador;
   verificar: VerificadorDeCredenciales;
+  verificarInstagram?: VerificadorDeInstagram;
 }
 
 export class CanalesService {
   readonly #db: BaseDeDatos;
   readonly #cifrador: Cifrador;
   readonly #verificar: VerificadorDeCredenciales;
+  readonly #verificarInstagram: VerificadorDeInstagram;
 
   constructor(o: OpcionesDeCanales) {
     this.#db = o.db;
     this.#cifrador = o.cifrador;
     this.#verificar = o.verificar;
+    this.#verificarInstagram = o.verificarInstagram ?? verificadorGraphInstagram();
     this.resolverCuenta = crearResolverDeCuenta(o.db.poolAuth, o.cifrador);
     this.resolverCredencialesWhatsapp = crearResolverDeCredencialesWhatsapp(
       o.db.poolAuth,
       o.cifrador,
     );
+    this.resolverCredencialesInstagram = crearResolverDeCredencialesInstagram(
+      o.db.poolAuth,
+      o.cifrador,
+    );
+  }
+
+  /** Conexión BYO de Instagram: mismo camino que WhatsApp, sin WABA. */
+  async conectarInstagram(cred: CredencialesDeAltaInstagram): Promise<CuentaDeCanal> {
+    const ctx = this.#exigirAdmin();
+    const identidad = await this.#verificarInstagram(cred);
+
+    return this.#db.enTransaccion(async (c) => {
+      const id = await this.#db.nuevoId(c);
+      try {
+        await c.query(
+          `INSERT INTO channel_accounts
+             (id, tenant_id, channel, external_id, display_name, status, last_synced_at)
+           VALUES ($1, $2, 'instagram', $3, $4, 'connected', now())`,
+          [id, ctx.tenantId, cred.igUserId, cred.displayName ?? identidad.nombreDeUsuario],
+        );
+      } catch (error) {
+        if ((error as { code?: string }).code === '23505') {
+          throw new ErrorDeNegocio(
+            'numero_ya_conectado',
+            'Esa cuenta de Instagram ya está conectada a una cuenta.',
+            409,
+          );
+        }
+        throw error;
+      }
+      await guardarSecretoDeCanal(c, this.#cifrador, {
+        tenantId: ctx.tenantId,
+        channelAccountId: id,
+        kind: 'access_token',
+        valor: cred.accessToken,
+      });
+      await guardarSecretoDeCanal(c, this.#cifrador, {
+        tenantId: ctx.tenantId,
+        channelAccountId: id,
+        kind: 'app_secret',
+        valor: cred.appSecret,
+      });
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'canal.conectado', 'channel_account', $3, $4)`,
+        [
+          ctx.tenantId,
+          ctx.userId,
+          id,
+          JSON.stringify({ canal: 'instagram', cuenta: identidad.nombreDeUsuario }),
+        ],
+      );
+      return (await this.#leer(c, id))!;
+    });
   }
 
   async conectarWhatsapp(cred: CredencialesDeAlta): Promise<CuentaDeCanal> {
@@ -213,6 +314,7 @@ export class CanalesService {
 
   readonly resolverCuenta: ReturnType<typeof crearResolverDeCuenta>;
   readonly resolverCredencialesWhatsapp: ReturnType<typeof crearResolverDeCredencialesWhatsapp>;
+  readonly resolverCredencialesInstagram: ReturnType<typeof crearResolverDeCredencialesInstagram>;
 
   // -------------------------------------------------------------------------
 

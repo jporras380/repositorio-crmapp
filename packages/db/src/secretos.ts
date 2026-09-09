@@ -139,6 +139,30 @@ export class CanalNoConectado extends Error {
 }
 
 /** Credenciales para el adaptador de WhatsApp, por cuenta de canal. */
+export interface CredencialesDeInstagramResueltas {
+  igUserId: string;
+  accessToken: string;
+}
+
+/** Igual que el de WhatsApp: `external_id` es el IG User y el token va cifrado en `channel_secrets`. */
+export function crearResolverDeCredencialesInstagram(poolAuth: Pool, cifrador: Cifrador) {
+  return async (channelAccountId: string): Promise<CredencialesDeInstagramResueltas> => {
+    return withSystemTransaction(poolAuth, async (c) => {
+      const { rows } = await c.query<{ external_id: string; status: string }>(
+        `SELECT external_id, status FROM channel_accounts WHERE id = $1 AND channel = 'instagram'`,
+        [channelAccountId],
+      );
+      const ca = rows[0];
+      if (!ca) throw new CanalNoConectado(channelAccountId, 'no existe');
+      if (ca.status === 'disconnected')
+        throw new CanalNoConectado(channelAccountId, 'desconectada');
+      const token = await leerSecretoDeCanal(c, cifrador, channelAccountId, 'access_token');
+      if (!token) throw new CanalNoConectado(channelAccountId, 'sin token guardado');
+      return { igUserId: ca.external_id, accessToken: token };
+    });
+  };
+}
+
 export function crearResolverDeCredencialesWhatsapp(poolAuth: Pool, cifrador: Cifrador) {
   return async (channelAccountId: string): Promise<CredencialesDeWhatsappResueltas> => {
     return withSystemTransaction(poolAuth, async (c) => {

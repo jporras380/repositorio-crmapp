@@ -202,6 +202,61 @@ describe('mensaje nuevo', () => {
     });
   });
 
+  it('un comentario abre un hilo comment_thread por publicación; el siguiente lo continúa; el duplicado no', async () => {
+    const comentario = (id: string, post: string, texto: string) => ({
+      clase: 'comentario',
+      externalCommentId: id,
+      externalUserId: 'ig-caro',
+      externalPostId: post,
+      texto,
+      nombre: 'caro.rp',
+    });
+    const r1 = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([comentario('c.1', 'post.A', 'Precio?')]),
+    );
+    expect(r1).toMatchObject({ comentariosNuevos: 1, mensajesNuevos: 0, duplicados: 0 });
+
+    const hilos = await admin.query<{ kind: string; external_thread_id: string; status: string }>(
+      `SELECT kind, external_thread_id, status FROM conversations ORDER BY created_at`,
+    );
+    expect(hilos.rows).toEqual([
+      { kind: 'comment_thread', external_thread_id: 'post.A', status: 'open' },
+    ]);
+    const contacto = await admin.query<{ display_name: string }>(
+      `SELECT display_name FROM contacts`,
+    );
+    expect(contacto.rows[0]!.display_name).toBe('caro.rp');
+
+    // Segundo comentario en la misma publicación: mismo hilo. Otra publicación: hilo nuevo.
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([comentario('c.2', 'post.A', 'Sigue?')]),
+    );
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([comentario('c.3', 'post.B', 'Y este?')]),
+    );
+    expect(await contar('conversations')).toBe(2);
+    expect(await contar('messages')).toBe(3);
+
+    // Reenvío del mismo comentario: duplicado.
+    const r4 = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([comentario('c.2', 'post.A', 'Sigue?')]),
+    );
+    expect(r4).toMatchObject({ comentariosNuevos: 0, duplicados: 1 });
+
+    const m = await admin.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM messages WHERE external_message_id = 'c.1'`,
+    );
+    expect(m.rows[0]!.payload).toMatchObject({ comentario: { id: 'c.1', postId: 'post.A' } });
+  });
+
   it('un cambio de estado de plantilla desde Meta se refleja y se anuncia', async () => {
     await admin.query(
       `INSERT INTO wa_templates (tenant_id, channel_account_id, name, language, status)

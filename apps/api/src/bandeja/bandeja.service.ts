@@ -77,7 +77,15 @@ export type PeticionDeEnvio =
     }
   | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
   /** Respuesta rápida: se expande a su versión actual (texto o medio). */
-  | { tipo: 'quick_reply'; quickReplyId: string };
+  | { tipo: 'quick_reply'; quickReplyId: string }
+  /** Respuesta a un comentario público (Instagram): en el hilo o por privado. */
+  | {
+      tipo: 'comment_reply';
+      modo: 'publica' | 'privada';
+      texto: string;
+      /** Si falta, se responde al último comentario recibido en la conversación. */
+      comentarioId?: string | undefined;
+    };
 
 /** Lo que llega a la puerta tras expandir las respuestas rápidas. */
 type PeticionEfectiva = Exclude<PeticionDeEnvio, { tipo: 'quick_reply' }>;
@@ -273,7 +281,10 @@ export class BandejaService {
       const suscripcion = await leerSuscripcion(c, ctx.tenantId);
       const decision = evaluarEnvio(
         suscripcion,
-        { tipo: peticion.tipo as TipoDeEnvio, origen: 'human' },
+        {
+          tipo: (peticion.tipo === 'comment_reply' ? 'text' : peticion.tipo) as TipoDeEnvio,
+          origen: 'human',
+        },
         ahora,
       );
       if (!decision.permitido) {
@@ -305,7 +316,13 @@ export class BandejaService {
 
       // 4. Ventana de sesión. Las plantillas son la excepción: existen
       //    precisamente para hablar fuera de ventana.
-      if (peticion.tipo !== 'template' && !ventanaAbierta(conv.session_expires_at, ahora)) {
+      // Responder a un comentario tampoco depende de la ventana: sus reglas
+      // (una privada por comentario, dentro de siete días) las aplica el proveedor.
+      if (
+        peticion.tipo !== 'template' &&
+        peticion.tipo !== 'comment_reply' &&
+        !ventanaAbierta(conv.session_expires_at, ahora)
+      ) {
         throw new ErrorDeNegocio(
           'fuera_de_ventana',
           'La ventana de 24 horas está cerrada. Solo se puede enviar una plantilla aprobada.',
@@ -327,17 +344,43 @@ export class BandejaService {
         );
       }
 
+      // 4c. Comentario al que se responde: el indicado o el último recibido.
+      let comentarioId: string | null = null;
+      if (peticion.tipo === 'comment_reply') {
+        if (!capacidades.soportaComentarios) {
+          throw new ErrorDeNegocio(
+            'canal_sin_comentarios',
+            `El canal "${conv.channel}" no tiene comentarios.`,
+            422,
+          );
+        }
+        comentarioId = peticion.comentarioId ?? (await ultimoComentario(c, conv.id));
+        if (!comentarioId) {
+          throw new ErrorDeNegocio(
+            'comentario_requerido',
+            'Esta conversación no tiene comentarios a los que responder.',
+            400,
+          );
+        }
+      }
+
       // 5. Capacidades del canal. Se pregunta, no se asume (ARCH §8).
       const error = validarContraCapacidades(capacidades, {
-        tipo: peticion.tipo as TipoDeMensaje,
-        ...(peticion.tipo === 'text' ? { longitudTexto: peticion.texto.length } : {}),
+        tipo: (peticion.tipo === 'comment_reply' ? 'text' : peticion.tipo) as TipoDeMensaje,
+        ...(peticion.tipo === 'text' || peticion.tipo === 'comment_reply'
+          ? { longitudTexto: peticion.texto.length }
+          : {}),
       });
       if (error) throw new ErrorDeNegocio(`canal_${error.tipo}`, error.message, 422);
 
       // 5b. Medio propio: debe existir (RLS: ajeno = inexistente) y estar
       //     almacenado. La URL firmada la genera el worker al enviar.
       let mediaAssetId: string | null = null;
-      if (peticion.tipo !== 'text' && peticion.tipo !== 'template') {
+      if (
+        peticion.tipo !== 'text' &&
+        peticion.tipo !== 'template' &&
+        peticion.tipo !== 'comment_reply'
+      ) {
         if (!peticion.url && !peticion.mediaAssetId) {
           throw new ErrorDeNegocio('medio_requerido', 'Indica url o mediaAssetId.', 400);
         }
@@ -361,26 +404,29 @@ export class BandejaService {
       // 6. Insertar en `queued` y encolar por el outbox. Sin RETURNING.
       const messageId = await this.#db.nuevoId(c);
       const createdAt = ahora;
-      const texto = peticion.tipo === 'text' ? peticion.texto : null;
+      const texto =
+        peticion.tipo === 'text' || peticion.tipo === 'comment_reply' ? peticion.texto : null;
       const payload =
         peticion.tipo === 'text'
           ? {}
-          : peticion.tipo === 'template'
-            ? {
-                plantilla: {
-                  nombre: peticion.nombre,
-                  idioma: peticion.idioma,
-                  parametros: peticion.parametros,
-                  versionId: waTemplateVersionId,
-                },
-              }
-            : {
-                media: {
-                  url: peticion.url ?? null,
-                  mediaAssetId,
-                  pieDeFoto: peticion.pieDeFoto ?? null,
-                },
-              };
+          : peticion.tipo === 'comment_reply'
+            ? { comentario: { id: comentarioId, modo: peticion.modo } }
+            : peticion.tipo === 'template'
+              ? {
+                  plantilla: {
+                    nombre: peticion.nombre,
+                    idioma: peticion.idioma,
+                    parametros: peticion.parametros,
+                    versionId: waTemplateVersionId,
+                  },
+                }
+              : {
+                  media: {
+                    url: peticion.url ?? null,
+                    mediaAssetId,
+                    pieDeFoto: peticion.pieDeFoto ?? null,
+                  },
+                };
 
       await c.query(
         `INSERT INTO messages
@@ -393,7 +439,7 @@ export class BandejaService {
           ctx.tenantId,
           conv.id,
           conv.channel_account_id,
-          peticion.tipo,
+          peticion.tipo === 'comment_reply' ? 'text' : peticion.tipo,
           texto,
           JSON.stringify(payload),
           ctx.userId,
@@ -436,7 +482,12 @@ export class BandejaService {
           channelAccountId: conv.channel_account_id,
           canal: conv.channel,
           externalUserId: conv.external_user_id,
-          peticion: peticionParaEnvio(peticion, mediaAssetId),
+          peticion: peticionParaEnvio(
+            peticion.tipo === 'comment_reply'
+              ? { ...peticion, comentarioId: comentarioId! }
+              : peticion,
+            mediaAssetId,
+          ),
         },
       });
 
@@ -763,7 +814,7 @@ export interface MensajeDeConversacion {
 
 /** Lo que viaja al worker: URL externa tal cual, o medio propio sin URL (la firma el worker). */
 function peticionParaEnvio(p: PeticionEfectiva, mediaAssetId: string | null): unknown {
-  if (p.tipo === 'text' || p.tipo === 'template') return p;
+  if (p.tipo === 'text' || p.tipo === 'template' || p.tipo === 'comment_reply') return p;
   return { tipo: p.tipo, url: p.url ?? null, mediaAssetId, pieDeFoto: p.pieDeFoto };
 }
 
@@ -784,6 +835,18 @@ function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
     etiquetas: f.etiquetas,
     vistaPrevia: f.vista_previa,
   };
+}
+
+/** Id del último comentario público recibido en la conversación, si lo hay. */
+async function ultimoComentario(c: PoolClient, conversationId: string): Promise<string | null> {
+  const { rows } = await c.query<{ id: string | null }>(
+    `SELECT payload #>> '{comentario,id}' AS id
+       FROM messages
+      WHERE conversation_id = $1 AND direction = 'inbound' AND payload ? 'comentario'
+      ORDER BY created_at DESC LIMIT 1`,
+    [conversationId],
+  );
+  return rows[0]?.id ?? null;
 }
 
 async function leerSuscripcion(c: PoolClient, tenantId: string): Promise<Suscripcion> {
