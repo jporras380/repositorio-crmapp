@@ -8,21 +8,27 @@
     "node": ">=24"
   },
   "scripts": {
+    "arch:check": "bash scripts/check-architecture.sh",
     "build": "turbo run build",
+    "db:dev-roles": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts dev-roles",
+    "db:migrate": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts migrate",
+    "db:rollback": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts rollback",
     "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "dev:api": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env apps/api/src/main.ts",
+    "dev:worker": "tsx --tsconfig apps/worker/tsconfig.json --env-file=.env apps/worker/src/main.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "arch:check": "bash scripts/check-architecture.sh",
-    "infra:up": "docker compose -f infra/docker-compose.dev.yml up -d",
     "infra:down": "docker compose -f infra/docker-compose.dev.yml down",
-    "infra:reset": "docker compose -f infra/docker-compose.dev.yml down -v"
+    "infra:reset": "docker compose -f infra/docker-compose.dev.yml down -v",
+    "infra:up": "docker compose -f infra/docker-compose.dev.yml up -d",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
     "prettier": "^3.4.2",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "tsx": "^4.20.6"
   }
 }

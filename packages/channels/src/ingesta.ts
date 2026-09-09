@@ -163,6 +163,9 @@ export function responderAlDesafioMeta(
   verifyToken: string,
 ): string | null {
   if (parametros['hub.mode'] !== 'subscribe') return null;
+  // Sin token configurado no hay reto que superar: un token vacio aceptaria
+  // cualquier alta cuyo verify_token tambien viniera vacio. Fallar cerrado.
+  if (!verifyToken) return null;
 
   const recibido = parametros['hub.verify_token'] ?? '';
   const a = Buffer.from(recibido, 'utf8');

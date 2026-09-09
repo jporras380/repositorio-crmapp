@@ -19,26 +19,37 @@ gestión de usuarios y facturación por plan.
 - pnpm 12 (`npm install -g pnpm`)
 - Docker, para la infraestructura de desarrollo
 
-## Arranque
+## Arranque (PowerShell o cualquier terminal)
 
-```bash
+```powershell
 pnpm install
-cp .env.example .env     # rellenar; .env nunca se versiona
-pnpm infra:up            # postgres, redis, minio, mailpit
+Copy-Item .env.example .env   # rellenar; .env nunca se versiona
+pnpm infra:up                 # postgres, redis, minio, mailpit (Docker Desktop encendido)
+pnpm db:migrate               # aplica las migraciones a la base de desarrollo
+pnpm db:dev-roles             # da LOGIN a crmapp_app, crmapp_auth y crmapp_relay (solo desarrollo)
+pnpm dev:api                  # API en http://localhost:3000
+pnpm dev:worker               # en otra terminal: relay del outbox + consumidores
 ```
 
-| Servicio   | Dónde                                           |
-| ---------- | ----------------------------------------------- |
-| PostgreSQL | `localhost:55432` — usuario y base `crmapp`     |
-| Redis      | `localhost:6379`                                |
-| MinIO      | API `localhost:9000` · consola `localhost:9001` |
-| Mailpit    | `localhost:8025`                                |
+Comprobación rápida de que la API está viva:
 
-> PostgreSQL escucha en **55432**, no en el 5432 estándar: es habitual tener un
-> PostgreSQL nativo instalado como servicio ocupando ese puerto, y ceder el
-> puerto es más barato que pedir que cada quien pare su servicio.
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/v1/cuentas -ContentType application/json -Body '{"nombreDeCuenta":"Mi empresa","slug":"mi-empresa","email":"yo@ejemplo.com","contrasena":"una-contrasena-larga","nombreCompleto":"Yo"}'
+```
+
+Devuelve un `token`; con él, `GET /v1/yo` (cabecera `Authorization: Bearer <token>`) responde con el estado de la suscripción.
+
+| Servicio   | Dónde                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| API        | `localhost:3000`                                                                                                                 |
+| PostgreSQL | `localhost:55432` — usuario y base `crmapp`. No es el 5432 estándar: se cede el puerto por si hay un PostgreSQL nativo instalado |
+| Redis      | `localhost:6379`                                                                                                                 |
+| MinIO      | API `localhost:9000` · consola `localhost:9001`                                                                                  |
+| Mailpit    | `localhost:8025`                                                                                                                 |
 
 `pnpm infra:down` para parar, `pnpm infra:reset` para parar **borrando los datos**.
+
+> Los scripts `dev:*` y `db:*` pasan `--tsconfig` de cada aplicación a `tsx`. Sin él, esbuild no activa `experimentalDecorators` y NestJS falla al arrancar con "Parameter decorators only work when experimental decorators are enabled".
 
 ## Comandos
 

@@ -15,6 +15,7 @@ Fase actual: **fase 1 en curso**. Fase 0 **completada**, con su criterio de sali
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
+- **Arranque real verificado** (no solo tests): `pnpm dev:api` y `pnpm dev:worker` levantan con el `.env`; alta de cuenta por HTTP y `/v1/yo` con suscripción en prueba. Comandos en el README.
 - **PR-11, visibilidad entre agentes**: P-09 resuelto con `decision-eval` ([[ADR-008-visibilidad-entre-agentes]]). Política por cuenta, aplicada en lista, lectura y envío con la misma regla. 11 tests.
 - **`main` fusionado hasta PR-10** por *fast-forward*, tras evaluar fusionar ahora frente a seguir apilando. **La CI corre por primera vez**: hay que mirar *Actions*.
 - **PR-10, bandeja y envío**: listado con filtros (canal, estado, agente, etiqueta con color, sin respuesta) y paginación por cursor; envío por la puerta completa del ARCH §9 con errores tipados; asignación, estado y etiquetas; consumidor de salida en el worker con reserva condicional y `reintentable`. 26 tests.

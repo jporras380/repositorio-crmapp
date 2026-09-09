@@ -11,6 +11,7 @@ import {
   AdaptadorSandbox,
   CanalNoRegistrado,
   RegistroDeCanales,
+  responderAlDesafioMeta,
   validarContraCapacidades,
   type ErrorDeCanal,
 } from '../src/index.js';
@@ -235,5 +236,20 @@ describe('fetchMedia', () => {
     const m = await canal.fetchMedia('media-1', 'ca-1');
     expect(m.bytes).toBe(m.datos.length);
     expect(m.datos.toString()).toContain('media-1');
+  });
+});
+
+describe('reto de alta del webhook', () => {
+  const params = { 'hub.mode': 'subscribe', 'hub.verify_token': '', 'hub.challenge': '123' };
+
+  it('con el verify token sin configurar no acepta nada, ni un token vacio', () => {
+    // Un despliegue con META_WEBHOOK_VERIFY_TOKEN vacio no debe dar de alta
+    // webhooks de nadie. Fallar cerrado.
+    expect(responderAlDesafioMeta(params, '')).toBeNull();
+  });
+
+  it('con token configurado exige coincidencia exacta', () => {
+    expect(responderAlDesafioMeta({ ...params, 'hub.verify_token': 'abc' }, 'abc')).toBe('123');
+    expect(responderAlDesafioMeta({ ...params, 'hub.verify_token': 'abd' }, 'abc')).toBeNull();
   });
 });

@@ -34,24 +34,29 @@ try {
       break;
     }
 
-    case 'dev-role': {
-      // Solo desarrollo. En producción el rol recibe credenciales por otra vía:
-      // una contraseña en una migración sería un secreto en el repositorio.
+    case 'dev-role':
+    case 'dev-roles': {
+      // Solo desarrollo. En producción los roles reciben credenciales por otra
+      // vía: una contraseña en una migración sería un secreto en el repositorio.
+      // Tres roles: aplicación (RLS), autenticación (solo lectura de identidad,
+      // migración 0008) y relay del outbox (migración 0006).
       const password = process.env['DEV_APP_PASSWORD'] ?? 'crmapp_dev';
       const client = new Client({ connectionString: url });
       await client.connect();
-      await client.query(`ALTER ROLE crmapp_app LOGIN PASSWORD '${password}'`);
       const { rows } = await client.query<{ datname: string }>(
         'SELECT current_database() AS datname',
       );
-      await client.query(`GRANT CONNECT ON DATABASE "${rows[0]!.datname}" TO crmapp_app`);
+      for (const rol of ['crmapp_app', 'crmapp_auth', 'crmapp_relay']) {
+        await client.query(`ALTER ROLE ${rol} LOGIN PASSWORD '${password}'`);
+        await client.query(`GRANT CONNECT ON DATABASE "${rows[0]!.datname}" TO ${rol}`);
+        console.log(`${rol} puede conectarse a ${rows[0]!.datname}.`);
+      }
       await client.end();
-      console.log(`crmapp_app puede conectarse a ${rows[0]!.datname}.`);
       break;
     }
 
     default:
-      console.error('Uso: cli.ts <migrate|rollback [pasos]|dev-role>');
+      console.error('Uso: cli.ts <migrate|rollback [pasos]|dev-roles>');
       process.exit(1);
   }
 } catch (error) {
