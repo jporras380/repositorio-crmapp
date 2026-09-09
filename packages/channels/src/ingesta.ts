@@ -239,6 +239,18 @@ export class IngestaSandbox implements AdaptadorDeIngesta {
           externalMessageId: e['externalMessageId'],
           estado: (e['estado'] as EventoDeEstado['estado']) ?? 'sent',
         });
+      } else if (e['clase'] === 'plantilla' && typeof e['nombre'] === 'string') {
+        salida.push({
+          ...base,
+          clase: 'plantilla',
+          nombre: e['nombre'],
+          idioma: typeof e['idioma'] === 'string' ? e['idioma'] : 'es',
+          estado: (e['estado'] as EventoDePlantilla['estado']) ?? 'aprobada',
+          motivoDeRechazo:
+            typeof e['motivoDeRechazo'] === 'string' ? e['motivoDeRechazo'] : undefined,
+          categoriaEfectiva:
+            typeof e['categoriaEfectiva'] === 'string' ? e['categoriaEfectiva'] : undefined,
+        });
       }
       // Los eventos que no se reconocen se ignoran en silencio a propósito:
       // Meta añade tipos nuevos sin avisar, y fallar ante uno desconocido

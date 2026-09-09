@@ -105,9 +105,15 @@ export function crearResolverDeCuenta(poolAuth: Pool, cifrador: Cifrador) {
   ): Promise<CuentaDeWebhook | null> => {
     if (!externalAccountId) return null;
     return withSystemTransaction(poolAuth, async (c) => {
+      // Un webhook de mensajes trae el phone_number_id; uno de estado de
+      // plantilla trae solo la WABA (`entry[].id`). Ambos resuelven: los
+      // números de una misma WABA comparten inquilino y app secret.
       const { rows } = await c.query<{ id: string; tenant_id: string }>(
         `SELECT id, tenant_id FROM channel_accounts
-          WHERE channel = $1 AND external_id = $2 AND status <> 'disconnected'`,
+          WHERE channel = $1 AND (external_id = $2 OR provider_account_id = $2)
+            AND status <> 'disconnected'
+          ORDER BY (external_id = $2) DESC, created_at
+          LIMIT 1`,
         [canal, externalAccountId],
       );
       const ca = rows[0];

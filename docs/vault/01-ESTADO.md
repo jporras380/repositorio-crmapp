@@ -7,10 +7,11 @@ tags: [estado, sesion]
 
 # Estado — 9 de septiembre de 2026
 
-Fase actual: **fase 1, código completo, con multimedia**. Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
+Fase actual: **fase 1, código completo** (WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla). Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
 
 ## Completado
 
+- **PR-15, plantillas** ([[plantillas]]): migración 0012 (`quick_replies`/`_versions`, `wa_templates`/`_versions`), sincronización de HSM desde el proveedor, webhook de estado de plantilla resuelto por WABA y reflejado por el worker, puerta de envío que exige `aprobada` y devuelve `plantillasSugeridas`, respuestas rápidas con versiones y adjunto. 20 tests nuevos en API, 2 en worker.
 - **PR-14, multimedia** ([[ADR-009-medios]], [[medios]]): `packages/storage` (S3 por URL firmadas, nada público), descarga de entrantes por job propio con deduplicación por `sha256` dentro del inquilino, envío con `mediaAssetId` (la URL se firma en el worker al enviar), subida directa desde el navegador (`/v1/medios/subidas` → PUT → confirmar) y `GET /v1/medios/:id/url`. Se quitó la lectura anónima del bucket en el compose. MinIO en CI solo para `packages/storage`. 6 + 8 + 11 tests nuevos.
 
 - Repositorio inicializado (`git init`, rama `main`). No es monorepo todavía: no hay `package.json`.
@@ -64,7 +65,7 @@ Nada.
 **Fase 1**: adaptador de WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla. Criterio de salida: un agente atiende WhatsApp de punta a punta.
 
 1. **Prueba con número real** (la hace el usuario): ya tiene app y número de prueba; `DEV_WA_*` y `META_WEBHOOK_VERIFY_TOKEN` están en su `.env`. Le falta `META_APP_SECRET`, el túnel, dar de alta el webhook y `pnpm wa:conectar` (orden completo en el README). Es el criterio de salida de fase 1 demostrado de verdad.
-2. **PR-15, plantillas**: respuestas rápidas y HSM con `syncTemplates`, y llenar `plantillasSugeridas` del 409 de fuera de ventana.
+2. **Editor de HSM** (crear y enviar a revisión desde el CRM) y paginación de `syncTemplates`; ver pendientes en [[plantillas]].
 3. Miniaturas/transcodificación en la cola `media` y CORS del bucket cuando llegue `apps/web`.
 4. Smoke test de arranque en CI (lección del 2026-09-09).
 5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.

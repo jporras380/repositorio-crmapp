@@ -19,6 +19,8 @@ import {
   TOKEN_DB,
   TOKEN_INGESTA,
   TOKEN_MEDIOS,
+  TOKEN_PLANTILLAS,
+  TOKEN_ADAPTADORES,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -35,6 +37,11 @@ import {
 import { CanalesController } from './canales/canales.controller.js';
 import { MediosService } from './medios/medios.service.js';
 import { MediosController } from './medios/medios.controller.js';
+import { PlantillasService } from './plantillas/plantillas.service.js';
+import {
+  PlantillasWhatsappController,
+  RespuestasRapidasController,
+} from './plantillas/plantillas.controller.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -87,6 +94,8 @@ export class AppModule {
         BandejaController,
         CanalesController,
         MediosController,
+        PlantillasWhatsappController,
+        RespuestasRapidasController,
       ],
       providers: [
         {
@@ -150,26 +159,43 @@ export class AppModule {
             }),
         },
         {
+          // Un solo mapa de adaptadores para bandeja y plantillas: el sandbox
+          // de un test debe ser la MISMA instancia en las dos.
+          provide: TOKEN_ADAPTADORES,
+          inject: [TOKEN_CANALES],
+          useFactory: (canales: CanalesService): Map<string, ChannelAdapter> =>
+            opciones.canales ??
+            (opciones.modoSandbox
+              ? new Map<string, ChannelAdapter>([
+                  ['whatsapp', new AdaptadorSandbox({ canal: 'whatsapp' })],
+                  ['instagram', new AdaptadorSandbox({ canal: 'instagram' })],
+                ])
+              : new Map<string, ChannelAdapter>([
+                  [
+                    'whatsapp',
+                    new AdaptadorWhatsapp({
+                      resolverCredenciales: canales.resolverCredencialesWhatsapp,
+                    }),
+                  ],
+                ])),
+        },
+        {
           provide: TOKEN_BANDEJA,
-          inject: [TOKEN_DB, TOKEN_CANALES],
-          useFactory: (db: BaseDeDatos, canales: CanalesService) =>
+          inject: [TOKEN_DB, TOKEN_ADAPTADORES],
+          useFactory: (db: BaseDeDatos, adaptadores: Map<string, ChannelAdapter>) =>
             new BandejaService({
               db,
-              canales:
-                opciones.canales ??
-                (opciones.modoSandbox
-                  ? new Map<string, ChannelAdapter>([
-                      ['whatsapp', new AdaptadorSandbox({ canal: 'whatsapp' })],
-                      ['instagram', new AdaptadorSandbox({ canal: 'instagram' })],
-                    ])
-                  : new Map<string, ChannelAdapter>([
-                      [
-                        'whatsapp',
-                        new AdaptadorWhatsapp({
-                          resolverCredenciales: canales.resolverCredencialesWhatsapp,
-                        }),
-                      ],
-                    ])),
+              canales: adaptadores,
+              ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
+            }),
+        },
+        {
+          provide: TOKEN_PLANTILLAS,
+          inject: [TOKEN_DB, TOKEN_ADAPTADORES],
+          useFactory: (db: BaseDeDatos, adaptadores: Map<string, ChannelAdapter>) =>
+            new PlantillasService({
+              db,
+              canales: adaptadores,
               ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
             }),
         },
@@ -192,6 +218,7 @@ export class AppModule {
         TOKEN_CANALES,
         TOKEN_CIFRADOR,
         TOKEN_MEDIOS,
+        TOKEN_PLANTILLAS,
       ],
     };
   }

@@ -24,6 +24,7 @@ import type {
   ChannelAdapter,
   EventoDeEstado,
   EventoDeMensaje,
+  EventoDePlantilla,
   EventoEntrante,
 } from '@crmapp/channels';
 import { escribirEnOutbox } from '@crmapp/queue';
@@ -40,6 +41,8 @@ export interface ResultadoDeProcesamiento {
   mensajesNuevos: number;
   duplicados: number;
   estadosAplicados: number;
+  /** Cambios de estado de plantillas HSM reflejados desde Meta. */
+  plantillasActualizadas: number;
   ignorados: number;
   /** `true` si la cuenta está suspendida y el crudo se guardó sin mostrarse. */
   omitidoPorSuspension: boolean;
@@ -81,6 +84,7 @@ export async function procesarEventoEntrante(
       mensajesNuevos: 0,
       duplicados: 0,
       estadosAplicados: 0,
+      plantillasActualizadas: 0,
       ignorados: 0,
       omitidoPorSuspension: false,
     };
@@ -119,9 +123,12 @@ export async function procesarEventoEntrante(
         const aplicado = await procesarEstado(c, fila, evento);
         if (aplicado) resultado.estadosAplicados += 1;
         else resultado.ignorados += 1;
+      } else if (evento.clase === 'plantilla') {
+        await procesarPlantilla(c, fila, evento, ahora());
+        resultado.plantillasActualizadas += 1;
       } else {
-        // Comentarios y plantillas llegan en fases posteriores. Se cuentan
-        // para que no pasen desapercibidos en las métricas.
+        // Comentarios llegan con Instagram. Se cuentan para que no pasen
+        // desapercibidos en las métricas.
         resultado.ignorados += 1;
       }
     }
@@ -423,6 +430,94 @@ async function resolverConversacion(
  * Los webhooks de estado llegan desordenados: es normal recibir `delivered`
  * antes que `sent`. Un estado nunca retrocede; `failed` se acepta siempre.
  */
+/**
+ * Estado de una plantilla HSM, fijado por Meta (ARCH §3: se sincroniza, no se
+ * asume). La plantilla pertenece a la WABA, no al número: se aplica a todas
+ * las cuentas del inquilino con ese `provider_account_id`. Una plantilla que
+ * no conocíamos —creada en el panel de Meta— se registra para que el CRM se
+ * entere sin esperar a la siguiente sincronización.
+ */
+async function procesarPlantilla(
+  c: PoolClient,
+  fila: FilaEntrante,
+  evento: EventoDePlantilla,
+  ahora: Date,
+): Promise<void> {
+  const motivo = evento.estado === 'rechazada' ? (evento.motivoDeRechazo ?? null) : null;
+  const r = await c.query<{ id: string; current_version_id: string | null }>(
+    `UPDATE wa_templates t
+        SET status = $3,
+            rejection_reason = CASE WHEN $3 = 'rechazada' THEN COALESCE($4, t.rejection_reason) ELSE NULL END,
+            category_effective = COALESCE($5, t.category_effective),
+            last_synced_at = $6, updated_at = now()
+       FROM channel_accounts ca
+      WHERE ca.id = t.channel_account_id
+        AND (ca.provider_account_id = $7 OR ca.id = $8)
+        AND t.name = $1 AND t.language = $2
+      RETURNING t.id, t.current_version_id`,
+    [
+      evento.nombre,
+      evento.idioma,
+      evento.estado,
+      motivo,
+      evento.categoriaEfectiva ?? null,
+      ahora,
+      evento.externalAccountId,
+      fila.channel_account_id,
+    ],
+  );
+
+  if ((r.rowCount ?? 0) === 0) {
+    const id = await nuevoId(c);
+    const versionId = await nuevoId(c);
+    await c.query(
+      `INSERT INTO wa_templates
+         (id, tenant_id, channel_account_id, name, language, status, rejection_reason,
+          category_effective, last_synced_at, current_version_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        id,
+        fila.tenant_id,
+        fila.channel_account_id,
+        evento.nombre,
+        evento.idioma,
+        evento.estado,
+        motivo,
+        evento.categoriaEfectiva ?? null,
+        ahora,
+        versionId,
+      ],
+    );
+    await c.query(
+      `INSERT INTO wa_template_versions (id, tenant_id, template_id, version, status, rejection_reason, reviewed_at)
+       VALUES ($1, $2, $3, 1, $4, $5, $6)`,
+      [versionId, fila.tenant_id, id, evento.estado, motivo, ahora],
+    );
+  } else {
+    const versiones = r.rows.map((f) => f.current_version_id).filter((v): v is string => !!v);
+    if (versiones.length > 0) {
+      await c.query(
+        `UPDATE wa_template_versions SET status = $2, rejection_reason = $3, reviewed_at = $4
+          WHERE id = ANY($1::uuid[])`,
+        [versiones, evento.estado, motivo, ahora],
+      );
+    }
+  }
+
+  await escribirEnOutbox(c, {
+    tenantId: fila.tenant_id,
+    aggregateType: 'wa_template',
+    aggregateId: r.rows[0]?.id ?? fila.channel_account_id,
+    eventType: 'plantilla.actualizada',
+    payload: {
+      nombre: evento.nombre,
+      idioma: evento.idioma,
+      estado: evento.estado,
+      motivoDeRechazo: motivo,
+    },
+  });
+}
+
 async function procesarEstado(
   c: PoolClient,
   fila: FilaEntrante,

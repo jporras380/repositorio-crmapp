@@ -417,3 +417,65 @@ export const subscriptions = pgTable('subscriptions', {
   createdAt: creado,
   updatedAt: actualizado,
 });
+
+// ---------------------------------------------------------------------------
+// Plantillas (0012, ARCH §5.6): dos entidades, nunca un campo `tipo`
+// ---------------------------------------------------------------------------
+
+export const quickReplies = pgTable('quick_replies', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  shortcut: citext('shortcut').notNull(),
+  title: text('title').notNull(),
+  currentVersionId: uuid('current_version_id'),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  createdBy: uuid('created_by'),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+export const quickReplyVersions = pgTable('quick_reply_versions', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  quickReplyId: uuid('quick_reply_id').notNull(),
+  version: integer('version').notNull(),
+  body: text('body').notNull().default(''),
+  mediaAssetId: uuid('media_asset_id'),
+  createdBy: uuid('created_by'),
+  createdAt: creado,
+});
+
+export const waTemplates = pgTable('wa_templates', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  channelAccountId: uuid('channel_account_id').notNull(),
+  name: text('name').notNull(),
+  language: text('language').notNull(),
+  /** Declarada por el usuario; la efectiva la fija Meta y es la que cuesta. */
+  categoryDeclared: text('category_declared'),
+  categoryEffective: text('category_effective'),
+  status: text('status').notNull().default('borrador'),
+  metaTemplateId: text('meta_template_id'),
+  qualityScore: text('quality_score'),
+  rejectionReason: text('rejection_reason'),
+  pausedUntil: timestamp('paused_until', { withTimezone: true }),
+  lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  currentVersionId: uuid('current_version_id'),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+export const waTemplateVersions = pgTable('wa_template_versions', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  templateId: uuid('template_id').notNull(),
+  version: integer('version').notNull(),
+  components: jsonb('components').notNull().default([]),
+  exampleParams: jsonb('example_params').notNull().default([]),
+  status: text('status').notNull().default('borrador'),
+  metaTemplateId: text('meta_template_id'),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+  createdAt: creado,
+});

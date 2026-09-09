@@ -264,6 +264,43 @@ describe('conectar WhatsApp (BYO)', () => {
     expect(outbox.rows.length).toBeGreaterThan(0);
   });
 
+  it('un webhook de estado de plantilla, que solo trae la WABA, resuelve a la misma cuenta', async () => {
+    // Meta no manda phone_number_id en estos eventos: `entry[].id` es la WABA.
+    // Sin resolver por provider_account_id quedarían sin inquilino y nunca se
+    // reflejaría un rechazo o una pausa.
+    const cuerpo = JSON.stringify({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: CRED.wabaId,
+          changes: [
+            {
+              field: 'message_template_status_update',
+              value: {
+                event: 'REJECTED',
+                message_template_id: 777,
+                message_template_name: 'promo',
+                message_template_language: 'es',
+                reason: 'INVALID_FORMAT',
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const r = await http
+      .post('/webhooks/whatsapp')
+      .set('content-type', 'application/json')
+      .set('x-hub-signature-256', firmar(cuerpo, CRED.appSecret))
+      .send(cuerpo)
+      .expect(200);
+    expect(r.body).toEqual({ recibido: true, eventos: 1 });
+    const { rows } = await admin.query<{ tenant_id: string; channel_account_id: string }>(
+      `SELECT tenant_id, channel_account_id FROM inbound_events ORDER BY created_at DESC LIMIT 1`,
+    );
+    expect(rows[0]).toEqual({ tenant_id: tenantId, channel_account_id: cuentaId });
+  });
+
   it('firmado con OTRO secret se rechaza: la firma se verifica con el secret de ESA cuenta', async () => {
     const cuerpo = JSON.stringify({
       entry: [

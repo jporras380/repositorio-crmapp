@@ -22,3 +22,7 @@ export const TOKEN_CANALES = Symbol('CanalesService');
 export const TOKEN_CIFRADOR = Symbol('Cifrador');
 
 export const TOKEN_MEDIOS = Symbol('MediosService');
+
+export const TOKEN_PLANTILLAS = Symbol('PlantillasService');
+/** Mapa canal → ChannelAdapter, compartido por bandeja y plantillas. */
+export const TOKEN_ADAPTADORES = Symbol('Adaptadores');

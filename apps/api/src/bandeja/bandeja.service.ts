@@ -29,6 +29,11 @@ import {
 import { escribirEnOutbox } from '@crmapp/queue';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
+import {
+  exigirPlantillaAprobada,
+  plantillasAprobadas,
+  versionActualDeRapida,
+} from '../plantillas/consultas.js';
 
 // ---------------------------------------------------------------------------
 // Tipos de entrada y salida
@@ -70,7 +75,12 @@ export type PeticionDeEnvio =
       mediaAssetId?: string | undefined;
       pieDeFoto?: string | undefined;
     }
-  | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] };
+  | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
+  /** Respuesta rápida: se expande a su versión actual (texto o medio). */
+  | { tipo: 'quick_reply'; quickReplyId: string };
+
+/** Lo que llega a la puerta tras expandir las respuestas rápidas. */
+type PeticionEfectiva = Exclude<PeticionDeEnvio, { tipo: 'quick_reply' }>;
 
 export interface MensajeEncolado {
   id: string;
@@ -242,7 +252,10 @@ export class BandejaService {
   // Envío: la puerta del ARCH §9
   // -------------------------------------------------------------------------
 
-  async enviar(conversationId: string, peticion: PeticionDeEnvio): Promise<MensajeEncolado> {
+  async enviar(
+    conversationId: string,
+    peticionOriginal: PeticionDeEnvio,
+  ): Promise<MensajeEncolado> {
     const ctx = this.#exigirContexto();
     const ahora = this.#ahora();
 
@@ -250,6 +263,10 @@ export class BandejaService {
       // 1. La conversación existe y es del inquilino (RLS ya lo garantiza; el
       //    404 explícito evita un 500 confuso).
       const conv = await this.#exigirConversacion(c, conversationId, { bloquear: true });
+
+      // 1b. Una respuesta rápida es, técnicamente, un mensaje libre: se
+      //     expande a su versión actual y atraviesa la misma puerta.
+      const { peticion, quickReplyVersionId } = await this.#expandirRapida(c, peticionOriginal);
 
       // 2. Estado de la suscripción. Deriva de las fechas, nunca de la
       //    columna cacheada (ADR y packages/core).
@@ -293,8 +310,20 @@ export class BandejaService {
           'fuera_de_ventana',
           'La ventana de 24 horas está cerrada. Solo se puede enviar una plantilla aprobada.',
           409,
-          // Las plantillas aprobadas se sugerirán aquí cuando exista su módulo.
-          { plantillasSugeridas: [] },
+          // Lo que el agente SÍ puede enviar. El frontend lo pinta, no lo decide.
+          { plantillasSugeridas: await plantillasAprobadas(c, conv.channel_account_id) },
+        );
+      }
+
+      // 4b. Plantilla: debe existir sincronizada y estar aprobada. El estado
+      //     lo fija Meta; aquí solo se consulta lo que se sincronizó (ARCH §3).
+      let waTemplateVersionId: string | null = null;
+      if (peticion.tipo === 'template') {
+        waTemplateVersionId = await exigirPlantillaAprobada(
+          c,
+          conv.channel_account_id,
+          peticion.nombre,
+          peticion.idioma,
         );
       }
 
@@ -342,6 +371,7 @@ export class BandejaService {
                   nombre: peticion.nombre,
                   idioma: peticion.idioma,
                   parametros: peticion.parametros,
+                  versionId: waTemplateVersionId,
                 },
               }
             : {
@@ -355,8 +385,9 @@ export class BandejaService {
       await c.query(
         `INSERT INTO messages
            (id, tenant_id, conversation_id, channel_account_id, direction, type, body, payload,
-            status, sent_by, sent_by_user_id, created_at, media_asset_id)
-         VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, 'queued', 'human', $8, $9, $10)`,
+            status, sent_by, sent_by_user_id, created_at, media_asset_id,
+            quick_reply_version_id, wa_template_version_id)
+         VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, 'queued', 'human', $8, $9, $10, $11, $12)`,
         [
           messageId,
           ctx.tenantId,
@@ -368,6 +399,8 @@ export class BandejaService {
           ctx.userId,
           createdAt,
           mediaAssetId,
+          quickReplyVersionId,
+          waTemplateVersionId,
         ],
       );
 
@@ -512,6 +545,39 @@ export class BandejaService {
   }
 
   // -------------------------------------------------------------------------
+
+  async #expandirRapida(
+    c: PoolClient,
+    p: PeticionDeEnvio,
+  ): Promise<{ peticion: PeticionEfectiva; quickReplyVersionId: string | null }> {
+    if (p.tipo !== 'quick_reply') return { peticion: p, quickReplyVersionId: null };
+    const v = await versionActualDeRapida(c, p.quickReplyId);
+    if (!v) {
+      throw new ErrorDeNegocio(
+        'respuesta_rapida_no_encontrada',
+        'La respuesta rápida no existe o está archivada.',
+        404,
+      );
+    }
+    if (v.mediaAssetId) {
+      if (v.mediaStatus !== 'stored') {
+        throw new ErrorDeNegocio(
+          'medio_no_disponible',
+          'El adjunto de la respuesta rápida no está almacenado.',
+          409,
+        );
+      }
+      return {
+        peticion: {
+          tipo: v.mediaKind as 'image' | 'video' | 'audio' | 'document',
+          mediaAssetId: v.mediaAssetId,
+          pieDeFoto: v.cuerpo || undefined,
+        },
+        quickReplyVersionId: v.versionId,
+      };
+    }
+    return { peticion: { tipo: 'text', texto: v.cuerpo }, quickReplyVersionId: v.versionId };
+  }
 
   #exigirContexto() {
     const ctx = contextoActual();
@@ -685,7 +751,7 @@ export interface MensajeDeConversacion {
 }
 
 /** Lo que viaja al worker: URL externa tal cual, o medio propio sin URL (la firma el worker). */
-function peticionParaEnvio(p: PeticionDeEnvio, mediaAssetId: string | null): unknown {
+function peticionParaEnvio(p: PeticionEfectiva, mediaAssetId: string | null): unknown {
   if (p.tipo === 'text' || p.tipo === 'template') return p;
   return { tipo: p.tipo, url: p.url ?? null, mediaAssetId, pieDeFoto: p.pieDeFoto };
 }

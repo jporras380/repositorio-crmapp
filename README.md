@@ -67,6 +67,11 @@ Orden completo de la prueba real:
 
 El token temporal de Meta caduca en 24 h; el permanente sale de un usuario del sistema en Business Manager.
 
+## Plantillas
+
+- **HSM de WhatsApp**: `POST /v1/canales/<id>/plantillas/sincronizar` trae el estado real de Meta; `GET …/plantillas` lo lista con categoría efectiva, calidad y motivo de rechazo. Solo una plantilla `aprobada` sale con `{tipo:"template", nombre, idioma, parametros}`; fuera de ventana el 409 trae `plantillasSugeridas`.
+- **Respuestas rápidas**: `POST /v1/respuestas-rapidas {atajo:"/gracias", titulo, cuerpo, mediaAssetId?}` y se envían con `{tipo:"quick_reply", quickReplyId}` mientras la ventana esté abierta.
+
 ## Medios (fotos, audios, documentos)
 
 Con `S3_*` en el `.env` (MinIO en desarrollo, R2 en producción), los medios entrantes se descargan solos y quedan bajo `tenants/<id>/media/`. Nada es público: la bandeja pide una URL firmada de 5 minutos con `GET /v1/medios/:id/url`. Para enviar un archivo propio: `POST /v1/medios/subidas {mime, bytes}` → `PUT` del archivo a `urlDeSubida` → `POST /v1/medios/subidas/:id/confirmar` → `POST …/mensajes {tipo:"image", mediaAssetId}`. Sin `S3_*`, esas rutas responden 503 y todo lo demás funciona.

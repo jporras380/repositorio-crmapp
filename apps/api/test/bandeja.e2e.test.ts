@@ -312,8 +312,22 @@ describe('la puerta de envío (ARCH §9)', () => {
     expect(r.body.plantillasSugeridas).toEqual([]);
   });
 
-  it('una plantilla sí pasa fuera de ventana', async () => {
+  it('una plantilla APROBADA sí pasa fuera de ventana; una desconocida, no', async () => {
     const conv = await conversacion('Gema', { haceHoras: 30 });
+    // Sin sincronizar, la plantilla no existe para el CRM: 422 con motivo.
+    const r = await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'template', nombre: 'recordatorio', idioma: 'es', parametros: ['Gema'] })
+      .expect(422);
+    expect(r.body.codigo).toBe('plantilla_desconocida');
+
+    // Aprobada por Meta (aquí, sembrada como lo dejaría una sincronización).
+    await admin.query(
+      `INSERT INTO wa_templates (tenant_id, channel_account_id, name, language, status)
+       VALUES ($1, $2, 'recordatorio', 'es', 'aprobada')`,
+      [tenantId, channelAccountId],
+    );
     await http
       .post(`/v1/conversaciones/${conv}/mensajes`)
       .set(auth())

@@ -99,7 +99,7 @@ beforeEach(async () => {
   // fusiones. Enumerarlas a mano se rompe en la primera tabla nueva.
   await admin.query(
     `TRUNCATE inbound_events, outbox, messages, message_keys, conversations,
-              contact_identities, contacts, media_assets CASCADE`,
+              contact_identities, contacts, media_assets, wa_templates CASCADE`,
   );
 });
 
@@ -199,6 +199,51 @@ describe('mensaje nuevo', () => {
       mediaId: 'media-9',
       canal: 'whatsapp',
     });
+  });
+
+  it('un cambio de estado de plantilla desde Meta se refleja y se anuncia', async () => {
+    await admin.query(
+      `INSERT INTO wa_templates (tenant_id, channel_account_id, name, language, status)
+       VALUES ($1, $2, 'bienvenida', 'es', 'aprobada')`,
+      [tenantId, channelAccountId],
+    );
+    const id = await webhook([
+      { clase: 'plantilla', nombre: 'bienvenida', idioma: 'es', estado: 'pausada' },
+    ]);
+    const r = await procesarEventoEntrante(deps(), tenantId, id);
+    expect(r).toMatchObject({ plantillasActualizadas: 1, ignorados: 0 });
+
+    const t = await admin.query<{ status: string }>(
+      `SELECT status FROM wa_templates WHERE name = 'bienvenida'`,
+    );
+    expect(t.rows[0]!.status).toBe('pausada');
+    const o = await admin.query<{ event_type: string; payload: Record<string, unknown> }>(
+      `SELECT event_type, payload FROM outbox WHERE event_type = 'plantilla.actualizada'`,
+    );
+    expect(o.rows).toHaveLength(1);
+    expect(o.rows[0]!.payload).toMatchObject({ nombre: 'bienvenida', estado: 'pausada' });
+  });
+
+  it('una plantilla que no conocíamos se registra al llegar su estado', async () => {
+    const id = await webhook([
+      {
+        clase: 'plantilla',
+        nombre: 'promo',
+        idioma: 'es',
+        estado: 'rechazada',
+        motivoDeRechazo: 'INVALID_FORMAT',
+      },
+    ]);
+    await procesarEventoEntrante(deps(), tenantId, id);
+    const t = await admin.query<{
+      status: string;
+      rejection_reason: string;
+      current_version_id: string;
+    }>(
+      `SELECT status, rejection_reason, current_version_id FROM wa_templates WHERE name = 'promo'`,
+    );
+    expect(t.rows[0]).toMatchObject({ status: 'rechazada', rejection_reason: 'INVALID_FORMAT' });
+    expect(t.rows[0]!.current_version_id).toBeTruthy();
   });
 
   it('un texto no crea media_asset aunque el proveedor mande mediaId vacío', async () => {
