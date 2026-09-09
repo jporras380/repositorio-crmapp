@@ -165,8 +165,8 @@ Barandas obligatorias, aplicadas en servidor: techo de gasto mensual por cuenta,
 
 | Tabla | Notas |
 |---|---|
-| `plans` | `limits jsonb`, precios. |
-| `subscriptions` | Referencias al proveedor de pagos (P-10). |
+| `plans` | Catálogo **global**, sin `tenant_id`. `limits jsonb`, precios, `trial_months`, `grace_days`. Lleva RLS con política de lectura pública y solo `SELECT` para la aplicación: ningún inquilino puede inventarse un plan a su medida. |
+| `subscriptions` | Una por inquilino. `status`, `trial_ends_at`, `current_period_ends_at`, `grace_days`, y `cached_state` como **caché**. Referencias al proveedor de pagos (P-10). |
 | `usage_events` | `(tenant_id, metric, quantity, occurred_at, dedup_key único, meta jsonb)`. **Particionada por mes.** |
 | `usage_rollups` | `(tenant_id, metric, period, quantity)`. Agregada por job. |
 | `invoices` | |
@@ -219,7 +219,18 @@ El núcleo **pregunta capacidades, no asume**. TikTok no tiene plantillas y pued
 
 ## 9. Envío y ventanas
 
-Un envío atraviesa, en este orden: permisos → estado de la conversación → **ventana de sesión** → capacidad del canal → límites de plan → cola de salida del canal.
+Un envío atraviesa, en este orden: permisos → **estado de la suscripción** → estado de la conversación → **ventana de sesión** → capacidad del canal → límites de plan → cola de salida del canal.
+
+### Estado de la suscripción
+
+Prueba de un mes; al caducar sin pagar, **siete días de gracia** en los que solo se envía texto —sin imagen, vídeo, audio, documento ni plantillas—; pasada la gracia, **suspensión**: no se envía nada, **las cuentas de canal se desconectan del proveedor** y la cuenta queda en solo lectura para consultar y exportar el historial. La no renovación de un plan pagado sigue el mismo camino.
+
+Dos invariantes que hay que respetar:
+
+- **El estado efectivo se deriva de las fechas, no de la columna `status`.** Esa columna es una caché que mantiene un job; confiar en ella deja una ventana en la que un cliente cuya gracia venció a las 3 de la mañana sigue enviando hasta el siguiente cron.
+- **Al suspender se desconecta el canal en el proveedor, no se rechazan sus webhooks.** Rechazarlos provoca reintentos de Meta y, sostenido, puede llevar a que desactive nuestro webhook. Desconectar hace que deje de enviarlos.
+
+La lógica vive completa en `packages/core` y es dominio puro. `apps/web` no puede importarlo, así que no hay forma de recuperar el envío de imágenes desde el frontend.
 
 Fuera de ventana, el envío libre se rechaza con un error tipado que **incluye las plantillas aprobadas aplicables**. El frontend no decide esto: recibe la sugerencia y la pinta.
 

@@ -370,3 +370,46 @@ export const outbox = pgTable('outbox', {
   publishedAt: timestamp('published_at', { withTimezone: true }),
   createdAt: creado,
 });
+
+// ---------------------------------------------------------------------------
+// Planes y suscripciones
+// ---------------------------------------------------------------------------
+
+/**
+ * Catalogo global de planes. Sin tenant_id: no pertenece a nadie.
+ * Lleva RLS con una politica de lectura publica, no una excepcion del test.
+ */
+export const plans = pgTable('plans', {
+  id: uuid('id').primaryKey(),
+  code: citext('code').notNull().unique(),
+  name: text('name').notNull(),
+  priceCents: integer('price_cents').notNull(),
+  currency: text('currency').notNull().default('USD'),
+  period: text('period').notNull().default('month'),
+  limits: jsonb('limits').notNull().default({}),
+  trialMonths: integer('trial_months').notNull().default(1),
+  graceDays: integer('grace_days').notNull().default(7),
+  isPublic: boolean('is_public').notNull().default(true),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull().unique(),
+  planId: uuid('plan_id').notNull(),
+  /** Intencion declarada, NO el estado efectivo. Ver @crmapp/core. */
+  status: text('status').notNull().default('trialing'),
+  trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+  currentPeriodEndsAt: timestamp('current_period_ends_at', { withTimezone: true }),
+  /** Copiado del plan al crear. No se lee del plan al evaluar. */
+  graceDays: integer('grace_days').notNull().default(7),
+  /** Cache para listados y deteccion de transiciones. Nadie decide con esto. */
+  cachedState: text('cached_state'),
+  cachedStateAt: timestamp('cached_state_at', { withTimezone: true }),
+  provider: text('provider'),
+  providerCustomerId: text('provider_customer_id'),
+  providerSubscriptionId: text('provider_subscription_id'),
+  createdAt: creado,
+  updatedAt: actualizado,
+});

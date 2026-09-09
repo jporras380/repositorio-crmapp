@@ -44,6 +44,7 @@ Lo más valioso del vault. Aquí van las restricciones externas que costaron tie
 
 Una nota por módulo, con las decisiones que le afectan enlazadas. Se crean al empezar cada módulo, no antes.
 
+- [[facturacion]] — ciclo prueba → gracia → suspensión, y por qué la lógica vive en `core`.
 - [[web]] — convenciones de la aplicación web (estilo en CSS aparte).
 
 Previstos: bandeja, plantillas, salesbots, ia, usuarios, facturacion, panel, integraciones.
