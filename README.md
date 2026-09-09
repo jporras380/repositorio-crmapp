@@ -85,7 +85,7 @@ Con `S3_*` en el `.env` (MinIO en desarrollo, R2 en producción), los medios ent
 
 | Servicio   | Dónde                                                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Web        | `localhost:5173` (Vite, `pnpm dev:web`)                                                                                            |
+| Web        | `localhost:5173` (Vite, `pnpm dev:web`)                                                                                          |
 | API        | `localhost:3000`                                                                                                                 |
 | PostgreSQL | `localhost:55432` — usuario y base `crmapp`. No es el 5432 estándar: se cede el puerto por si hay un PostgreSQL nativo instalado |
 | Redis      | `localhost:6379`                                                                                                                 |
