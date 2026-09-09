@@ -63,7 +63,7 @@ Nada.
 
 **Fase 1**: adaptador de WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla. Criterio de salida: un agente atiende WhatsApp de punta a punta.
 
-1. **Prueba con número real** (la hace el usuario): app en developers.facebook.com, número de prueba de Meta, su móvil como destinatario, túnel para el webhook. Es el criterio de salida de fase 1 demostrado de verdad.
+1. **Prueba con número real** (la hace el usuario): ya tiene app y número de prueba; `DEV_WA_*` y `META_WEBHOOK_VERIFY_TOKEN` están en su `.env`. Le falta `META_APP_SECRET`, el túnel, dar de alta el webhook y `pnpm wa:conectar` (orden completo en el README). Es el criterio de salida de fase 1 demostrado de verdad.
 2. **PR-15, plantillas**: respuestas rápidas y HSM con `syncTemplates`, y llenar `plantillasSugeridas` del 409 de fuera de ventana.
 3. Miniaturas/transcodificación en la cola `media` y CORS del bucket cuando llegue `apps/web`.
 4. Smoke test de arranque en CI (lección del 2026-09-09).
