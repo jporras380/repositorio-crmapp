@@ -51,6 +51,11 @@ export const esquemaConfig = z.object({
 
   DATABASE_URL: urlPostgres,
   DATABASE_MIGRATION_URL: urlPostgres.optional(),
+  // Rol `crmapp_auth`, de solo lectura sobre las tablas de identidad
+  // (migracion 0008). Sin ella, iniciar sesion no encuentra al usuario: la
+  // consulta corre sin inquilino y RLS no deja ver nada. Opcional para que un
+  // worker, que no autentica a nadie, no tenga que definirla.
+  DATABASE_AUTH_URL: urlPostgres.optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(10),
 
   REDIS_URL: z.string().startsWith('redis'),
@@ -75,6 +80,7 @@ export type Config = z.infer<typeof esquemaConfig>;
 const CAMPOS_SECRETOS = [
   'DATABASE_URL',
   'DATABASE_MIGRATION_URL',
+  'DATABASE_AUTH_URL',
   'REDIS_URL',
   'MASTER_ENCRYPTION_KEY',
   'JWT_SECRET',

@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node"],
+    "composite": false,
+    "noEmit": true,
+    // NestJS usa decoradores. NO se activa emitDecoratorMetadata: esbuild, que
+    // es lo que usa vitest, no lo soporta, y la inyeccion por tipo dejaria de
+    // funcionar en los tests. Por eso toda inyeccion es explicita con
+    // @Inject(TOKEN). Ver apps/api/src/tokens.ts.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false,
+    "useDefineForClassFields": false
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}
