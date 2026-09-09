@@ -122,6 +122,7 @@ export class BandejaService {
     items: ResumenDeConversacion[];
     siguienteCursor: string | null;
   }> {
+    const ctx = this.#exigirContexto();
     const limite = Math.min(filtros.limite ?? LIMITE_POR_DEFECTO, LIMITE_MAXIMO);
     const condiciones: string[] = [];
     const params: unknown[] = [];
@@ -153,10 +154,14 @@ export class BandejaService {
       );
     }
 
-    const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
     const ahora = this.#ahora();
 
     const filas = await this.#db.enTransaccion(async (c) => {
+      // Visibilidad entre agentes (ADR-008). Solo restringe al rol `agent`.
+      const v = await this.#visibilidad(c, ctx);
+      if (v) condiciones.push(condicionDeVisibilidad(v, 'c', ctx.userId, p));
+      const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+
       const { rows } = await c.query<FilaResumen>(
         `SELECT c.id, ca.channel AS canal, c.status AS estado, c.assignee_user_id,
                 c.unread_count, c.last_inbound_at, c.last_outbound_at,
@@ -490,6 +495,60 @@ export class BandejaService {
     return ctx;
   }
 
+  /**
+   * Restricción de visibilidad del agente actual, o `null` si ve todo.
+   *
+   * Propietario, administrador y supervisor ven siempre todo: su trabajo es
+   * precisamente ver lo que los agentes no atienden.
+   */
+  async #visibilidad(
+    c: PoolClient,
+    ctx: { tenantId: string; userId: string; rol: string },
+  ): Promise<Visibilidad | null> {
+    if (ctx.rol !== 'agent') return null;
+    const { rows } = await c.query<{ modo: 'all' | 'team' | 'assigned' }>(
+      `SELECT conversation_visibility AS modo FROM tenants WHERE id = $1`,
+      [ctx.tenantId],
+    );
+    const modo = rows[0]?.modo ?? 'all';
+    if (modo === 'all') return null;
+    const equipos =
+      modo === 'team'
+        ? (
+            await c.query<{ team_id: string }>(
+              `SELECT tm.team_id FROM team_members tm
+                 JOIN memberships m ON m.id = tm.membership_id
+                WHERE m.user_id = $1 AND m.tenant_id = $2`,
+              [ctx.userId, ctx.tenantId],
+            )
+          ).rows.map((r) => r.team_id)
+        : [];
+    return { modo, equipos };
+  }
+
+  /** Solo propietario o administrador cambian la política de la cuenta. */
+  async cambiarVisibilidad(modo: 'all' | 'team' | 'assigned'): Promise<void> {
+    const ctx = this.#exigirContexto();
+    if (ctx.rol !== 'owner' && ctx.rol !== 'admin') {
+      throw new ErrorDeNegocio(
+        'sin_permiso',
+        'Solo propietario o administrador pueden cambiarlo.',
+        403,
+      );
+    }
+    await this.#db.enTransaccion(async (c) => {
+      await c.query(
+        `UPDATE tenants SET conversation_visibility = $2, updated_at = now() WHERE id = $1`,
+        [ctx.tenantId, modo],
+      );
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'cuenta.visibilidad', 'tenant', $1, $3)`,
+        [ctx.tenantId, ctx.userId, JSON.stringify({ modo })],
+      );
+    });
+  }
+
   async #exigirConversacion(
     c: PoolClient,
     id: string,
@@ -497,26 +556,71 @@ export class BandejaService {
   ): Promise<FilaConversacion> {
     const { rows } = await c.query<FilaConversacion>(
       `SELECT c.id, c.status, c.session_expires_at, c.channel_account_id, ca.channel,
-              ci.external_user_id
+              ci.external_user_id, c.assignee_user_id, c.team_id
          FROM conversations c
          JOIN channel_accounts ca ON ca.id = c.channel_account_id
          JOIN contact_identities ci ON ci.id = c.contact_identity_id
         WHERE c.id = $1 ${opciones.bloquear ? 'FOR UPDATE OF c' : ''}`,
       [id],
     );
+    const fila = rows[0];
     // RLS ya filtra por inquilino: una conversación ajena simplemente no
     // existe desde aquí, y se responde igual que a una inexistente. Distinguir
     // "no existe" de "no es tuya" diría a un atacante que el id es válido.
-    if (!rows[0])
+    if (!fila) {
       throw new ErrorDeNegocio('conversacion_no_encontrada', 'La conversación no existe.', 404);
-    return rows[0];
+    }
+
+    // Misma respuesta si el agente no debe verla: el filtro de la lista y el
+    // acceso por id tienen que coincidir, o la lista es decorativa.
+    const ctx = this.#exigirContexto();
+    const v = await this.#visibilidad(c, ctx);
+    if (v && !visible(v, fila, ctx.userId)) {
+      throw new ErrorDeNegocio('conversacion_no_encontrada', 'La conversación no existe.', 404);
+    }
+    return fila;
   }
 }
 
 // ---------------------------------------------------------------------------
 
+interface Visibilidad {
+  modo: 'team' | 'assigned';
+  equipos: string[];
+}
+
+/** Cláusula SQL del filtro de visibilidad para el alias dado. */
+function condicionDeVisibilidad(
+  v: Visibilidad,
+  alias: string,
+  userId: string,
+  p: (valor: unknown) => string,
+): string {
+  if (v.modo === 'assigned') return `${alias}.assignee_user_id = ${p(userId)}`;
+  // En `team` las SIN ASIGNAR siempre se ven: ocultarlas reproduce el fallo
+  // que más cuesta —una conversación nueva que nadie atiende.
+  return (
+    `(${alias}.assignee_user_id = ${p(userId)} OR ${alias}.assignee_user_id IS NULL ` +
+    `OR ${alias}.team_id = ANY(${p(v.equipos)}::uuid[]))`
+  );
+}
+
+/** Misma regla que la cláusula SQL, aplicada a una fila ya leída. */
+function visible(
+  v: Visibilidad,
+  fila: { assignee_user_id: string | null; team_id: string | null },
+  userId: string,
+): boolean {
+  if (fila.assignee_user_id === userId) return true;
+  if (v.modo === 'assigned') return false;
+  if (fila.assignee_user_id === null) return true;
+  return fila.team_id !== null && v.equipos.includes(fila.team_id);
+}
+
 interface FilaConversacion {
   id: string;
+  assignee_user_id: string | null;
+  team_id: string | null;
   status: string;
   session_expires_at: Date | null;
   channel_account_id: string;

@@ -32,9 +32,6 @@ El requisito 11 pide retención configurable **por inquilino**, pero el particio
 ### P-08 · Criterio de fusión de contactos
 Un WhatsApp y un Instagram son la misma persona ¿por qué? Solo teléfono verificado, solo fusión manual del agente, o heurística. ¿Se puede deshacer? Ver [[ADR-007-identidad-contactos]] (pendiente). La fusión automática por nombre queda descartada de entrada.
 
-### P-09 · Visibilidad entre agentes
-¿Un agente ve conversaciones no asignadas a él? Cambia las políticas RLS, no solo la interfaz.
-
 ### P-10 · Proveedor de pagos
 Stripe estaba como "referencia", no como decisión. ¿Opera en el país de facturación? ¿Hace falta factura fiscal local (SAT, DIAN, AFIP)? Un requisito fiscal descubierto en fase 4 es un módulo entero, no un campo.
 
@@ -93,4 +90,5 @@ La versión original de esta pregunta asumía que el cliente compararía nuestro
 | R-01 | Alcance del PR-0 | Vault + `git init`, sin andamiaje de monorepo | 2026-09-07 |
 | R-02 | Skills a instalar | `claude-security`, `frontend-design`, `feature-dev` | 2026-09-07 |
 | **P-01** | Modelo de conexión a WhatsApp | **BYO-credentials.** Tech Provider con Embedded Signup queda como destino documentado, no como compromiso. Ver [[ADR-004-modelo-whatsapp]] | 2026-09-07 |
+| **P-09** | Visibilidad entre agentes | **Configurable por cuenta, `all` por defecto** (como Kommo); `team` y `assigned` disponibles. Solo restringe al rol `agent`. Ver [[ADR-008-visibilidad-entre-agentes]] | 2026-09-09 |
 | **P-02** | Repercutir o absorber el costo de mensajería | **Disuelta.** El cliente paga a Meta directamente: no hay nada que repercutir. Sale de la lista de parada; se elimina el módulo de wallet del roadmap. Lo que queda es P-21 | 2026-09-07 |

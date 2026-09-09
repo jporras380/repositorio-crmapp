@@ -29,6 +29,7 @@ Si algo se averigua leyendo el código en menos de un minuto, no va aquí. No ha
 | [[ADR-005-rls]] | RLS por `SET LOCAL` en transacción | aceptado |
 | [[ADR-006-particionado-idempotencia]] | Particionado de `messages` e idempotencia | aceptado |
 | [[ADR-007-identidad-contactos]] | Identidad unificada de contactos | aceptado |
+| [[ADR-008-visibilidad-entre-agentes]] | Visibilidad entre agentes, configurable por cuenta | aceptado |
 
 Los siete ADR previstos están escritos. El siguiente se creará cuando aparezca una decisión nueva, no antes.
 

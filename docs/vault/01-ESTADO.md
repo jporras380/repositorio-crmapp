@@ -15,6 +15,8 @@ Fase actual: **fase 1 en curso**. Fase 0 **completada**, con su criterio de sali
 - Vault creado con contenido real: índice, este estado, preguntas abiertas, tres ADR en borrador y tres notas de canal.
 - `.gitignore` y `.env.example` (solo nombres, cero valores).
 - Inventario de skills hecho. Instalados `claude-security`, `frontend-design` y `feature-dev`. Ver [[2026-09-07]].
+- **PR-11, visibilidad entre agentes**: P-09 resuelto con `decision-eval` ([[ADR-008-visibilidad-entre-agentes]]). Política por cuenta, aplicada en lista, lectura y envío con la misma regla. 11 tests.
+- **`main` fusionado hasta PR-10** por *fast-forward*, tras evaluar fusionar ahora frente a seguir apilando. **La CI corre por primera vez**: hay que mirar *Actions*.
 - **PR-10, bandeja y envío**: listado con filtros (canal, estado, agente, etiqueta con color, sin respuesta) y paginación por cursor; envío por la puerta completa del ARCH §9 con errores tipados; asignación, estado y etiquetas; consumidor de salida en el worker con reserva condicional y `reintentable`. 26 tests.
 - **PR-9, `apps/worker`**: procesamiento de webhooks en una transacción por inquilino — idempotencia contra `message_keys` (con test de carrera), identidad y persona separadas, reapertura de conversación, ventana recalculada con la política del adaptador, estados de entrega que nunca retroceden, y omisión por suspensión. Bootstrap con relay → BullMQ y semáforo por inquilino. 17 tests contra PostgreSQL real.
 - **PR-8, ingesta de webhooks**: firma HMAC sobre bytes crudos, persistencia del crudo incluso con firma inválida, evento al outbox y 200 en menos de un segundo. Migración 0009 y `BaseDeDatos.sinInquilino()`. 18 tests e2e.
@@ -56,10 +58,11 @@ Nada.
 
 **Fase 1**: adaptador de WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla. Criterio de salida: un agente atiende WhatsApp de punta a punta.
 
-1. **PR-11**: resolver **P-24** (vocabulario de tipos a inglés en el contrato) y escribir el adaptador real de WhatsApp Cloud API contra el contrato. A partir de ahí el contrato entra en la lista de parada.
-2. PR-12: multimedia — descarga de medios entrantes antes de que caduque la URL, subida a S3/MinIO, miniaturas.
-3. PR-13: plantillas (respuestas rápidas y HSM con sincronización de estado), que además llena `plantillasSugeridas` del 409 de fuera de ventana.
-4. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.
+1. **Comprobar la CI en GitHub Actions** tras la fusión de `main`. Si falla, arreglarla antes que nada.
+2. **PR-12**: resolver **P-24** (vocabulario de tipos a inglés en el contrato) y escribir el adaptador real de WhatsApp Cloud API. A partir de ahí el contrato entra en la lista de parada.
+3. PR-13: multimedia — descarga de medios entrantes antes de que caduque la URL, subida a S3/MinIO, miniaturas.
+4. PR-14: plantillas (respuestas rápidas y HSM con sincronización de estado), que además llena `plantillasSugeridas` del 409 de fuera de ventana.
+5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.
 
 ## Cambio propuesto al plan de fases
 

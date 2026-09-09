@@ -48,6 +48,8 @@ export const tenants = pgTable('tenants', {
   name: text('name').notNull(),
   slug: citext('slug').notNull().unique(),
   status: text('status').notNull().default('active'),
+  /** Politica de visibilidad entre agentes (ADR-008): all | team | assigned. */
+  conversationVisibility: text('conversation_visibility').notNull().default('all'),
   createdAt: creado,
   updatedAt: actualizado,
 });

@@ -51,6 +51,7 @@ const Envio: z.ZodType<PeticionDeEnvio> = z.discriminatedUnion('tipo', [
 ]);
 
 const Asignacion = z.object({ agenteId: z.string().uuid().nullable() });
+const Visibilidad = z.object({ modo: z.enum(['all', 'team', 'assigned']) });
 const Estado = z.object({ estado: z.enum(['open', 'pending', 'snoozed', 'closed']) });
 const Etiquetado = z.object({ tagId: z.string().uuid(), poner: z.boolean().default(true) });
 const NuevaEtiqueta = z.object({
@@ -120,6 +121,14 @@ export class BandejaController {
   async etiquetar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
     const { tagId, poner } = validar(Etiquetado, body);
     await conContextoDePeticion(req, () => this.bandeja.etiquetar(id, tagId, poner));
+  }
+
+  /** Política de visibilidad entre agentes (ADR-008). Solo owner/admin. */
+  @Patch('cuenta/visibilidad-conversaciones')
+  @HttpCode(204)
+  async visibilidad(@Req() req: Req, @Body() body: unknown) {
+    const { modo } = validar(Visibilidad, body);
+    await conContextoDePeticion(req, () => this.bandeja.cambiarVisibilidad(modo));
   }
 
   @Post('etiquetas')
