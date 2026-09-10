@@ -1,0 +1,144 @@
+@layer components {
+  .pantalla {
+    block-size: 100dvb;
+    display: grid;
+    grid-template-columns: 4rem minmax(15rem, 18rem) minmax(0, 1fr);
+    grid-template-areas: 'barra lista contenido';
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .lista {
+    grid-area: lista;
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: grid;
+    gap: var(--space-3);
+    align-content: start;
+    overflow-y: auto;
+    min-block-size: 0;
+  }
+  .cabecera {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .titulo {
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .nuevo {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--accent);
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+  }
+  .nuevo:disabled {
+    opacity: 0.5;
+  }
+  /* Una línea que explica para qué sirve esto. Un producto que hay que
+     adivinar se usa a medias. */
+  .explicacion {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    line-height: var(--leading);
+  }
+
+  .items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .item {
+    inline-size: 100%;
+    display: grid;
+    gap: var(--space-1);
+    text-align: start;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--fg);
+  }
+  .item:hover {
+    background: color-mix(in oklch, var(--surface-raised) 55%, transparent);
+  }
+  .itemActivo,
+  .itemActivo:hover {
+    background: var(--surface-raised);
+  }
+  .itemNombre {
+    font-weight: 600;
+    font-size: var(--text-md);
+  }
+  .itemPie {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+  }
+  .estado {
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+    color: var(--fg-muted);
+    background: var(--hairline);
+  }
+  .estado_activo {
+    color: var(--ok);
+    background: var(--ok-soft);
+  }
+  .estado_pausado {
+    color: var(--warn);
+    background: var(--warn-soft);
+  }
+  .version,
+  .vivas {
+    color: var(--fg-faint);
+  }
+
+  .contenido {
+    grid-area: contenido;
+    min-inline-size: 0;
+    min-block-size: 0;
+    display: grid;
+  }
+  .sinSeleccion {
+    border-radius: var(--radius-lg);
+    display: grid;
+    place-content: center;
+    text-align: center;
+    gap: var(--space-2);
+    padding: var(--space-6);
+  }
+  .sinSeleccionTitulo {
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+  .sinSeleccionTexto {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    max-inline-size: 30rem;
+  }
+  .vacio,
+  .error {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .error {
+    color: var(--danger);
+  }
+
+  @media (max-width: 900px) {
+    .pantalla {
+      grid-template-columns: 1fr;
+      grid-template-areas: 'barra' 'lista' 'contenido';
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+  }
+}

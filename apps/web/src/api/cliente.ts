@@ -8,6 +8,13 @@
  */
 import type {
   CuentaDeCanal,
+  DetalleDeFlujo,
+  DisparadorDeFlujo,
+  EjecucionDeFlujo,
+  GrafoDeFlujo,
+  Miembro,
+  ResumenDeFlujo,
+  SimulacionDeFlujo,
   ResumenDelPanel,
   Etiqueta,
   PlantillaDeWhatsapp,
@@ -177,6 +184,34 @@ export function crearApi(token: string | null) {
     archivarRapida: (id: string) =>
       peticion<void>(`/v1/respuestas-rapidas/${id}`, { ...t, metodo: 'DELETE' }),
     uso: () => peticion<ResumenDeUso>('/v1/cuenta/uso', t),
+    usuarios: () => peticion<Miembro[]>('/v1/usuarios', t),
+
+    // --- Salesbots ---------------------------------------------------------
+    flujos: () => peticion<ResumenDeFlujo[]>('/v1/flujos', t),
+    flujo: (id: string) => peticion<DetalleDeFlujo>(`/v1/flujos/${id}`, t),
+    crearFlujo: (d: { nombre: string; grafo: GrafoDeFlujo; disparadores: DisparadorDeFlujo[] }) =>
+      peticion<{ id: string; version: number }>('/v1/flujos', { ...t, metodo: 'POST', cuerpo: d }),
+    guardarFlujo: (
+      id: string,
+      d: { nombre?: string; grafo?: GrafoDeFlujo; disparadores?: DisparadorDeFlujo[] },
+    ) =>
+      peticion<{ version: number | null }>(`/v1/flujos/${id}`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: d,
+      }),
+    publicarFlujo: (id: string) =>
+      peticion<{ version: number }>(`/v1/flujos/${id}/publicar`, { ...t, metodo: 'POST' }),
+    pausarFlujo: (id: string) =>
+      peticion<{ pausado: true }>(`/v1/flujos/${id}/pausar`, { ...t, metodo: 'POST' }),
+    ejecucionesDeFlujo: (id: string) =>
+      peticion<EjecucionDeFlujo[]>(`/v1/flujos/${id}/ejecuciones`, t),
+    probarFlujo: (grafo: GrafoDeFlujo, respuestas: string[]) =>
+      peticion<SimulacionDeFlujo>('/v1/flujos/probar', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { grafo, respuestas },
+      }),
     confirmarSubida: (mediaAssetId: string) =>
       peticion<{ mediaAssetId: string }>(`/v1/medios/subidas/${mediaAssetId}/confirmar`, {
         ...t,

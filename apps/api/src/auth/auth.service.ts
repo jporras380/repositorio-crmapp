@@ -394,6 +394,29 @@ export class AuthService {
     });
   }
 
+  /**
+   * Quién trabaja en esta cuenta. Lo pide el constructor de flujos —un paso
+   * «asignar» necesita a quién— y lo pedirá la bandeja cuando un agente pueda
+   * pasarle una conversación a otro.
+   *
+   * Sin correo: para elegir a quién asignar basta el nombre, y la lista de
+   * correos del equipo es justo lo que no hace falta repartir por el frontend.
+   */
+  async miembros(): Promise<{ id: string; nombre: string; rol: Rol }[]> {
+    const ctx = this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{ id: string; nombre: string; rol: Rol }>(
+        `SELECT u.id, u.full_name AS nombre, m.role AS rol
+           FROM memberships m
+           JOIN users u ON u.id = m.user_id
+          WHERE m.tenant_id = $1
+          ORDER BY u.full_name`,
+        [ctx.tenantId],
+      );
+      return rows;
+    });
+  }
+
   // -------------------------------------------------------------------------
 
   #emitirSesion(tenantId: string, userId: string, rol: Rol): Sesion {

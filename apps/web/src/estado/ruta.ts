@@ -8,7 +8,9 @@ export type Ruta =
       /** Vista con la que abrir la lista (la usan los enlaces del panel). */
       vista?: 'sinRespuesta' | undefined;
     }
-  | { pantalla: 'ajustes'; seccion: 'canales' | 'plantillas' | 'respuestas' | 'uso' };
+  | { pantalla: 'ajustes'; seccion: 'canales' | 'plantillas' | 'respuestas' | 'uso' }
+  /** Constructor de Salesbots. Sin flujo elegido, la lista. */
+  | { pantalla: 'flujos'; flujoId: string | null };
 
 const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'uso']);
 
@@ -27,6 +29,9 @@ export function leerRuta(hash: string = location.hash): Ruta {
       ...(vista === 'sinRespuesta' ? { vista: 'sinRespuesta' as const } : {}),
     };
   }
+  if (hash.startsWith('#flujos')) {
+    return { pantalla: 'flujos', flujoId: hash.split('/')[1] ?? null };
+  }
   if (hash.startsWith('#ajustes')) {
     const seccion = hash.split('/')[1] ?? 'canales';
     return {
@@ -41,13 +46,17 @@ export function irA(ruta: Ruta): void {
   const hash =
     ruta.pantalla === 'panel'
       ? '#panel'
-      : ruta.pantalla === 'ajustes'
-        ? `#ajustes/${ruta.seccion}`
-        : ruta.conversacionId
-          ? `#c=${ruta.conversacionId}`
-          : ruta.vista
-            ? `#bandeja/${ruta.vista}`
-            : '#bandeja';
+      : ruta.pantalla === 'flujos'
+        ? ruta.flujoId
+          ? `#flujos/${ruta.flujoId}`
+          : '#flujos'
+        : ruta.pantalla === 'ajustes'
+          ? `#ajustes/${ruta.seccion}`
+          : ruta.conversacionId
+            ? `#c=${ruta.conversacionId}`
+            : ruta.vista
+              ? `#bandeja/${ruta.vista}`
+              : '#bandeja';
   if (hash) location.hash = hash;
   else history.pushState(null, '', location.pathname);
   window.dispatchEvent(new HashChangeEvent('hashchange'));

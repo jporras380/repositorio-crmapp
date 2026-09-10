@@ -57,6 +57,20 @@ El barrido necesita mirar por encima de RLS, y se resuelve como en la migración
 
 **Pausar no cancela.** Deja de disparar y ya; lo que está corriendo termina. Cortar a mitad una conversación deja al contacto esperando una respuesta que no llega.
 
+## El constructor (PR-27)
+
+![[2026-09-10-constructor-de-flujos.png]]
+
+**Una columna de pasos, no un lienzo con nodos arrastrables.** Un lienzo libre cuesta mucho más —posiciones que guardar, aristas que dibujar, zoom, colisiones— y con seis tipos de nodo el resultado sería un diagrama bonito que se lee peor que una lista. La columna **se ordena sola** recorriendo los enlaces desde el inicio: el camino principal cae de arriba abajo, las ramas cuelgan etiquetadas y lo que no se alcanza aparece aparte, bajo «Sin conectar», donde se ve que sobra. El día que un flujo tenga treinta pasos y tres caminos paralelos, el lienzo se gana su coste; hoy no.
+
+**La validación no vive en la web.** No puede —`apps/web` no importa `core`, lo vigila la guarda— y duplicarla sería peor. La comprobación viaja **con la simulación**, que es la misma llamada: lo que ves antes de publicar es literalmente lo que el servidor decidirá al publicar. De regalo, el botón de activar se apaga solo mientras haya avisos.
+
+**Insertar engancha y borrar re-engancha.** Un paso nuevo entra ENTRE uno y su siguiente, y al quitar un paso, lo que apuntaba a él pasa a apuntar a lo que él apuntaba. Sin eso, cada borrado parte el flujo en dos y llena la pantalla de avisos que el usuario no provocó.
+
+**La prueba se pinta como una conversación** porque es lo que hay que juzgar: no si el grafo es correcto —de eso avisan los problemas— sino si lo que dice el bot suena a alguien con quien uno querría hablar. Lo que el bot *hace* sin decir nada (etiquetar, asignar, cerrar) se ve como nota gris: el contacto no lo ve.
+
+Se añadió `GET /v1/usuarios` para el paso «asignar»: id, nombre y rol, sin correos — para elegir a quién asignar basta el nombre.
+
 ## Lo que falta
 
 - **Interfaz.** Hoy los flujos se crean por API. El constructor visual es el PR siguiente.

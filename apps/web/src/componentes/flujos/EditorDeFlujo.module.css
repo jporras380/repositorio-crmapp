@@ -1,0 +1,343 @@
+@layer components {
+  .editor {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: var(--space-3);
+    min-block-size: 0;
+  }
+
+  .barra {
+    border-radius: var(--radius-lg);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  /* El nombre se edita donde se lee. Un campo aparte en un formulario aparte
+     es un clic más para lo que más se toca al empezar. */
+  .nombre {
+    flex: 1 1 12rem;
+    min-inline-size: 0;
+    font-size: var(--text-lg);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.4rem;
+  }
+  .nombre:hover,
+  .nombre:focus {
+    border-color: var(--hairline);
+    background: var(--surface);
+  }
+  .estado {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-pill);
+    color: var(--fg-muted);
+    background: var(--hairline);
+    white-space: nowrap;
+  }
+  .estado_activo {
+    color: var(--ok);
+    background: var(--ok-soft);
+  }
+  .estado_pausado {
+    color: var(--warn);
+    background: var(--warn-soft);
+  }
+  .acciones {
+    display: flex;
+    gap: var(--space-2);
+    margin-inline-start: auto;
+  }
+  .primario,
+  .secundario {
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  .primario {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .secundario {
+    color: var(--fg-muted);
+    border: 1px solid var(--hairline);
+  }
+  .secundario:hover:not(:disabled) {
+    color: var(--fg);
+    background: var(--surface);
+  }
+  .primario:disabled,
+  .secundario:disabled {
+    opacity: 0.45;
+  }
+
+  .aviso,
+  .error,
+  .cargando {
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-sm);
+  }
+  .aviso {
+    color: var(--ok);
+  }
+  .error {
+    color: var(--danger);
+  }
+  .cargando {
+    color: var(--fg-muted);
+  }
+
+  .columnas {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+    gap: var(--space-3);
+    min-block-size: 0;
+  }
+  .lienzo {
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    overflow-y: auto;
+    min-block-size: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    align-content: start;
+  }
+
+  /* --- Disparadores ---------------------------------------------------- */
+  .disparadores {
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+  }
+  .disparadoresTitulo {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--fg-muted);
+    padding-inline: var(--space-1);
+  }
+  .casilla {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+  }
+
+  /* --- Avisos ---------------------------------------------------------- */
+  .problemas {
+    list-style: none;
+    margin: 0;
+    padding: var(--space-3);
+    display: grid;
+    gap: var(--space-1);
+    border-radius: var(--radius-md);
+    background: var(--warn-soft);
+  }
+  .problema {
+    font-size: var(--text-sm);
+    color: var(--fg);
+  }
+
+  /* --- Los pasos ------------------------------------------------------- */
+  .pasos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-4);
+  }
+  /*
+   * La línea que baja de un paso al siguiente. Es lo que convierte una lista
+   * de tarjetas en algo que se lee como un recorrido, y sale de un
+   * pseudoelemento: dibujar aristas de verdad pedía un lienzo entero.
+   */
+  .paso {
+    position: relative;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    padding: var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .paso:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline-start: 1.4rem;
+    block-size: var(--space-4);
+    inline-size: 2px;
+    background: var(--hairline);
+  }
+  .pasoConAviso {
+    border-color: color-mix(in oklch, var(--warn) 45%, var(--hairline));
+  }
+  .pasoCabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .pasoIndice {
+    inline-size: 1.6rem;
+    block-size: 1.6rem;
+    border-radius: 50%;
+    display: grid;
+    place-content: center;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    flex-shrink: 0;
+  }
+  .pasoTipo {
+    font-weight: 600;
+    font-size: var(--text-sm);
+  }
+  .pasoInicio {
+    font-size: var(--text-xs);
+    color: var(--fg-faint);
+  }
+  .borrar,
+  .borrarCaso {
+    margin-inline-start: auto;
+    inline-size: 1.6rem;
+    block-size: 1.6rem;
+    border-radius: 50%;
+    display: grid;
+    place-content: center;
+    color: var(--fg-faint);
+    font-size: var(--text-lg);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .borrar:hover,
+  .borrarCaso:hover {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+  .pasoAviso {
+    font-size: var(--text-xs);
+    color: var(--warn);
+  }
+
+  .texto,
+  .palabras,
+  .numero,
+  .select {
+    font-size: var(--text-sm);
+    padding: 0.4rem 0.55rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--fg);
+    min-inline-size: 0;
+  }
+  .texto {
+    resize: vertical;
+    line-height: var(--leading);
+    font-family: inherit;
+  }
+  .numero {
+    inline-size: 5rem;
+  }
+
+  .enlace,
+  .espera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    flex-wrap: wrap;
+  }
+  .enlaceEtiqueta {
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+    min-inline-size: 7rem;
+  }
+  .enlace .select {
+    flex: 1 1 10rem;
+  }
+
+  .caso {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .caso .palabras {
+    flex: 1 1 10rem;
+  }
+  .anadirCaso {
+    justify-self: start;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  /* --- Insertar un paso ------------------------------------------------ */
+  .insertar {
+    position: relative;
+    justify-self: start;
+  }
+  .insertarBoton {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--fg-faint);
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-pill);
+    border: 1px dashed var(--hairline);
+  }
+  .insertarBoton:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  /* Flotante y OPACO: sobre vidrio se leería lo de debajo. */
+  .menu {
+    position: absolute;
+    inset-block-start: calc(100% + 4px);
+    inset-inline-start: 0;
+    z-index: 5;
+    display: grid;
+    min-inline-size: 12rem;
+    padding: var(--space-1);
+    border-radius: var(--radius-md);
+    background: var(--surface-solida);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-pop);
+  }
+  .menuItem {
+    text-align: start;
+    padding: 0.4rem 0.55rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--fg);
+  }
+  .menuItem:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .sueltosTitulo {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--warn);
+  }
+
+  @media (max-width: 1100px) {
+    .columnas {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+  }
+}

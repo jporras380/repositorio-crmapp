@@ -84,6 +84,12 @@ export class AuthController {
     return conContextoDePeticion(req, () => this.auth.invitar(d));
   }
 
+  @Get('v1/usuarios')
+  @UseGuards(AuthGuard)
+  miembros(@Req() req: { contexto?: unknown }) {
+    return conContextoDePeticion(req, () => this.auth.miembros());
+  }
+
   @Get('v1/yo')
   @UseGuards(AuthGuard)
   async yo(@Req() req: { contexto?: { tenantId: string; userId: string; rol: string } }) {

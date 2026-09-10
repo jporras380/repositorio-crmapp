@@ -4,7 +4,7 @@ import estilos from './Barra.module.css';
 
 interface Props {
   yo: Yo | null;
-  activa?: 'panel' | 'bandeja' | 'ajustes';
+  activa?: 'panel' | 'bandeja' | 'flujos' | 'ajustes';
   alSalir: () => void;
 }
 
@@ -38,6 +38,15 @@ export function Barra({ yo, activa = 'bandeja', alSalir }: Props) {
       >
         <IconoBandeja />
         <span className="visually-hidden">Bandeja</span>
+      </button>
+      <button
+        className={`${estilos.item} ${activa === 'flujos' ? estilos.activo : ''}`}
+        aria-current={activa === 'flujos' ? 'page' : undefined}
+        title="Bots"
+        onClick={() => irA({ pantalla: 'flujos', flujoId: null })}
+      >
+        <IconoBot />
+        <span className="visually-hidden">Bots</span>
       </button>
       <button
         className={`${estilos.item} ${activa === 'ajustes' ? estilos.activo : ''}`}
@@ -88,6 +97,17 @@ function IconoPanel() {
         strokeWidth="1.9"
         strokeLinecap="round"
       />
+    </svg>
+  );
+}
+
+function IconoBot() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4" y="8" width="16" height="11" rx="3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 5v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="4" r="1.4" fill="currentColor" />
+      <path d="M9 13h.01M15 13h.01" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   );
 }

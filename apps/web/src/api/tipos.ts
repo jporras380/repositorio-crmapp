@@ -134,3 +134,89 @@ export interface FiltrosDeBandeja {
   sinRespuesta?: boolean | undefined;
   cursor?: string | undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Salesbots
+// ---------------------------------------------------------------------------
+
+export type NodoDeFlujo =
+  | { id: string; tipo: 'mensaje'; texto: string; siguiente: string | null }
+  | {
+      id: string;
+      tipo: 'esperar_respuesta';
+      segundos: number;
+      siguiente: string | null;
+      alExpirar: string | null;
+    }
+  | {
+      id: string;
+      tipo: 'condicion';
+      casos: { contiene: string[]; siguiente: string | null }[];
+      siNo: string | null;
+    }
+  | { id: string; tipo: 'etiquetar'; etiquetaId: string; siguiente: string | null }
+  | { id: string; tipo: 'asignar'; usuarioId: string; siguiente: string | null }
+  | { id: string; tipo: 'fin'; cerrarConversacion?: boolean };
+
+export interface GrafoDeFlujo {
+  inicio: string;
+  nodos: NodoDeFlujo[];
+}
+
+export interface DisparadorDeFlujo {
+  tipo: 'conversacion_abierta' | 'palabra_clave';
+  palabras?: string[] | null;
+  activo?: boolean;
+}
+
+export interface ProblemaDeFlujo {
+  codigo: string;
+  mensaje: string;
+  nodoId?: string;
+}
+
+export interface ResumenDeFlujo {
+  id: string;
+  nombre: string;
+  estado: 'borrador' | 'activo' | 'pausado' | string;
+  /** Versión PUBLICADA; `null` mientras sea borrador. */
+  version: number | null;
+  disparadores: DisparadorDeFlujo[];
+  ejecucionesVivas: number;
+  creadoEn: string;
+}
+
+export interface DetalleDeFlujo extends ResumenDeFlujo {
+  grafo: GrafoDeFlujo | null;
+  problemas: ProblemaDeFlujo[];
+}
+
+export type EfectoDeFlujo =
+  | { tipo: 'enviar_texto'; texto: string }
+  | { tipo: 'etiquetar'; etiquetaId: string }
+  | { tipo: 'asignar'; usuarioId: string }
+  | { tipo: 'cerrar_conversacion' };
+
+export interface SimulacionDeFlujo {
+  pasos: { nodoId: string; tipo: string; efectos: EfectoDeFlujo[]; entrada?: string }[];
+  final: 'fin' | 'esperando' | 'sin_respuestas' | 'limite_de_pasos';
+  problemas: ProblemaDeFlujo[];
+}
+
+export interface EjecucionDeFlujo {
+  id: string;
+  conversacionId: string;
+  estado: string;
+  nodoActual: string | null;
+  esperaHasta: string | null;
+  error: string | null;
+  iniciadaEn: string;
+  terminadaEn: string | null;
+  pasos: { nodoId: string; tipo: string; error: string | null; en: string }[];
+}
+
+export interface Miembro {
+  id: string;
+  nombre: string;
+  rol: Sesion['rol'];
+}
