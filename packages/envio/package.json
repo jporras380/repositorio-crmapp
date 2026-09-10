@@ -1,0 +1,28 @@
+{
+  "name": "@crmapp/envio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "echo \"(sin linter todavía)\"",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"(cubierto por los tests de apps/api)\""
+  },
+  "dependencies": {
+    "@crmapp/channels": "workspace:*",
+    "@crmapp/core": "workspace:*",
+    "@crmapp/db": "workspace:*",
+    "@crmapp/queue": "workspace:*",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.2"
+  }
+}

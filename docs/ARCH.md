@@ -48,6 +48,7 @@ packages/
   db/            Esquema Drizzle, migraciones SQL, políticas RLS, seeds.
   channels/      ChannelAdapter + registry + un subdirectorio por canal.
   core/          Dominio puro, sin I/O: ventanas, políticas de envío, errores tipados.
+  envio/         La puerta de envío: la atraviesan el agente (API) y el bot (worker).
   queue/         Colas y jobs tipados; outbox.
   crypto/        Envelope encryption; redacción de logs.
   observability/ Logger, trazas, métricas.
@@ -55,6 +56,8 @@ packages/
   ui/            Tokens de diseño y componentes.
 infra/           docker-compose de desarrollo: postgres, redis, minio, mailhog.
 ```
+
+**Un mensaje sale por un solo sitio.** La puerta de envío —suscripción, estado, ventana, capacidades, outbox— vive en `packages/envio` y no en la API, porque desde la fase 3 hay un segundo remitente que no es un agente humano: el Salesbot, que corre en el worker. Duplicar la puerta sería duplicar la regla de la ventana de 24 h, y el día que una copia se corrija y la otra no, el bot envía fuera de política sin que nadie lo vea. Lo vigila una guarda: `INSERT INTO messages` con `outbound` solo puede aparecer en ese paquete.
 
 **`core` no importa nada con I/O.** Es lo que hace cumplible el "cero lógica de negocio en el frontend": si la ventana de sesión se calcula en `core` y `web` no puede importarlo, no acaba en React por accidente. Se vigila con lint, no con buena voluntad.
 

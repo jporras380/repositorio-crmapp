@@ -10,24 +10,17 @@ import { randomBytes, createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import jwt from 'jsonwebtoken';
 import { hashearContrasena, verificarContrasena, igualesEnTiempoConstante } from '@crmapp/crypto';
-import { finDePrueba, estadoEfectivo, type Suscripcion } from '@crmapp/core';
+import { ErrorDeNegocio, finDePrueba, estadoEfectivo, type Suscripcion } from '@crmapp/core';
 import { escribirEnOutbox } from '@crmapp/queue';
 import { contextoActual as contextoDePeticion, type BaseDeDatos } from '../db.js';
 
 export type Rol = 'owner' | 'admin' | 'supervisor' | 'agent';
 
-export class ErrorDeNegocio extends Error {
-  constructor(
-    readonly codigo: string,
-    mensaje: string,
-    readonly httpStatus = 400,
-    /** Datos que la interfaz necesita para actuar (p. ej. plantillas sugeridas). */
-    readonly detalle?: Record<string, unknown>,
-  ) {
-    super(mensaje);
-    this.name = 'ErrorDeNegocio';
-  }
-}
+// La clase vive en `@crmapp/core` desde que la puerta de envío es un paquete
+// compartido: la lanzan la API, la puerta y el worker, y tienen que ser la
+// MISMA clase o el filtro de errores dejaría de reconocer la mitad. Se
+// reexporta aquí para no tocar a los quince archivos que la importaban.
+export { ErrorDeNegocio };
 
 export interface Sesion {
   token: string;

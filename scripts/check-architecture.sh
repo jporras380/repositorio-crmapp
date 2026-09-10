@@ -51,6 +51,24 @@ if hits=$(grep -rInE "channels/(whatsapp|instagram|tiktok)" apps packages --incl
   echo "$hits"
 fi
 
+# --- §9 del ARCH -----------------------------------------------------------
+# Un mensaje sale por un solo sitio: la puerta de packages/envio. Si alguien
+# inserta un saliente por su cuenta, se salta la ventana de 24 h, el estado de
+# la suscripción y el outbox, y eso no se nota hasta que llega la factura de
+# Meta o un cliente reporta el número.
+if hits=$(grep -rl "INSERT INTO messages" apps packages --include='*.ts' 2>/dev/null); then
+  for archivo in $hits; do
+    case "$archivo" in
+      # Los tests siembran mensajes a mano: es su trabajo fabricar el estado
+      # de partida, no atravesar la puerta.
+      packages/envio/* | */test/* | */tests/*) continue ;;
+    esac
+    if grep -q "'outbound'" "$archivo"; then
+      fallar "saliente insertado fuera de la puerta de envío: $archivo"         "ARCH §9. Usa enviarPorConversacion de @crmapp/envio."
+    fi
+  done
+fi
+
 # --- §11 del ARCH ----------------------------------------------------------
 # Estilo de la web solo en CSS aparte (ADR-010): nada en línea ni CSS-in-JS.
 if [ -d apps/web/src ]; then

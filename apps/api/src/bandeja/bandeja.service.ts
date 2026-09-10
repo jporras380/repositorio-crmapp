@@ -12,28 +12,23 @@
  * proceso muera un instante después.
  */
 import type { PoolClient } from 'pg';
-import {
-  estadoEfectivo,
-  evaluarEnvio,
-  ventanaAbierta,
-  tiempoRestante,
-  expiracionTrasMensaje,
-  type Suscripcion,
-  type TipoDeEnvio,
-} from '@crmapp/core';
-import {
-  validarContraCapacidades,
-  type ChannelAdapter,
-  type TipoDeMensaje,
-} from '@crmapp/channels';
+import { estadoEfectivo, ventanaAbierta, tiempoRestante, type Suscripcion } from '@crmapp/core';
+import type { ChannelAdapter } from '@crmapp/channels';
 import { escribirEnOutbox } from '@crmapp/queue';
+import {
+  enviarPorConversacion,
+  leerSuscripcion,
+  type MensajeEncolado,
+  type PeticionDeEnvio,
+} from '@crmapp/envio';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
-import {
-  exigirPlantillaAprobada,
-  plantillasAprobadas,
-  versionActualDeRapida,
-} from '../plantillas/consultas.js';
+
+// La puerta de envío vive en `@crmapp/envio`: la atraviesan el agente desde
+// la API y el bot desde el worker, y tiene que ser la misma o las reglas de
+// ventana y suscripción acabarían divergiendo. Los tipos se reexportan porque
+// el controlador y el contrato de la web los importaban de aquí.
+export type { MensajeEncolado, PeticionDeEnvio };
 
 // ---------------------------------------------------------------------------
 // Tipos de entrada y salida
@@ -70,41 +65,6 @@ export interface ResumenDeConversacion {
   ventanaAbierta: boolean;
   etiquetas: { id: string; nombre: string; color: string | null }[];
   vistaPrevia: string | null;
-}
-
-export type PeticionDeEnvio =
-  | { tipo: 'text'; texto: string }
-  | {
-      tipo: 'image' | 'video' | 'audio' | 'document';
-      /** URL externa, o bien un medio propio ya almacenado. Uno de los dos. */
-      url?: string | undefined;
-      mediaAssetId?: string | undefined;
-      pieDeFoto?: string | undefined;
-    }
-  | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
-  /** Respuesta rápida: se expande a su versión actual (texto o medio). */
-  | { tipo: 'quick_reply'; quickReplyId: string }
-  /** Respuesta a un comentario público (Instagram): en el hilo o por privado. */
-  | {
-      tipo: 'comment_reply';
-      /**
-       * Por defecto `privada`: es donde se captura el lead, y es lo que hacen
-       * Kommo y Zenvia. Pública es una decisión explícita porque la ve todo el
-       * mundo. La privada solo se puede enviar UNA vez por comentario.
-       */
-      modo: 'publica' | 'privada';
-      texto: string;
-      /** Si falta, se responde al último comentario recibido en la conversación. */
-      comentarioId?: string | undefined;
-    };
-
-/** Lo que llega a la puerta tras expandir las respuestas rápidas. */
-type PeticionEfectiva = Exclude<PeticionDeEnvio, { tipo: 'quick_reply' }>;
-
-export interface MensajeEncolado {
-  id: string;
-  createdAt: Date;
-  estado: 'queued';
 }
 
 export interface OpcionesDeBandeja {
@@ -273,244 +233,27 @@ export class BandejaService {
   // Envío: la puerta del ARCH §9
   // -------------------------------------------------------------------------
 
-  async enviar(
-    conversationId: string,
-    peticionOriginal: PeticionDeEnvio,
-  ): Promise<MensajeEncolado> {
+  /**
+   * Encola un mensaje del agente.
+   *
+   * Aquí solo quedan las dos cosas que son de la API: comprobar que este
+   * usuario puede ver esta conversación (ADR-008 — un bot no tiene a quién
+   * comprobárselo) y abrir la transacción. La puerta —suscripción, estado,
+   * ventana, capacidades, outbox— vive en `@crmapp/envio`.
+   */
+  async enviar(conversationId: string, peticion: PeticionDeEnvio): Promise<MensajeEncolado> {
     const ctx = this.#exigirContexto();
-    const ahora = this.#ahora();
-
     return this.#db.enTransaccion(async (c) => {
-      // 1. La conversación existe y es del inquilino (RLS ya lo garantiza; el
-      //    404 explícito evita un 500 confuso).
       const conv = await this.#exigirConversacion(c, conversationId, { bloquear: true });
-
-      // 1b. Una respuesta rápida es, técnicamente, un mensaje libre: se
-      //     expande a su versión actual y atraviesa la misma puerta.
-      const { peticion, quickReplyVersionId } = await this.#expandirRapida(c, peticionOriginal);
-
-      // 2. Estado de la suscripción. Deriva de las fechas, nunca de la
-      //    columna cacheada (ADR y packages/core).
-      const suscripcion = await leerSuscripcion(c, ctx.tenantId);
-      const decision = evaluarEnvio(
-        suscripcion,
+      return enviarPorConversacion(
+        c,
+        { canales: this.#canales, ahora: this.#ahora },
         {
-          tipo: (peticion.tipo === 'comment_reply' ? 'text' : peticion.tipo) as TipoDeEnvio,
-          origen: 'human',
+          conversacion: conv,
+          peticion,
+          remitente: { tenantId: ctx.tenantId, origen: 'human', userId: ctx.userId },
         },
-        ahora,
       );
-      if (!decision.permitido) {
-        throw new ErrorDeNegocio(
-          `suscripcion_${decision.motivo}`,
-          decision.mensaje ?? 'Envío no permitido.',
-          402,
-        );
-      }
-
-      // 3. Estado de la conversación.
-      if (conv.status === 'closed') {
-        throw new ErrorDeNegocio(
-          'conversacion_cerrada',
-          'La conversación está cerrada. Reábrela para responder.',
-          409,
-        );
-      }
-
-      const canal = this.#canales.get(conv.channel);
-      if (!canal)
-        throw new ErrorDeNegocio(
-          'canal_no_disponible',
-          `Canal "${conv.channel}" no disponible.`,
-          503,
-        );
-      const capacidades = canal.capacidades();
-      const politica = canal.politicaDeVentana();
-
-      // 4. Ventana de sesión. Las plantillas son la excepción: existen
-      //    precisamente para hablar fuera de ventana.
-      // Responder a un comentario tampoco depende de la ventana: sus reglas
-      // (una privada por comentario, dentro de siete días) las aplica el proveedor.
-      if (
-        peticion.tipo !== 'template' &&
-        peticion.tipo !== 'comment_reply' &&
-        !ventanaAbierta(conv.session_expires_at, ahora)
-      ) {
-        throw new ErrorDeNegocio(
-          'fuera_de_ventana',
-          'La ventana de 24 horas está cerrada. Solo se puede enviar una plantilla aprobada.',
-          409,
-          // Lo que el agente SÍ puede enviar. El frontend lo pinta, no lo decide.
-          { plantillasSugeridas: await plantillasAprobadas(c, conv.channel_account_id) },
-        );
-      }
-
-      // 4b. Plantilla: debe existir sincronizada y estar aprobada. El estado
-      //     lo fija Meta; aquí solo se consulta lo que se sincronizó (ARCH §3).
-      let waTemplateVersionId: string | null = null;
-      if (peticion.tipo === 'template') {
-        waTemplateVersionId = await exigirPlantillaAprobada(
-          c,
-          conv.channel_account_id,
-          peticion.nombre,
-          peticion.idioma,
-        );
-      }
-
-      // 4c. Comentario al que se responde: el indicado o el último recibido.
-      let comentarioId: string | null = null;
-      if (peticion.tipo === 'comment_reply') {
-        if (!capacidades.soportaComentarios) {
-          throw new ErrorDeNegocio(
-            'canal_sin_comentarios',
-            `El canal "${conv.channel}" no tiene comentarios.`,
-            422,
-          );
-        }
-        comentarioId = peticion.comentarioId ?? (await ultimoComentario(c, conv.id));
-        if (!comentarioId) {
-          throw new ErrorDeNegocio(
-            'comentario_requerido',
-            'Esta conversación no tiene comentarios a los que responder.',
-            400,
-          );
-        }
-      }
-
-      // 5. Capacidades del canal. Se pregunta, no se asume (ARCH §8).
-      const error = validarContraCapacidades(capacidades, {
-        tipo: (peticion.tipo === 'comment_reply' ? 'text' : peticion.tipo) as TipoDeMensaje,
-        ...(peticion.tipo === 'text' || peticion.tipo === 'comment_reply'
-          ? { longitudTexto: peticion.texto.length }
-          : {}),
-      });
-      if (error) throw new ErrorDeNegocio(`canal_${error.tipo}`, error.message, 422);
-
-      // 5b. Medio propio: debe existir (RLS: ajeno = inexistente) y estar
-      //     almacenado. La URL firmada la genera el worker al enviar.
-      let mediaAssetId: string | null = null;
-      if (
-        peticion.tipo !== 'text' &&
-        peticion.tipo !== 'template' &&
-        peticion.tipo !== 'comment_reply'
-      ) {
-        if (!peticion.url && !peticion.mediaAssetId) {
-          throw new ErrorDeNegocio('medio_requerido', 'Indica url o mediaAssetId.', 400);
-        }
-        if (peticion.mediaAssetId) {
-          const { rows } = await c.query<{ status: string }>(
-            `SELECT status FROM media_assets WHERE id = $1`,
-            [peticion.mediaAssetId],
-          );
-          if (!rows[0]) throw new ErrorDeNegocio('medio_no_encontrado', 'El medio no existe.', 404);
-          if (rows[0].status !== 'stored') {
-            throw new ErrorDeNegocio(
-              'medio_no_disponible',
-              'El medio todavía no está almacenado.',
-              409,
-            );
-          }
-          mediaAssetId = peticion.mediaAssetId;
-        }
-      }
-
-      // 6. Insertar en `queued` y encolar por el outbox. Sin RETURNING.
-      const messageId = await this.#db.nuevoId(c);
-      const createdAt = ahora;
-      const texto =
-        peticion.tipo === 'text' || peticion.tipo === 'comment_reply' ? peticion.texto : null;
-      const payload =
-        peticion.tipo === 'text'
-          ? {}
-          : peticion.tipo === 'comment_reply'
-            ? { comentario: { id: comentarioId, modo: peticion.modo } }
-            : peticion.tipo === 'template'
-              ? {
-                  plantilla: {
-                    nombre: peticion.nombre,
-                    idioma: peticion.idioma,
-                    parametros: peticion.parametros,
-                    versionId: waTemplateVersionId,
-                  },
-                }
-              : {
-                  media: {
-                    url: peticion.url ?? null,
-                    mediaAssetId,
-                    pieDeFoto: peticion.pieDeFoto ?? null,
-                  },
-                };
-
-      await c.query(
-        `INSERT INTO messages
-           (id, tenant_id, conversation_id, channel_account_id, direction, type, body, payload,
-            status, sent_by, sent_by_user_id, created_at, media_asset_id,
-            quick_reply_version_id, wa_template_version_id)
-         VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, 'queued', 'human', $8, $9, $10, $11, $12)`,
-        [
-          messageId,
-          ctx.tenantId,
-          conv.id,
-          conv.channel_account_id,
-          peticion.tipo === 'comment_reply' ? 'text' : peticion.tipo,
-          texto,
-          JSON.stringify(payload),
-          ctx.userId,
-          createdAt,
-          mediaAssetId,
-          quickReplyVersionId,
-          waTemplateVersionId,
-        ],
-      );
-
-      // La ventana la reinicia el ENTRANTE; para WhatsApp esto no cambia nada
-      // y para un canal que sí reinicie con salientes, core lo sabe.
-      const nuevaExpiracion = expiracionTrasMensaje(
-        politica,
-        'outbound',
-        createdAt,
-        conv.session_expires_at,
-      );
-
-      await c.query(
-        `UPDATE conversations
-            SET last_outbound_at = $2,
-                first_response_at = COALESCE(first_response_at, $2),
-                session_expires_at = $3,
-                unread_count = 0,
-                updated_at = now()
-          WHERE id = $1`,
-        [conv.id, createdAt, nuevaExpiracion],
-      );
-
-      await escribirEnOutbox(c, {
-        tenantId: ctx.tenantId,
-        aggregateType: 'message',
-        aggregateId: messageId,
-        eventType: 'mensaje.enviar',
-        payload: {
-          messageId,
-          createdAt: createdAt.toISOString(),
-          conversationId: conv.id,
-          channelAccountId: conv.channel_account_id,
-          canal: conv.channel,
-          externalUserId: conv.external_user_id,
-          peticion: peticionParaEnvio(
-            peticion.tipo === 'comment_reply'
-              ? { ...peticion, comentarioId: comentarioId! }
-              : peticion,
-            mediaAssetId,
-          ),
-        },
-      });
-
-      await c.query(
-        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id)
-         VALUES ($1, $2, 'mensaje.enviado', 'conversation', $3)`,
-        [ctx.tenantId, ctx.userId, conv.id],
-      );
-
-      return { id: messageId, createdAt, estado: 'queued' };
     });
   }
 
@@ -617,41 +360,6 @@ export class BandejaService {
       }
       return { id };
     });
-  }
-
-  // -------------------------------------------------------------------------
-
-  async #expandirRapida(
-    c: PoolClient,
-    p: PeticionDeEnvio,
-  ): Promise<{ peticion: PeticionEfectiva; quickReplyVersionId: string | null }> {
-    if (p.tipo !== 'quick_reply') return { peticion: p, quickReplyVersionId: null };
-    const v = await versionActualDeRapida(c, p.quickReplyId);
-    if (!v) {
-      throw new ErrorDeNegocio(
-        'respuesta_rapida_no_encontrada',
-        'La respuesta rápida no existe o está archivada.',
-        404,
-      );
-    }
-    if (v.mediaAssetId) {
-      if (v.mediaStatus !== 'stored') {
-        throw new ErrorDeNegocio(
-          'medio_no_disponible',
-          'El adjunto de la respuesta rápida no está almacenado.',
-          409,
-        );
-      }
-      return {
-        peticion: {
-          tipo: v.mediaKind as 'image' | 'video' | 'audio' | 'document',
-          mediaAssetId: v.mediaAssetId,
-          pieDeFoto: v.cuerpo || undefined,
-        },
-        quickReplyVersionId: v.versionId,
-      };
-    }
-    return { peticion: { tipo: 'text', texto: v.cuerpo }, quickReplyVersionId: v.versionId };
   }
 
   #exigirContexto() {
@@ -827,12 +535,6 @@ export interface MensajeDeConversacion {
   medio_estado: string | null;
 }
 
-/** Lo que viaja al worker: URL externa tal cual, o medio propio sin URL (la firma el worker). */
-function peticionParaEnvio(p: PeticionEfectiva, mediaAssetId: string | null): unknown {
-  if (p.tipo === 'text' || p.tipo === 'template' || p.tipo === 'comment_reply') return p;
-  return { tipo: p.tipo, url: p.url ?? null, mediaAssetId, pieDeFoto: p.pieDeFoto };
-}
-
 function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
   return {
     id: f.id,
@@ -851,40 +553,6 @@ function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
       tiempoRestante(f.session_expires_at, ahora) !== 0,
     etiquetas: f.etiquetas,
     vistaPrevia: f.vista_previa,
-  };
-}
-
-/** Id del último comentario público recibido en la conversación, si lo hay. */
-async function ultimoComentario(c: PoolClient, conversationId: string): Promise<string | null> {
-  const { rows } = await c.query<{ id: string | null }>(
-    `SELECT payload #>> '{comentario,id}' AS id
-       FROM messages
-      WHERE conversation_id = $1 AND direction = 'inbound' AND payload ? 'comentario'
-      ORDER BY created_at DESC LIMIT 1`,
-    [conversationId],
-  );
-  return rows[0]?.id ?? null;
-}
-
-async function leerSuscripcion(c: PoolClient, tenantId: string): Promise<Suscripcion> {
-  const { rows } = await c.query<{
-    status: Suscripcion['estadoDeclarado'];
-    trial_ends_at: Date | null;
-    current_period_ends_at: Date | null;
-    grace_days: number;
-  }>(
-    `SELECT status, trial_ends_at, current_period_ends_at, grace_days FROM subscriptions WHERE tenant_id = $1`,
-    [tenantId],
-  );
-  const s = rows[0];
-  // Sin suscripción, core la considera suspendida: fallar cerrado.
-  if (!s)
-    return { estadoDeclarado: 'trialing', pruebaHasta: null, periodoHasta: null, diasDeGracia: 0 };
-  return {
-    estadoDeclarado: s.status,
-    pruebaHasta: s.trial_ends_at,
-    periodoHasta: s.current_period_ends_at,
-    diasDeGracia: s.grace_days,
   };
 }
 
