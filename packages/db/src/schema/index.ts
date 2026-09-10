@@ -517,3 +517,70 @@ export const usageRollups = pgTable(
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.metric, t.period] })],
 );
+
+// ---------------------------------------------------------------------------
+// Salesbots (0015, ARCH §5.7, ADR-002)
+// ---------------------------------------------------------------------------
+
+export const flows = pgTable('flows', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  name: text('name').notNull(),
+  status: text('status').notNull().default('borrador'),
+  currentVersionId: uuid('current_version_id'),
+  createdBy: uuid('created_by'),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+/** El grafo entero como jsonb: se lee y se escribe siempre completo. */
+export const flowVersions = pgTable('flow_versions', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  flowId: uuid('flow_id').notNull(),
+  version: integer('version').notNull(),
+  graph: jsonb('graph').notNull(),
+  createdBy: uuid('created_by'),
+  createdAt: creado,
+});
+
+export const flowTriggers = pgTable('flow_triggers', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  flowId: uuid('flow_id').notNull(),
+  type: text('type').notNull(),
+  config: jsonb('config').notNull().default({}),
+  enabled: boolean('enabled').notNull().default(true),
+  createdAt: creado,
+});
+
+/** Apunta a la VERSIÓN, no al flujo: lo que corre termina con el grafo que empezó. */
+export const flowRuns = pgTable('flow_runs', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  flowId: uuid('flow_id').notNull(),
+  flowVersionId: uuid('flow_version_id').notNull(),
+  conversationId: uuid('conversation_id').notNull(),
+  status: text('status').notNull().default('running'),
+  currentNodeId: text('current_node_id'),
+  waitUntil: timestamp('wait_until', { withTimezone: true }),
+  waitFor: text('wait_for'),
+  context: jsonb('context').notNull().default({}),
+  error: text('error'),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: actualizado,
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+});
+
+/** El log paso a paso: por qué el bot dijo lo que dijo. */
+export const flowRunSteps = pgTable('flow_run_steps', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  flowRunId: uuid('flow_run_id').notNull(),
+  nodeId: text('node_id').notNull(),
+  kind: text('kind').notNull(),
+  input: jsonb('input'),
+  output: jsonb('output'),
+  error: text('error'),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+});

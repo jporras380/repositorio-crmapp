@@ -258,6 +258,9 @@ importers:
       '@crmapp/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@crmapp/envio':
+        specifier: workspace:*
+        version: link:../../packages/envio
       '@crmapp/observability':
         specifier: workspace:*
         version: link:../../packages/observability

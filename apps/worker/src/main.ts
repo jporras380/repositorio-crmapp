@@ -28,6 +28,7 @@ import {
   SIN_CUPO,
   arrancarRelay,
   type TrabajoDeEnvio,
+  type TrabajoDeFlujo,
   type TrabajoDeIngesta,
   type TrabajoDeMantenimiento,
   type TrabajoDeMedia,
@@ -37,7 +38,8 @@ import { AlmacenS3, type Almacen } from '@crmapp/storage';
 import { marcarFallo, procesarEventoEntrante } from './procesar-entrante.js';
 import { enviarMensajeSaliente, type CargaDeEnvio } from './enviar-saliente.js';
 import { descargarMedia, type CargaDeMedia } from './descargar-media.js';
-import { INQUILINO_SISTEMA, precrearParticiones } from './mantenimiento.js';
+import { esperasVencidas, INQUILINO_SISTEMA, precrearParticiones } from './mantenimiento.js';
+import { manejarTrabajoDeFlujo } from './flujos.js';
 
 const config = cargarConfig();
 const log = crearLogger({ nivel: config.LOG_LEVEL, contexto: { proceso: 'worker' } });
@@ -128,6 +130,29 @@ const colaMedia = new Queue(COLAS.media, {
   defaultJobOptions: OPCIONES_POR_DEFECTO,
 });
 
+// Salesbots (ADR-002). El despertador de una espera es un delayed job con
+// jobId determinista: si el mismo instante se programa dos veces, BullMQ se
+// queda con uno. La verdad sigue estando en `flow_runs`.
+const colaFlujos = new Queue<TrabajoDeFlujo>(COLAS.flujos, {
+  connection: conexion,
+  defaultJobOptions: OPCIONES_POR_DEFECTO,
+});
+const programarDespertar = async (t: {
+  tenantId: string;
+  flowRunId: string;
+  enMs: number;
+}): Promise<void> => {
+  await colaFlujos.add(
+    'despertar',
+    {
+      tenantId: t.tenantId,
+      correlationId: `despertar-${t.flowRunId}`,
+      evento: { tipo: 'despertar', flowRunId: t.flowRunId },
+    },
+    { delay: t.enMs, jobId: `despertar-${t.flowRunId}-${Date.now() + t.enMs}` },
+  );
+};
+
 // --- Mantenimiento: particiones al arrancar y cada día ---------------------
 // Sin partición la inserción falla y la ingesta se cae (0001 no crea DEFAULT
 // a propósito). Al arrancar, por si el worker estuvo días parado; y a las
@@ -146,6 +171,21 @@ await colaMantenimiento.upsertJobScheduler(
   { pattern: '0 3 * * *' },
   { name: 'precrear_particiones', data: trabajoDeParticiones },
 );
+// La red de seguridad de los temporizadores (ADR-002): cada minuto se buscan
+// esperas vencidas que nadie despertó. Es lo que hace innecesario un motor de
+// workflows externo, y cuesta un SELECT sobre un índice parcial.
+await colaMantenimiento.upsertJobScheduler(
+  'flujos-cada-minuto',
+  { pattern: '* * * * *' },
+  {
+    name: 'despertar_flujos',
+    data: {
+      tenantId: INQUILINO_SISTEMA,
+      correlationId: 'mantenimiento',
+      tarea: 'despertar_flujos',
+    } satisfies TrabajoDeMantenimiento,
+  },
+);
 await colaMantenimiento.add('precrear_particiones', trabajoDeParticiones, {
   jobId: `arranque-${Date.now()}`,
 });
@@ -155,6 +195,14 @@ const workerMantenimiento = new Worker<TrabajoDeMantenimiento>(
     if (job.data.tarea === 'precrear_particiones') {
       const nombres = await precrearParticiones(poolMantenimiento, 3);
       log.info('particiones aseguradas', { total: nombres.length });
+      return;
+    }
+    if (job.data.tarea === 'despertar_flujos') {
+      const pendientes = await esperasVencidas(poolMantenimiento, 50);
+      for (const p of pendientes) {
+        await programarDespertar({ tenantId: p.tenantId, flowRunId: p.id, enMs: 0 });
+      }
+      if (pendientes.length > 0) log.info('esperas rescatadas', { total: pendientes.length });
       return;
     }
     log.warn('tarea de mantenimiento sin implementar', { tarea: job.data.tarea });
@@ -203,6 +251,22 @@ const pararRelay = arrancarRelay({
         carga,
       };
       await colaMedia.add('descargar', trabajo, { jobId: `outbox-${evento.id}` });
+    }
+    if (evento.eventType === 'mensaje.recibido') {
+      // Un entrante puede disparar un Salesbot o reanudar uno dormido. Va por
+      // el outbox como todo lo demás: si el worker estaba caído, el evento
+      // sigue ahí cuando vuelva.
+      const carga = evento.payload as { conversationId: string };
+      const trabajo: TrabajoDeFlujo = {
+        tenantId: evento.tenantId,
+        correlationId: evento.id,
+        evento: {
+          tipo: 'mensaje_recibido',
+          conversationId: carga.conversationId,
+          messageId: evento.aggregateId,
+        },
+      };
+      await colaFlujos.add('mensaje', trabajo, { jobId: `outbox-${evento.id}` });
     }
     // Otros tipos de evento se enrutarán aquí a medida que existan consumidores.
   },
@@ -294,6 +358,25 @@ const workerMedia = new Worker<TrabajoDeMedia>(
 workerMedia.on('failed', (job, error) =>
   log.error('descarga de medio fallida', { jobId: job?.id, error }),
 );
+
+// --- Consumidor de Salesbots ------------------------------------------------
+// Concurrencia baja a propósito: un bot escribe a clientes reales y el orden
+// dentro de una conversación importa más que el caudal.
+const workerFlujos = new Worker<TrabajoDeFlujo>(
+  COLAS.flujos,
+  async (job) => {
+    const r = await semaforo.ejecutar(job.data.tenantId, () =>
+      manejarTrabajoDeFlujo({ pool, canales, programarDespertar }, job.data),
+    );
+    if (r === SIN_CUPO) {
+      await job.moveToDelayed(Date.now() + 500, job.token);
+      throw new DelayedError();
+    }
+    log.info('flujo', { tenantId: job.data.tenantId, evento: job.data.evento.tipo, ...r });
+  },
+  { connection: conexion, concurrency: 2 },
+);
+workerFlujos.on('failed', (job, error) => log.error('flujo fallido', { jobId: job?.id, error }));
 
 worker.on('failed', (job, error) =>
   log.error('job fallido', { jobId: job?.id, tenantId: job?.data.tenantId, error }),

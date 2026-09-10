@@ -1,0 +1,448 @@
+/**
+ * Motor de Salesbots contra PostgreSQL real.
+ *
+ * Esto prueba el criterio de salida de la fase 3 —«un flujo real califica un
+ * lead sin humano y sobrevive a un deploy»— y las dos cosas que costarían
+ * dinero si fallaran: que un job duplicado no envíe dos veces, y que el bot no
+ * escriba con la ventana de 24 h cerrada.
+ */
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { Client, Pool } from 'pg';
+import { migrar, withTenant } from '@crmapp/db';
+import { AdaptadorSandbox, type ChannelAdapter } from '@crmapp/channels';
+import type { Grafo } from '@crmapp/core';
+import { manejarTrabajoDeFlujo } from '../src/flujos.js';
+import { esperasVencidas } from '../src/mantenimiento.js';
+
+const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
+const PORT = process.env['TEST_PG_PORT'] ?? '55432';
+const SU = process.env['TEST_PG_SUPERUSER'] ?? 'crmapp';
+const PASS = process.env['TEST_PG_SUPERPASS'] ?? 'crmapp_dev';
+const DB = 'crmapp_test_flujos';
+const url = (db: string, u = SU, p = PASS) => `postgres://${u}:${p}@${HOST}:${PORT}/${db}`;
+
+let admin: Pool;
+let app: Pool;
+let relay: Pool;
+let tenantId: string;
+let channelAccountId: string;
+let conversationId: string;
+let usuarioId: string;
+let etiquetaId: string;
+const canales = new Map<string, ChannelAdapter>([['whatsapp', new AdaptadorSandbox()]]);
+const programarDespertar = vi.fn(async () => undefined);
+
+const deps = () => ({ pool: app, canales, programarDespertar });
+
+/** El flujo de calificación: saluda, pregunta, ramifica, etiqueta y asigna. */
+const CALIFICAR = (): Grafo => ({
+  inicio: 'saludo',
+  nodos: [
+    { id: 'saludo', tipo: 'mensaje', texto: '¿Buscas repuestos?', siguiente: 'espera' },
+    {
+      id: 'espera',
+      tipo: 'esperar_respuesta',
+      segundos: 3600,
+      siguiente: 'ramas',
+      alExpirar: 'frio',
+    },
+    {
+      id: 'ramas',
+      tipo: 'condicion',
+      casos: [{ contiene: ['sí', 'si'], siguiente: 'etiqueta' }],
+      siNo: 'fin',
+    },
+    { id: 'etiqueta', tipo: 'etiquetar', etiquetaId: '', siguiente: 'asignar' },
+    { id: 'asignar', tipo: 'asignar', usuarioId: '', siguiente: 'gracias' },
+    { id: 'gracias', tipo: 'mensaje', texto: 'Te paso con un asesor.', siguiente: 'fin' },
+    { id: 'frio', tipo: 'mensaje', texto: 'Quedo atento si necesitas algo.', siguiente: 'fin' },
+    { id: 'fin', tipo: 'fin' },
+  ],
+});
+
+async function crearFlujo(grafo: Grafo, disparador: 'conversacion_abierta' | 'palabra_clave') {
+  const flowId = (
+    await admin.query<{ id: string }>(
+      `INSERT INTO flows (tenant_id, name, status) VALUES ($1, $2, 'activo') RETURNING id`,
+      [tenantId, `flujo-${Math.random().toString(36).slice(2, 8)}`],
+    )
+  ).rows[0]!.id;
+  const versionId = (
+    await admin.query<{ id: string }>(
+      `INSERT INTO flow_versions (tenant_id, flow_id, version, graph) VALUES ($1,$2,1,$3) RETURNING id`,
+      [tenantId, flowId, JSON.stringify(grafo)],
+    )
+  ).rows[0]!.id;
+  await admin.query(`UPDATE flows SET current_version_id = $2 WHERE id = $1`, [flowId, versionId]);
+  await admin.query(
+    `INSERT INTO flow_triggers (tenant_id, flow_id, type, config)
+     VALUES ($1, $2, $3, $4)`,
+    [
+      tenantId,
+      flowId,
+      disparador,
+      JSON.stringify(disparador === 'palabra_clave' ? { palabras: ['precio'] } : {}),
+    ],
+  );
+  return flowId;
+}
+
+/** Un entrante ya persistido, como lo dejaría `procesar-entrante`. */
+async function entrante(texto: string): Promise<string> {
+  const { rows } = await admin.query<{ id: string }>(
+    `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, status)
+     VALUES ($1,$2,$3,'inbound','text',$4,'delivered') RETURNING id`,
+    [tenantId, conversationId, channelAccountId, texto],
+  );
+  await admin.query(
+    `UPDATE conversations SET last_inbound_at = now(), session_expires_at = now() + interval '24 hours' WHERE id = $1`,
+    [conversationId],
+  );
+  return rows[0]!.id;
+}
+
+const salientes = async () =>
+  (
+    await admin.query<{ body: string; sent_by: string }>(
+      `SELECT body, sent_by FROM messages WHERE conversation_id = $1 AND direction = 'outbound' ORDER BY created_at`,
+      [conversationId],
+    )
+  ).rows;
+
+const ejecucion = async () =>
+  (
+    await admin.query<{
+      id: string;
+      status: string;
+      current_node_id: string | null;
+      wait_until: Date | null;
+      error: string | null;
+    }>(`SELECT id, status, current_node_id, wait_until, error FROM flow_runs ORDER BY started_at`)
+  ).rows;
+
+beforeAll(async () => {
+  const su = new Client({ connectionString: url('postgres') });
+  await su.connect();
+  await su.query(`DROP DATABASE IF EXISTS ${DB} WITH (FORCE)`);
+  await su.query(`CREATE DATABASE ${DB}`);
+  await su.end();
+  await migrar(url(DB));
+
+  const conf = new Client({ connectionString: url(DB) });
+  await conf.connect();
+  for (const rol of ['crmapp_app', 'crmapp_relay']) {
+    // Los roles son del CLÚSTER, no de la base: dos archivos de test que
+    // corren a la vez pueden chocar en el mismo `ALTER ROLE` y PostgreSQL
+    // responde «tuple concurrently updated». Es una carrera del banco de
+    // pruebas, no del producto, y se resuelve reintentando.
+    for (let intento = 0; ; intento++) {
+      try {
+        await conf.query(`ALTER ROLE ${rol} LOGIN PASSWORD 'crmapp_dev'`);
+        break;
+      } catch (error) {
+        if (intento >= 4) throw error;
+        await new Promise((ok) => setTimeout(ok, 150 * (intento + 1)));
+      }
+    }
+    await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO ${rol}`);
+  }
+  tenantId = (
+    await conf.query<{ id: string }>(
+      `INSERT INTO tenants (name, slug) VALUES ('Bots','bots') RETURNING id`,
+    )
+  ).rows[0]!.id;
+  // Sin suscripción viva, la puerta de envío rechaza todo: core falla cerrado.
+  await conf.query(
+    `INSERT INTO subscriptions (tenant_id, plan_id, status, trial_ends_at)
+     VALUES ($1, (SELECT id FROM plans WHERE code = 'growth'), 'trialing', now() + interval '20 days')`,
+    [tenantId],
+  );
+  usuarioId = (
+    await conf.query<{ id: string }>(
+      `INSERT INTO users (email, full_name, password_hash) VALUES ('bot@test.test','Asesor','x') RETURNING id`,
+    )
+  ).rows[0]!.id;
+  etiquetaId = (
+    await conf.query<{ id: string }>(
+      `INSERT INTO tags (tenant_id, name, color) VALUES ($1,'Lead','#ff9500') RETURNING id`,
+      [tenantId],
+    )
+  ).rows[0]!.id;
+  channelAccountId = (
+    await conf.query<{ id: string }>(
+      `INSERT INTO channel_accounts (tenant_id, channel, external_id, display_name, status)
+       VALUES ($1,'whatsapp','pn-flujos','WA','connected') RETURNING id`,
+      [tenantId],
+    )
+  ).rows[0]!.id;
+  const contacto = (
+    await conf.query<{ id: string }>(
+      `INSERT INTO contacts (tenant_id, display_name) VALUES ($1,'Ana') RETURNING id`,
+      [tenantId],
+    )
+  ).rows[0]!.id;
+  const identidad = (
+    await conf.query<{ id: string }>(
+      `INSERT INTO contact_identities (tenant_id, contact_id, channel, channel_account_id, external_user_id)
+       VALUES ($1,$2,'whatsapp',$3,'wa-ana') RETURNING id`,
+      [tenantId, contacto, channelAccountId],
+    )
+  ).rows[0]!.id;
+  conversationId = (
+    await conf.query<{ id: string }>(
+      `INSERT INTO conversations (tenant_id, contact_identity_id, contact_id, channel_account_id, session_expires_at)
+       VALUES ($1,$2,$3,$4, now() + interval '24 hours') RETURNING id`,
+      [tenantId, identidad, contacto, channelAccountId],
+    )
+  ).rows[0]!.id;
+  await conf.end();
+
+  admin = new Pool({ connectionString: url(DB) });
+  app = new Pool({ connectionString: url(DB, 'crmapp_app', 'crmapp_dev') });
+  relay = new Pool({ connectionString: url(DB, 'crmapp_relay', 'crmapp_dev') });
+});
+
+afterEach(async () => {
+  programarDespertar.mockClear();
+  await admin.query(`DELETE FROM flow_run_steps`);
+  await admin.query(`DELETE FROM flow_runs`);
+  await admin.query(`DELETE FROM flow_triggers`);
+  await admin.query(`DELETE FROM flow_versions`);
+  await admin.query(`DELETE FROM flows`);
+  await admin.query(`DELETE FROM messages`);
+  await admin.query(`DELETE FROM conversation_tags`);
+  await admin.query(
+    `UPDATE conversations SET assignee_user_id = NULL, status = 'open',
+            session_expires_at = now() + interval '24 hours' WHERE id = $1`,
+    [conversationId],
+  );
+});
+
+afterAll(async () => {
+  await app?.end();
+  await relay?.end();
+  await admin?.end();
+  const su = new Client({ connectionString: url('postgres') });
+  await su.connect();
+  await su.query(`DROP DATABASE IF EXISTS ${DB} WITH (FORCE)`);
+  await su.end();
+});
+
+describe('criterio de salida de la fase 3', () => {
+  it('califica un lead sin humano: saluda, espera, ramifica, etiqueta y asigna', async () => {
+    const grafo = CALIFICAR();
+    (grafo.nodos.find((n) => n.id === 'etiqueta') as { etiquetaId: string }).etiquetaId =
+      etiquetaId;
+    (grafo.nodos.find((n) => n.id === 'asignar') as { usuarioId: string }).usuarioId = usuarioId;
+    await crearFlujo(grafo, 'conversacion_abierta');
+
+    const primero = await entrante('Hola');
+    const r1 = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: primero },
+    });
+    expect(r1.ejecucionesIniciadas).toBe(1);
+    expect((await salientes()).map((m) => m.body)).toEqual(['¿Buscas repuestos?']);
+    // Quien envía es el bot, y queda dicho en la fila: es lo que responde a
+    // «¿esto lo escribió una persona?».
+    expect((await salientes())[0]!.sent_by).toBe('bot');
+
+    const [enEspera] = await ejecucion();
+    expect(enEspera).toMatchObject({ status: 'waiting', current_node_id: 'espera' });
+    expect(programarDespertar).toHaveBeenCalledOnce();
+
+    const segundo = await entrante('Sí, necesito filtros');
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c2',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: segundo },
+    });
+
+    expect((await salientes()).map((m) => m.body)).toEqual([
+      '¿Buscas repuestos?',
+      'Te paso con un asesor.',
+    ]);
+    const { rows: etiquetas } = await admin.query(
+      `SELECT 1 FROM conversation_tags WHERE conversation_id = $1 AND tag_id = $2`,
+      [conversationId, etiquetaId],
+    );
+    expect(etiquetas).toHaveLength(1);
+    const { rows: conv } = await admin.query<{ assignee_user_id: string | null }>(
+      `SELECT assignee_user_id FROM conversations WHERE id = $1`,
+      [conversationId],
+    );
+    expect(conv[0]!.assignee_user_id).toBe(usuarioId);
+    expect((await ejecucion())[0]).toMatchObject({ status: 'done' });
+
+    // El log paso a paso: la respuesta a «¿por qué el bot dijo eso?».
+    const { rows: pasos } = await admin.query<{ node_id: string }>(
+      `SELECT node_id FROM flow_run_steps ORDER BY at`,
+    );
+    expect(pasos.map((p) => p.node_id)).toEqual([
+      'saludo',
+      'espera',
+      'etiqueta',
+      'asignar',
+      'gracias',
+      'fin',
+    ]);
+  });
+
+  it('sobrevive a un deploy: el barrido rescata la espera cuyo temporizador se perdió', async () => {
+    const grafo = CALIFICAR();
+    (grafo.nodos.find((n) => n.id === 'etiqueta') as { etiquetaId: string }).etiquetaId =
+      etiquetaId;
+    (grafo.nodos.find((n) => n.id === 'asignar') as { usuarioId: string }).usuarioId = usuarioId;
+    await crearFlujo(grafo, 'conversacion_abierta');
+    const primero = await entrante('Hola');
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: primero },
+    });
+
+    // Se pierde Redis con el delayed job dentro y además vence el plazo.
+    await admin.query(`UPDATE flow_runs SET wait_until = now() - interval '1 minute'`);
+
+    // El barrido lo encuentra leyendo la base con el rol del relay, que solo
+    // puede ver cuatro columnas de `flow_runs`.
+    const vencidas = await esperasVencidas(relay, 10);
+    expect(vencidas).toHaveLength(1);
+    expect(vencidas[0]!.tenantId).toBe(tenantId);
+
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'rescate',
+      evento: { tipo: 'despertar', flowRunId: vencidas[0]!.id },
+    });
+
+    // El silencio tiene su propio camino: ni etiqueta ni asigna.
+    expect((await salientes()).map((m) => m.body)).toEqual([
+      '¿Buscas repuestos?',
+      'Quedo atento si necesitas algo.',
+    ]);
+    const { rows: etiquetas } = await admin.query(`SELECT 1 FROM conversation_tags`);
+    expect(etiquetas).toHaveLength(0);
+    expect((await ejecucion())[0]).toMatchObject({ status: 'done' });
+  });
+});
+
+describe('el motor no se deja engañar', () => {
+  it('un job duplicado no envía dos veces', async () => {
+    await crearFlujo(CALIFICAR(), 'conversacion_abierta');
+    const id = await entrante('Hola');
+    const trabajo = {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido' as const, conversationId, messageId: id },
+    };
+    await manejarTrabajoDeFlujo(deps(), trabajo);
+    const segundo = await manejarTrabajoDeFlujo(deps(), trabajo);
+
+    expect(await salientes()).toHaveLength(1);
+    // El segundo job no arranca otra ejecución: hay una viva en la conversación.
+    expect(segundo.ejecucionesIniciadas).toBe(0);
+    expect(await ejecucion()).toHaveLength(1);
+  });
+
+  it('despertar una espera que ya avanzó no hace nada', async () => {
+    await crearFlujo(CALIFICAR(), 'conversacion_abierta');
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: await entrante('Hola') },
+    });
+    const runId = (await ejecucion())[0]!.id;
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c2',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: await entrante('no') },
+    });
+    expect((await ejecucion())[0]).toMatchObject({ status: 'done' });
+
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'tarde',
+      evento: { tipo: 'despertar', flowRunId: runId },
+    });
+    expect(r.ignorado).toBe('ya_no_espera');
+  });
+
+  it('con la ventana de 24 h cerrada el bot no envía: la ejecución falla y lo dice', async () => {
+    await crearFlujo(CALIFICAR(), 'conversacion_abierta');
+    const id = await entrante('Hola');
+    await admin.query(
+      `UPDATE conversations SET session_expires_at = now() - interval '1 hour' WHERE id = $1`,
+      [conversationId],
+    );
+
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+
+    expect(await salientes()).toHaveLength(0);
+    expect((await ejecucion())[0]).toMatchObject({ status: 'failed', error: 'fuera_de_ventana' });
+    const { rows: pasos } = await admin.query<{ error: string | null }>(
+      `SELECT error FROM flow_run_steps`,
+    );
+    expect(pasos[0]!.error).toBe('fuera_de_ventana');
+  });
+
+  it('la palabra clave dispara; una conversación que ya habló, no', async () => {
+    await crearFlujo(CALIFICAR(), 'palabra_clave');
+    // Primer mensaje sin la palabra: no dispara nada.
+    const uno = await entrante('Buenos días');
+    const r1 = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: uno },
+    });
+    expect(r1.ignorado).toBe('sin_disparador');
+
+    const dos = await entrante('¿Cuál es el precio?');
+    const r2 = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c2',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: dos },
+    });
+    expect(r2.ejecucionesIniciadas).toBe(1);
+  });
+
+  it('un saliente no dispara flujos: si no, el bot se contestaría a sí mismo', async () => {
+    await crearFlujo(CALIFICAR(), 'conversacion_abierta');
+    const { rows } = await admin.query<{ id: string }>(
+      `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, status)
+       VALUES ($1,$2,$3,'outbound','text','hola','sent') RETURNING id`,
+      [tenantId, conversationId, channelAccountId],
+    );
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: rows[0]!.id },
+    });
+    expect(r.ignorado).toBe('no_es_entrante');
+  });
+
+  it('el aislamiento entre inquilinos vale también para los bots', async () => {
+    await crearFlujo(CALIFICAR(), 'conversacion_abierta');
+    const id = await entrante('Hola');
+    // Otro inquilino pide procesar ESTE mensaje: con RLS no existe para él.
+    const otro = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO tenants (name, slug) VALUES ('Otra','otra-${Date.now()}') RETURNING id`,
+      )
+    ).rows[0]!.id;
+    const r = await withTenant(app, otro, async () =>
+      manejarTrabajoDeFlujo(deps(), {
+        tenantId: otro,
+        correlationId: 'ajeno',
+        evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+      }),
+    );
+    expect(r.ignorado).toBe('no_es_entrante');
+    expect(await salientes()).toHaveLength(0);
+  });
+});

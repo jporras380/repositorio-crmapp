@@ -282,7 +282,7 @@ Las conversaciones son datos personales. Retención configurable (P-07), exporta
 | 0 | Monorepo, CI, esquema base, auth, multi-tenancy con RLS, outbox, adaptador en sandbox | Crear cuenta e invitar usuario. **Los dos tests de RLS de §6 pasan en CI.** |
 | 1 | WhatsApp (BYO-credentials), webhooks, bandeja, multimedia, ambos tipos de plantilla, **`usage_events`** | Un agente atiende WhatsApp de punta a punta |
 | 2 | Instagram DM y comentarios, identidad unificada | Dos canales en una bandeja **sin haber tocado `core`** |
-| 3 | Salesbots con estado persistido | Un flujo real califica un lead sin humano y sobrevive a un deploy |
+| 3 | Salesbots con estado persistido | Un flujo real califica un lead sin humano y sobrevive a un deploy — **cumplido** (`apps/worker/test/flujos.test.ts`) |
 | 4 | Panel y facturación | Se puede cobrar |
 | 5 | Capa de IA configurable | El cliente enciende la IA desde la interfaz |
 | 6 | Android | Agentes responden desde el móvil |

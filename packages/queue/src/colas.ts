@@ -68,8 +68,27 @@ export interface TrabajoDeMedia extends TrabajoBase {
   carga: unknown;
 }
 
+/**
+ * Avance de un Salesbot. Un solo tipo de trabajo con tres sucesos posibles,
+ * en vez de tres colas: el motor es el mismo y así el semáforo por inquilino
+ * cuenta todo lo que hace un bot junto, que es lo que de verdad hay que
+ * limitar.
+ */
+export interface TrabajoDeFlujo extends TrabajoBase {
+  evento:
+    /** Entró un mensaje del contacto: puede disparar un flujo o reanudar uno. */
+    | { tipo: 'mensaje_recibido'; conversationId: string; messageId: string }
+    /** Venció la espera de una ejecución concreta. */
+    | { tipo: 'despertar'; flowRunId: string };
+}
+
 export interface TrabajoDeMantenimiento extends TrabajoBase {
-  tarea: 'precrear_particiones' | 'purgar_message_keys' | 'refrescar_vistas';
+  tarea:
+    | 'precrear_particiones'
+    | 'purgar_message_keys'
+    | 'refrescar_vistas'
+    /** Red de seguridad de ADR-002: esperas de Salesbot que nadie despertó. */
+    | 'despertar_flujos';
 }
 
 export interface MapaDeTrabajos {
@@ -78,6 +97,7 @@ export interface MapaDeTrabajos {
   [COLAS.salidaWhatsapp]: TrabajoDeEnvio;
   [COLAS.salidaInstagram]: TrabajoDeEnvio;
   [COLAS.media]: TrabajoDeMedia;
+  [COLAS.flujos]: TrabajoDeFlujo;
   [COLAS.mantenimiento]: TrabajoDeMantenimiento;
 }
 

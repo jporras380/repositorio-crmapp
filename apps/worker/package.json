@@ -16,6 +16,7 @@
     "@crmapp/core": "workspace:*",
     "@crmapp/crypto": "workspace:*",
     "@crmapp/db": "workspace:*",
+    "@crmapp/envio": "workspace:*",
     "@crmapp/observability": "workspace:*",
     "@crmapp/queue": "workspace:*",
     "@crmapp/storage": "workspace:*",

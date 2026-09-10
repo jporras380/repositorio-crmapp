@@ -25,6 +25,7 @@ import {
   TOKEN_ADAPTADORES,
   TOKEN_USO,
   TOKEN_PANEL,
+  TOKEN_FLUJOS,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -52,6 +53,8 @@ import { UsoService } from './uso/uso.service.js';
 import { UsoController } from './uso/uso.controller.js';
 import { PanelService } from './panel/panel.service.js';
 import { PanelController } from './panel/panel.controller.js';
+import { FlujosService } from './flujos/flujos.service.js';
+import { FlujosController } from './flujos/flujos.controller.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -111,6 +114,7 @@ export class AppModule {
         RespuestasRapidasController,
         UsoController,
         PanelController,
+        FlujosController,
       ],
       providers: [
         {
@@ -243,6 +247,11 @@ export class AppModule {
             new PanelService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
         },
         {
+          provide: TOKEN_FLUJOS,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) => new FlujosService({ db }),
+        },
+        {
           provide: TOKEN_USO,
           inject: [TOKEN_DB],
           useFactory: (db: BaseDeDatos) =>
@@ -261,6 +270,7 @@ export class AppModule {
         TOKEN_PLANTILLAS,
         TOKEN_USO,
         TOKEN_PANEL,
+        TOKEN_FLUJOS,
       ],
     };
   }

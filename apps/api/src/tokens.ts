@@ -30,3 +30,5 @@ export const TOKEN_ADAPTADORES = Symbol('Adaptadores');
 export const TOKEN_USO = Symbol('UsoService');
 
 export const TOKEN_PANEL = Symbol('PanelService');
+
+export const TOKEN_FLUJOS = Symbol('FlujosService');
