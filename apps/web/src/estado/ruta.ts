@@ -8,11 +8,14 @@ export type Ruta =
       /** Vista con la que abrir la lista (la usan los enlaces del panel). */
       vista?: 'sinRespuesta' | undefined;
     }
-  | { pantalla: 'ajustes'; seccion: 'canales' | 'plantillas' | 'respuestas' | 'uso' }
+  | {
+      pantalla: 'ajustes';
+      seccion: 'canales' | 'plantillas' | 'respuestas' | 'uso' | 'suscripcion';
+    }
   /** Constructor de Salesbots. Sin flujo elegido, la lista. */
   | { pantalla: 'flujos'; flujoId: string | null };
 
-const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'uso']);
+const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'uso', 'suscripcion']);
 
 /**
  * Enrutado por hash, a mano: `#c=<id>` abre una conversación y

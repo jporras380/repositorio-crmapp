@@ -6,6 +6,7 @@ import { Canales } from '../../componentes/ajustes/Canales.tsx';
 import { Plantillas } from '../../componentes/ajustes/Plantillas.tsx';
 import { RespuestasRapidas } from '../../componentes/ajustes/RespuestasRapidas.tsx';
 import { Uso } from '../../componentes/ajustes/Uso.tsx';
+import { Suscripcion } from '../../componentes/ajustes/Suscripcion.tsx';
 import { irA, type Ruta } from '../../estado/ruta.ts';
 import estilos from './Ajustes.module.css';
 
@@ -22,6 +23,7 @@ const SECCIONES: [Seccion, string, string][] = [
   ['plantillas', 'Plantillas', 'Mensajes aprobados por Meta para escribir primero'],
   ['respuestas', 'Respuestas rápidas', 'Atajos con «/» en el compositor'],
   ['uso', 'Uso del plan', 'Lo consumido este mes frente a tu plan'],
+  ['suscripcion', 'Suscripción', 'Qué se paga y hasta cuándo está cubierta'],
 ];
 
 /** Ajustes: menú a la izquierda, sección a la derecha. Gestionar exige rol de gestor; la API lo aplica. */
@@ -61,6 +63,7 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
         {seccion === 'plantillas' && <Plantillas api={api} gestor={gestor} />}
         {seccion === 'respuestas' && <RespuestasRapidas api={api} gestor={gestor} />}
         {seccion === 'uso' && <Uso api={api} />}
+        {seccion === 'suscripcion' && <Suscripcion api={api} />}
       </main>
     </div>
   );

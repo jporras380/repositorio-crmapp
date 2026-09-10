@@ -17,7 +17,11 @@ tags: [facturacion, suscripciones, prueba, gracia, entitlements]
 
 **Pasarse de un límite avisa; solo se corta lo nuestro.** Al 80 % aparece el aviso; al 100 % dejan de arrancar bots nuevos —los que ya corren terminan, porque cortar a mitad deja al contacto esperando— y las conversaciones entrantes **no se cortan jamás**.
 
-`GET /v1/cuenta/suscripcion` devuelve plan, asientos, importe, hasta cuándo está cubierta la cuenta, los últimos doce pagos y los avisos.
+`GET /v1/cuenta/suscripcion` devuelve plan, asientos, importe, hasta cuándo está cubierta la cuenta, los últimos doce pagos y los avisos. Se pinta en **Ajustes → Suscripción** (PR-30):
+
+![[2026-09-10-suscripcion.png]]
+
+**No hay botón de pagar, y no es un olvido.** El cobro es manual: la pantalla enseña el importe, la cobertura y el historial, y el pago se registra por fuera. Un botón que no cobra es peor que no ponerlo. Y la primera línea dice lo que el cliente necesita saber antes de preguntarlo: **el consumo de WhatsApp lo cobra Meta directamente en su cuenta; aquí solo va la suscripción.**
 
 ## El ciclo, fijado por el usuario el 2026-09-09
 

@@ -14,6 +14,7 @@ import type {
   GrafoDeFlujo,
   Miembro,
   ResumenDeFlujo,
+  ResumenDeSuscripcion,
   SimulacionDeFlujo,
   ResumenDelPanel,
   Etiqueta,
@@ -184,6 +185,7 @@ export function crearApi(token: string | null) {
     archivarRapida: (id: string) =>
       peticion<void>(`/v1/respuestas-rapidas/${id}`, { ...t, metodo: 'DELETE' }),
     uso: () => peticion<ResumenDeUso>('/v1/cuenta/uso', t),
+    suscripcion: () => peticion<ResumenDeSuscripcion>('/v1/cuenta/suscripcion', t),
     usuarios: () => peticion<Miembro[]>('/v1/usuarios', t),
 
     // --- Salesbots ---------------------------------------------------------

@@ -220,3 +220,23 @@ export interface Miembro {
   nombre: string;
   rol: Sesion['rol'];
 }
+
+export interface ResumenDeSuscripcion {
+  plan: { codigo: string; nombre: string; precioPorAsientoCentimos: number; moneda: string } | null;
+  estado: 'prueba' | 'activa' | 'gracia' | 'suspendida' | string;
+  /** Asientos OCUPADOS: se cuentan de los miembros, no se guardan (ADR-011). */
+  asientos: number;
+  importeMensualCentimos: number;
+  pruebaHasta: string | null;
+  periodoHasta: string | null;
+  graciaHasta: string | null;
+  pagos: {
+    importeCentimos: number;
+    moneda: string;
+    cubreDesde: string;
+    cubreHasta: string;
+    metodo: string;
+    referencia: string | null;
+  }[];
+  avisos: { limite: string; nivel: 'holgado' | 'cerca' | 'pasado'; usado: number; tope: number }[];
+}
