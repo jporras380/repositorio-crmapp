@@ -95,9 +95,11 @@ describe('GET /v1/cuenta/uso', () => {
       'templates.sent': 0,
       'conversations.opened': 0,
       'media.stored_bytes': 0,
+      'bot.runs': 0,
     });
     expect(r.body.limites.conversaciones_mes).toEqual({ limite: 1000, usado: 0 });
-    // Límites sin métrica todavía (asientos, bots, IA): límite visible, uso desconocido.
+    expect(r.body.limites.bot_runs_mes).toEqual({ limite: 500, usado: 0 });
+    // Límites sin métrica todavía (asientos, IA): límite visible, uso desconocido.
     expect(r.body.limites.agentes).toEqual({ limite: 3, usado: null });
     expect(r.body.periodo).toMatch(/^\d{4}-\d{2}$/);
   });

@@ -204,6 +204,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   programarDespertar.mockClear();
+  await admin.query(`DELETE FROM usage_rollups`);
+  await admin.query(`DELETE FROM usage_event_keys`);
+  await admin.query(`DELETE FROM usage_events`);
   await admin.query(`DELETE FROM flow_run_steps`);
   await admin.query(`DELETE FROM flow_runs`);
   await admin.query(`DELETE FROM flow_triggers`);
@@ -287,6 +290,24 @@ describe('criterio de salida de la fase 3', () => {
       'gracias',
       'fin',
     ]);
+  });
+
+  it('mide la ejecución al arrancarla, no al terminarla', async () => {
+    await crearFlujo(CALIFICAR(), 'conversacion_abierta');
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: await entrante('Hola') },
+    });
+
+    // Queda ESPERANDO —no ha terminado— y el consumo ya está contado: lo que
+    // gasta un bot es el trabajo del motor y el mensaje que mandó, no su final.
+    expect((await ejecucion())[0]).toMatchObject({ status: 'waiting' });
+    const { rows } = await admin.query<{ metric: string; quantity: string }>(
+      `SELECT metric, quantity FROM usage_rollups WHERE tenant_id = $1 AND metric = 'bot.runs'`,
+      [tenantId],
+    );
+    expect(rows[0]).toMatchObject({ quantity: '1' });
   });
 
   it('sobrevive a un deploy: el barrido rescata la espera cuyo temporizador se perdió', async () => {

@@ -25,7 +25,7 @@
  * este job se retira sin hacer nada.
  */
 import type { Pool, PoolClient } from 'pg';
-import { withTenant } from '@crmapp/db';
+import { registrarUso, withTenant } from '@crmapp/db';
 import {
   contiene,
   decidirPaso,
@@ -473,6 +473,17 @@ async function crearEjecucion(
   // El índice único parcial es quien decide la carrera: si otro worker metió
   // la ejecución primero, aquí no hay nada que hacer.
   if (rowCount === 0) return null;
+
+  // Se mide al ARRANCAR y en la misma transacción que la crea (ARCH §5.9). Al
+  // arrancar y no al terminar porque una ejecución que se queda esperando tres
+  // días ya consumió lo que consume: el trabajo del motor y el mensaje que
+  // mandó. Contarla al final dejaría el mes en curso sin datos que cobrar.
+  await registrarUso(c, {
+    tenantId,
+    metric: 'bot.runs',
+    dedupKey: `flow_run:${id}:started`,
+    meta: { flowId: disparo.flowId },
+  });
   return {
     id,
     flow_id: disparo.flowId,

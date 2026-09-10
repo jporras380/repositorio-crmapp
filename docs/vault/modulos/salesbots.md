@@ -75,4 +75,4 @@ Se añadió `GET /v1/usuarios` para el paso «asignar»: id, nombre y rol, sin c
 
 - **Interfaz.** Hoy los flujos se crean por API. El constructor visual es el PR siguiente.
 - **El humano toma el control.** En Kommo, si un agente responde a mano, el bot se calla. Aquí todavía no: hay que decidir si cancelar la ejecución o solo pausarla.
-- **Medición.** `bot_runs_mes` está en los límites de los planes desde 0007, pero el motor no emite todavía su `usage_event`.
+- **Enforcement.** El uso de bots ya se mide contra `bot_runs_mes`, pero pasarse no tiene consecuencia: qué ocurre al superar un límite es parte de P-21.

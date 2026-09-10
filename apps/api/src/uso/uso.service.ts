@@ -16,6 +16,7 @@ import { ErrorDeNegocio } from '../auth/auth.service.js';
 /** Qué métrica alimenta cada límite del plan (`plans.limits`). */
 const LIMITE_POR_METRICA: Partial<Record<MetricaDeUso, string>> = {
   'conversations.opened': 'conversaciones_mes',
+  'bot.runs': 'bot_runs_mes',
 };
 
 export interface ResumenDeUso {

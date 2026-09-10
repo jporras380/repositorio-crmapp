@@ -14,7 +14,9 @@ export type MetricaDeUso =
   | 'messages.outbound'
   | 'templates.sent'
   | 'conversations.opened'
-  | 'media.stored_bytes';
+  | 'media.stored_bytes'
+  /** Ejecuciones de Salesbot arrancadas. `bot_runs_mes` en los planes. */
+  | 'bot.runs';
 
 export const METRICAS_DE_USO: readonly MetricaDeUso[] = [
   'messages.inbound',
@@ -22,6 +24,7 @@ export const METRICAS_DE_USO: readonly MetricaDeUso[] = [
   'templates.sent',
   'conversations.opened',
   'media.stored_bytes',
+  'bot.runs',
 ];
 
 export interface EventoDeUso {
