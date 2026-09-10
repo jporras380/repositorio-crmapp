@@ -10,6 +10,12 @@ type Req = { contexto?: unknown };
 export class UsoController {
   constructor(@Inject(TOKEN_USO) private readonly uso: UsoService) {}
 
+  /** Qué se paga y hasta cuándo está cubierto (ADR-011). Solo lectura. */
+  @Get('suscripcion')
+  suscripcion(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.uso.suscripcion());
+  }
+
   /** Consumo del mes en curso frente a los límites del plan. */
   @Get('uso')
   resumen(@Req() req: Req) {

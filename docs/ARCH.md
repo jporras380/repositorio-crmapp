@@ -283,7 +283,7 @@ Las conversaciones son datos personales. Retención configurable (P-07), exporta
 | 1 | WhatsApp (BYO-credentials), webhooks, bandeja, multimedia, ambos tipos de plantilla, **`usage_events`** | Un agente atiende WhatsApp de punta a punta |
 | 2 | Instagram DM y comentarios, identidad unificada | Dos canales en una bandeja **sin haber tocado `core`** |
 | 3 | Salesbots con estado persistido | Un flujo real califica un lead sin humano y sobrevive a un deploy — **cumplido** (`apps/worker/test/flujos.test.ts`) |
-| 4 | Panel y facturación | Se puede cobrar |
+| 4 | Panel y facturación | Se puede cobrar — **cumplido** con cobro manual por asiento ([[ADR-011]]; `apps/api/test/suscripcion.e2e.test.ts`) |
 | 5 | Capa de IA configurable | El cliente enciende la IA desde la interfaz |
 | 6 | Android | Agentes responden desde el móvil |
 | 7 | TikTok e iOS | Cobertura completa |
@@ -310,3 +310,4 @@ El criterio de salida de fase 2 es el que de verdad valida la arquitectura: si I
 | [ADR-005](vault/decisiones/ADR-005-rls.md) | RLS por `SET LOCAL` en transacción |
 | [ADR-006](vault/decisiones/ADR-006-particionado-idempotencia.md) | Particionado de `messages` e idempotencia |
 | [ADR-007](vault/decisiones/ADR-007-identidad-contactos.md) | Identidad unificada de contactos |
+| [ADR-011](vault/decisiones/ADR-011-modelo-de-cobro.md) | Cobro por asiento, manual, con la mensajería fuera |

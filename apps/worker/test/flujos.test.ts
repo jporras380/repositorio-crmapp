@@ -8,7 +8,7 @@
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Client, Pool } from 'pg';
-import { migrar, withTenant } from '@crmapp/db';
+import { inicioDePeriodo, migrar, withTenant } from '@crmapp/db';
 import { AdaptadorSandbox, type ChannelAdapter } from '@crmapp/channels';
 import type { Grafo } from '@crmapp/core';
 import { manejarTrabajoDeFlujo } from '../src/flujos.js';
@@ -430,6 +430,35 @@ describe('el motor no se deja engañar', () => {
       evento: { tipo: 'mensaje_recibido', conversationId, messageId: dos },
     });
     expect(r2.ejecucionesIniciadas).toBe(1);
+  });
+
+  it('pasado el tope de bots del plan no arranca ninguno más, y las conversaciones siguen entrando', async () => {
+    await crearFlujo(CALIFICAR(), 'conversacion_abierta');
+    // El plan growth trae 5000 ejecuciones al mes; se dan por gastadas.
+    // El periodo se calcula con la MISMA función que usa el registro de uso:
+    // `period` es un `date` y compararlo contra un `date_trunc` de SQL depende
+    // del huso de la sesión, que es como no comparar nada.
+    await admin.query(
+      `INSERT INTO usage_rollups (tenant_id, metric, period, quantity)
+       VALUES ($1, 'bot.runs', $2, 5000)`,
+      [tenantId, inicioDePeriodo(new Date())],
+    );
+
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'c1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: await entrante('Hola') },
+    });
+
+    expect(r.ignorado).toBe('limite_de_bots');
+    expect(await ejecucion()).toHaveLength(0);
+    // Lo que NO pasa: el mensaje del contacto sigue en su conversación. Cortar
+    // entrantes sería el peor daño posible y no lo arregla ningún cobro.
+    const { rows } = await admin.query<{ n: string }>(
+      `SELECT count(*) AS n FROM messages WHERE conversation_id = $1 AND direction = 'inbound'`,
+      [conversationId],
+    );
+    expect(Number(rows[0]!.n)).toBe(1);
   });
 
   it('un saliente no dispara flujos: si no, el bot se contestaría a sí mismo', async () => {

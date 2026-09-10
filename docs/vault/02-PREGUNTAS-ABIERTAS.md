@@ -11,7 +11,7 @@ Ordenadas por urgencia. **Bloqueante** significa que el ARCH no se escribe sin l
 
 ## Bloqueantes
 
-Quedan tres. P-01 y P-02 se resolvieron el 2026-09-07 con [[ADR-004-modelo-whatsapp]]; P-03 bajó a menor.
+Quedan tres. P-01 y P-02 se resolvieron el 2026-09-07 con [[ADR-004-modelo-whatsapp]]; P-03 bajó a menor. **P-10 y P-21 se cerraron el 2026-09-10 con [[ADR-011-modelo-de-cobro]].**
 
 > **Señal del 2026-09-09:** el usuario compartió una captura de su cuenta real de Kommo (Nippon Autoparts, Perú: `+51`, moneda `S/`). Apunta a **P-04 = Perú/LatAm**, **P-05 = sí hay primer cliente: el propio usuario**, y **P-10 = facturación en PEN**. No se cierran hasta confirmación explícita, pero los valores por defecto del ARCH deberían moverse en esa dirección.
 
@@ -36,8 +36,8 @@ El requisito 11 pide retención configurable **por inquilino**, pero el particio
 ### P-08 · Criterio de fusión de contactos
 Un WhatsApp y un Instagram son la misma persona ¿por qué? Solo teléfono verificado, solo fusión manual del agente, o heurística. ¿Se puede deshacer? Ver [[ADR-007-identidad-contactos]] (pendiente). La fusión automática por nombre queda descartada de entrada.
 
-### P-10 · Proveedor de pagos
-Stripe estaba como "referencia", no como decisión. ¿Opera en el país de facturación? ¿Hace falta factura fiscal local (SAT, DIAN, AFIP)? Un requisito fiscal descubierto en fase 4 es un módulo entero, no un campo.
+### ~~P-10 · Proveedor de pagos~~ *(cerrada 2026-09-10 → [[ADR-011-modelo-de-cobro]])*
+**Ninguno, de momento: transferencia y factura, registradas a mano por el operador.** Es la respuesta correcta para un producto sin clientes —cero desarrollo, cero coste recurrente, cero dependencia— y evita el problema real: Stripe no admite empresas de Perú, así que la alternativa habría sido Culqi, Mercado Pago o un *merchant of record* con su comisión. La señal para revisarlo no es una fecha: es cuando registrar pagos a mano deje de caber en una mañana al mes.
 
 ### P-11 · IA: BYOK obligatorio o consumo del plan *(lista de parada, parcialmente)*
 Si es consumo del plan, nosotros pagamos tokens y el techo de gasto deja de ser una baranda para ser una necesidad contable. Y la pregunta que sí es de lista de parada: **¿el contenido de las conversaciones puede salir hacia un proveedor de IA de terceros?** Son datos personales de los clientes de nuestros clientes.
@@ -52,9 +52,9 @@ Hay un MCP de Hostinger conectado en la sesión de trabajo. ¿El destino es un V
 ### P-14 · Presupuesto de infraestructura mensual
 Sin una cifra no puedo decidir entre réplica de lectura sí o no, Redis gestionado, ni evaluar BullMQ Pro — que resolvería de forma nativa el reparto justo entre inquilinos del [[ADR-003-estrategia-colas]], a cambio de licencia de pago.
 
-### P-21 · Qué medimos y cobramos nosotros *(nueva, sustituye a P-02)*
-Con el costo de mensajería fuera, ¿qué es consumo facturable? Referencia de Kommo, documentada en [[whatsapp]]: suscripción **por asiento** y la **IA como único consumo medido**, con packs de recarga; contactos, leads y campos son límites de plan, no consumo facturado. Es coherente — la IA es lo único donde también le pagamos a un proveedor — y simplifica mucho `usage_events`.
-*(Por defecto, si no hay respuesta: copiamos esa estructura.)*
+### ~~P-21 · Qué medimos y cobramos nosotros~~ *(cerrada 2026-09-10 → [[ADR-011-modelo-de-cobro]])*
+**Suscripción por asiento ocupado; la IA será el único consumo medido (fase 5).** El usuario respondió «hazlo como Kommo o Zenvia», y la evidencia del vault desempata: Kommo no factura mensajería —el cliente paga a Meta— y cobra por usuario/mes; Zenvia es BSP y revende, que es justo lo que [[ADR-004-modelo-whatsapp]] descartó.
+**Y qué pasa al pasarse de un límite:** avisa al 80 %, y al 100 % se corta solo lo que consumimos nosotros —bots, y después la IA—. Las conversaciones entrantes no se cortan nunca: dejar a un cliente sin recibir los mensajes de SUS clientes es el peor daño posible y no lo arregla ningún cobro.
 
 > **2026-09-09:** la **medición** ya existe (PR-16, [[uso]]): se registran hechos —mensajes, plantillas, conversaciones abiertas, bytes— sin cobrar ni bloquear. Lo que falta decidir es qué de eso es facturable y qué pasa al superar un límite del plan. Emitir era barato; retroactivar habría sido imposible.
 

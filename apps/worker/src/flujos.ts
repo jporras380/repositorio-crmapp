@@ -25,8 +25,9 @@
  * este job se retira sin hacer nada.
  */
 import type { Pool, PoolClient } from 'pg';
-import { registrarUso, withTenant } from '@crmapp/db';
+import { inicioDePeriodo, registrarUso, withTenant } from '@crmapp/db';
 import {
+  cabeUnoMas,
   contiene,
   decidirPaso,
   ErrorDeNegocio,
@@ -143,10 +144,41 @@ async function alLlegarUnMensaje(
   const disparado = await buscarDisparo(c, conversationId, messageId, texto);
   if (!disparado) return { ...vacio, ignorado: 'sin_disparador' };
 
+  // Tope de bots del plan (ADR-011). Se corta lo que consumimos nosotros, no
+  // lo que le llega al cliente: la conversación entra igual y la atiende una
+  // persona. Cortar entrantes sería el peor daño posible y no lo arregla
+  // ningún cobro.
+  if (!(await quedanBots(c, tenantId, deps.ahora ? deps.ahora() : new Date()))) {
+    return { ...vacio, ignorado: 'limite_de_bots' };
+  }
+
   const ejecucion = await crearEjecucion(c, tenantId, disparado, conversationId, texto);
   if (!ejecucion) return { ...vacio, ignorado: 'carrera_perdida' };
   const r = await avanzar(deps, c, tenantId, ejecucion, { tipo: 'entrar' });
   return { ...vacio, ...r, ejecucionesIniciadas: 1 };
+}
+
+/**
+ * ¿Quedan ejecuciones de bot dentro del plan este mes?
+ *
+ * Se pregunta al ARRANCAR una nueva, nunca al continuar una viva: cortar un
+ * bot a mitad de conversación deja al contacto esperando una respuesta que no
+ * llega, y eso no lo arregla subir de plan.
+ */
+async function quedanBots(c: PoolClient, tenantId: string, ahora: Date): Promise<boolean> {
+  const { rows } = await c.query<{ usado: string | null; tope: number | null }>(
+    `SELECT (SELECT r.quantity FROM usage_rollups r
+              WHERE r.tenant_id = $1 AND r.metric = 'bot.runs' AND r.period = $2) AS usado,
+            (p.limits ->> 'bot_runs_mes')::int AS tope
+       FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+      WHERE s.tenant_id = $1`,
+    [tenantId, inicioDePeriodo(ahora)],
+  );
+  const f = rows[0];
+  // Sin suscripción no hay plan que limitar: lo que decide si puede hablar es
+  // la puerta de envío, que ya falla cerrado.
+  if (!f) return true;
+  return cabeUnoMas(Number(f.usado ?? 0), f.tope);
 }
 
 /** Venció una espera. Si otro ya la movió, este job no tiene nada que hacer. */

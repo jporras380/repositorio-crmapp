@@ -10,7 +10,13 @@ import { randomBytes, createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import jwt from 'jsonwebtoken';
 import { hashearContrasena, verificarContrasena, igualesEnTiempoConstante } from '@crmapp/crypto';
-import { ErrorDeNegocio, finDePrueba, estadoEfectivo, type Suscripcion } from '@crmapp/core';
+import {
+  cabeUnoMas,
+  ErrorDeNegocio,
+  finDePrueba,
+  estadoEfectivo,
+  type Suscripcion,
+} from '@crmapp/core';
 import { escribirEnOutbox } from '@crmapp/queue';
 import { contextoActual as contextoDePeticion, type BaseDeDatos } from '../db.js';
 
@@ -274,6 +280,30 @@ export class AuthService {
       );
       if (existentes.length > 0) {
         throw new ErrorDeNegocio('ya_es_miembro', 'Ese correo ya pertenece a la cuenta.', 409);
+      }
+
+      // Límite de asientos del plan (ADR-011). Se cuentan también las
+      // invitaciones pendientes: tres enviadas a la vez meterían tres
+      // asientos por encima del tope, y el aviso llegaría cuando ya no se
+      // puede deshacer.
+      const { rows: cupo } = await c.query<{ ocupados: string; tope: number | null }>(
+        `SELECT (SELECT count(*) FROM memberships m WHERE m.tenant_id = $1)
+              + (SELECT count(*) FROM invitations i
+                  WHERE i.tenant_id = $1 AND i.accepted_at IS NULL AND i.expires_at > now())
+                AS ocupados,
+               (p.limits ->> 'agentes')::int AS tope
+          FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+         WHERE s.tenant_id = $1`,
+        [ctx.tenantId],
+      );
+      const c0 = cupo[0];
+      if (c0 && !cabeUnoMas(Number(c0.ocupados), c0.tope)) {
+        throw new ErrorDeNegocio(
+          'limite_de_asientos',
+          `Tu plan incluye ${c0.tope} asientos y ya están ocupados. Sube de plan para invitar a alguien más.`,
+          402,
+          { tope: c0.tope, ocupados: Number(c0.ocupados) },
+        );
       }
 
       let id: string;

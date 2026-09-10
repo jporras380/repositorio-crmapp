@@ -7,6 +7,18 @@ tags: [facturacion, suscripciones, prueba, gracia, entitlements]
 
 # Módulo — Facturación y ciclo de vida de la cuenta
 
+## Qué se cobra (PR-29, [[ADR-011-modelo-de-cobro]])
+
+**Suscripción por asiento ocupado.** El importe mensual es el precio del plan por los miembros de la cuenta, y **los asientos se cuentan, no se guardan**: una columna `seats` habría que mantenerla sincronizada con cada alta y baja, y el día que se desincronice le cobra de más a un cliente — que es el error que sí se nota. `plans.limits.agentes` pasa a ser el techo de asientos: invitar por encima devuelve `limite_de_asientos` (402), contando también las invitaciones pendientes, porque tres enviadas a la vez colarían tres asientos.
+
+**La mensajería de Meta no pasa por nosotros.** El cliente conecta su propio WABA con su propio método de pago, como en Kommo. No la absorbemos, no la revendemos, no la conciliamos.
+
+**El cobro es manual y lo registra el operador**, nunca el inquilino: `pnpm suscripcion:pago --cuenta=<slug> --meses=<n>`. Extiende desde lo que ya estaba cubierto —no desde hoy—, así pagar con dos días de adelanto no regala ni quita tiempo. La garantía no es «no hay endpoint», que sería una promesa: `subscription_payments` es de **solo lectura para el rol de la aplicación** (migración 0016) y hay un test que lo comprueba intentando escribir.
+
+**Pasarse de un límite avisa; solo se corta lo nuestro.** Al 80 % aparece el aviso; al 100 % dejan de arrancar bots nuevos —los que ya corren terminan, porque cortar a mitad deja al contacto esperando— y las conversaciones entrantes **no se cortan jamás**.
+
+`GET /v1/cuenta/suscripcion` devuelve plan, asientos, importe, hasta cuándo está cubierta la cuenta, los últimos doce pagos y los avisos.
+
 ## El ciclo, fijado por el usuario el 2026-09-09
 
 ```

@@ -14,6 +14,7 @@
 import {
   bigint,
   boolean,
+  char,
   customType,
   date,
   index,
@@ -583,4 +584,18 @@ export const flowRunSteps = pgTable('flow_run_steps', {
   output: jsonb('output'),
   error: text('error'),
   at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Pagos registrados a mano por el operador (0016, ADR-011). La app solo lee. */
+export const subscriptionPayments = pgTable('subscription_payments', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  currency: char('currency', { length: 3 }).notNull().default('USD'),
+  coversFrom: timestamp('covers_from', { withTimezone: true }).notNull(),
+  coversTo: timestamp('covers_to', { withTimezone: true }).notNull(),
+  method: text('method').notNull().default('transferencia'),
+  reference: text('reference'),
+  note: text('note'),
+  createdAt: creado,
 });

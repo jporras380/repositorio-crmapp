@@ -405,3 +405,46 @@ export function accionesDeTransicion(
 
   return acciones;
 }
+
+// ---------------------------------------------------------------------------
+// Cobro por asiento (ADR-011)
+// ---------------------------------------------------------------------------
+
+/**
+ * Importe mensual: precio del plan POR ASIENTO, por los asientos ocupados.
+ *
+ * Los asientos no se guardan en ninguna columna: se cuentan de `memberships`
+ * al mirar. Una columna `seats` habría que mantenerla sincronizada con las
+ * altas y bajas de usuarios, y el día que se desincronice se le cobran cinco
+ * asientos a una cuenta que tiene dos — un error que el cliente sí nota.
+ */
+export function importeMensualEnCentimos(precioPorAsiento: number, asientos: number): number {
+  return Math.max(0, Math.round(precioPorAsiento)) * Math.max(0, Math.trunc(asientos));
+}
+
+export type MotivoDeTope = 'asientos' | 'bots';
+
+/**
+ * ¿Cabe uno más dentro del límite del plan?
+ *
+ * `limite` viene de `plans.limits`; si el plan no declara ese límite, no hay
+ * tope. Ausencia de límite es «ilimitado» y no «cero»: un plan sin la clave
+ * es un plan que no la restringe, y tratarlo como cero dejaría a una cuenta
+ * sin poder invitar a nadie por un descuido del catálogo.
+ */
+export function cabeUnoMas(usado: number, limite: number | null | undefined): boolean {
+  if (limite === null || limite === undefined) return true;
+  return usado < limite;
+}
+
+/**
+ * Aviso de consumo. Solo tres estados porque solo hay tres reacciones
+ * posibles: seguir, mirar el plan, y llamar al cliente.
+ */
+export type NivelDeConsumo = 'holgado' | 'cerca' | 'pasado';
+
+export function nivelDeConsumo(usado: number, limite: number | null | undefined): NivelDeConsumo {
+  if (limite === null || limite === undefined || limite <= 0) return 'holgado';
+  if (usado >= limite) return 'pasado';
+  return usado / limite >= 0.8 ? 'cerca' : 'holgado';
+}

@@ -13,8 +13,10 @@
     "db:dev-roles": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts dev-roles",
     "db:migrate": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts migrate",
     "db:rollback": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts rollback",
+    "demo:semilla": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env apps/api/scripts/semilla-demo.mts",
     "dev": "turbo run dev",
     "dev:api": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env apps/api/src/main.ts",
+    "dev:web": "pnpm --filter @crmapp/web dev",
     "dev:worker": "tsx --tsconfig apps/worker/tsconfig.json --env-file=.env apps/worker/src/main.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -22,11 +24,10 @@
     "infra:reset": "docker compose -f infra/docker-compose.dev.yml down -v",
     "infra:up": "docker compose -f infra/docker-compose.dev.yml up -d",
     "lint": "turbo run lint",
+    "suscripcion:pago": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env apps/api/scripts/registrar-pago.mts",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "wa:conectar": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env scripts/conectar-whatsapp.mts",
-    "dev:web": "pnpm --filter @crmapp/web dev",
-    "demo:semilla": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env apps/api/scripts/semilla-demo.mts"
+    "wa:conectar": "tsx --tsconfig apps/api/tsconfig.json --env-file=.env scripts/conectar-whatsapp.mts"
   },
   "devDependencies": {
     "prettier": "^3.4.2",

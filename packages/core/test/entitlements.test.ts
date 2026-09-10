@@ -10,6 +10,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  cabeUnoMas,
+  importeMensualEnCentimos,
+  nivelDeConsumo,
   DIAS_DE_GRACIA_POR_DEFECTO,
   accesoHasta,
   accionesDeTransicion,
@@ -377,5 +380,28 @@ describe('finDePrueba: casos de borde de calendario', () => {
     expect(finDePrueba(new Date('2026-12-15T00:00:00.000Z')).toISOString()).toBe(
       '2027-01-15T00:00:00.000Z',
     );
+  });
+});
+
+describe('cobro por asiento (ADR-011)', () => {
+  it('el importe es el precio del plan por los asientos ocupados', () => {
+    expect(importeMensualEnCentimos(2500, 3)).toBe(7500);
+    expect(importeMensualEnCentimos(2500, 0)).toBe(0);
+  });
+
+  it('un plan sin ese límite es ilimitado, no cero', () => {
+    // Tratar la ausencia como cero dejaría a una cuenta sin invitar a nadie
+    // por un descuido del catálogo.
+    expect(cabeUnoMas(99, undefined)).toBe(true);
+    expect(cabeUnoMas(99, null)).toBe(true);
+    expect(cabeUnoMas(2, 3)).toBe(true);
+    expect(cabeUnoMas(3, 3)).toBe(false);
+  });
+
+  it('el aviso salta al 80 % y el corte al 100 %', () => {
+    expect(nivelDeConsumo(79, 100)).toBe('holgado');
+    expect(nivelDeConsumo(80, 100)).toBe('cerca');
+    expect(nivelDeConsumo(100, 100)).toBe('pasado');
+    expect(nivelDeConsumo(5, null)).toBe('holgado');
   });
 });
