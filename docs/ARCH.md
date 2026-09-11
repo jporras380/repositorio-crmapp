@@ -311,3 +311,4 @@ El criterio de salida de fase 2 es el que de verdad valida la arquitectura: si I
 | [ADR-006](vault/decisiones/ADR-006-particionado-idempotencia.md) | Particionado de `messages` e idempotencia |
 | [ADR-007](vault/decisiones/ADR-007-identidad-contactos.md) | Identidad unificada de contactos |
 | [ADR-011](vault/decisiones/ADR-011-modelo-de-cobro.md) | Cobro por asiento, manual, con la mensajería fuera |
+| [ADR-012](vault/decisiones/ADR-012-constructor-de-flujos.md) | Constructor de flujos: mapa calculado, no lienzo |

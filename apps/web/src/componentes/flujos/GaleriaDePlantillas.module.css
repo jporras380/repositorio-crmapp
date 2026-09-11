@@ -1,0 +1,110 @@
+@layer components {
+  .galeria {
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    display: grid;
+    gap: var(--space-5);
+    align-content: start;
+    overflow-y: auto;
+    min-block-size: 0;
+  }
+
+  .cabecera {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+  .titulo {
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .subtitulo {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    max-inline-size: 46rem;
+    line-height: var(--leading);
+  }
+  .cerrar {
+    flex-shrink: 0;
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  .cerrar:hover:not(:disabled) {
+    color: var(--fg);
+    background: var(--surface);
+  }
+
+  .grupo {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .grupoTitulo {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--fg-muted);
+    letter-spacing: 0.04em;
+  }
+
+  .tarjetas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+    gap: var(--space-3);
+  }
+  .tarjeta {
+    inline-size: 100%;
+    block-size: 100%;
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    text-align: start;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--fg);
+    transition:
+      border-color 120ms ease,
+      transform 120ms ease,
+      box-shadow 120ms ease;
+  }
+  .tarjeta:hover:not(:disabled) {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pop);
+  }
+  .tarjeta:disabled {
+    opacity: 0.6;
+  }
+  .tarjetaNombre {
+    font-weight: 600;
+    font-size: var(--text-md);
+  }
+  .tarjetaResumen {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    line-height: var(--leading);
+  }
+  /*
+   * El mapa de la tarjeta es una miniatura, no un editor: se apaga el
+   * desplazamiento para que no capture la rueda del ratón mientras se recorre
+   * la galería, y se recorta.
+   */
+  .tarjetaMapa {
+    display: block;
+    border-radius: var(--radius-sm);
+    pointer-events: none;
+  }
+  .tarjetaDisparador {
+    font-size: var(--text-xs);
+    color: var(--fg-faint);
+  }
+}

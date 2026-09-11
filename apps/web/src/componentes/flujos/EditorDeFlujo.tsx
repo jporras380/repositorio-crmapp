@@ -10,6 +10,7 @@ import type {
   ProblemaDeFlujo,
   SimulacionDeFlujo,
 } from '../../api/tipos.ts';
+import { MapaDelFlujo } from './MapaDelFlujo.tsx';
 import { Simulador } from './Simulador.tsx';
 import estilos from './EditorDeFlujo.module.css';
 
@@ -66,6 +67,8 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [simulacion, setSimulacion] = useState<SimulacionDeFlujo | null>(null);
   const [respuestas, setRespuestas] = useState<string[]>([]);
+  /** Paso elegido en el mapa. El mapa no edita: selecciona, y la tarjeta edita. */
+  const [seleccionado, setSeleccionado] = useState<string | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -221,6 +224,13 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
 
       <div className={estilos.columnas}>
         <section className={`glass ${estilos.lienzo}`} aria-label="Pasos del flujo">
+          {/*
+            El mapa enseña la FORMA del flujo —ramas incluidas— y la tarjeta de
+            abajo lo edita. Es la decisión de ADR-012: ver como en un lienzo,
+            sin pagar el lienzo.
+          */}
+          <MapaDelFlujo grafo={grafo} seleccionado={seleccionado} alSeleccionar={setSeleccionado} />
+
           <Disparadores
             valor={disparadores}
             alCambiar={(d) => {
@@ -246,6 +256,7 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
                 nodo={nodo}
                 indice={i + 1}
                 esInicio={nodo.id === grafo.inicio}
+                seleccionado={nodo.id === seleccionado}
                 destinos={destinos}
                 etiquetas={etiquetas}
                 usuarios={usuarios}
@@ -267,6 +278,7 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
                     nodo={nodo}
                     indice={0}
                     esInicio={false}
+                    seleccionado={nodo.id === seleccionado}
                     destinos={destinos}
                     etiquetas={etiquetas}
                     usuarios={usuarios}
@@ -301,6 +313,7 @@ interface PropsDePaso {
   nodo: NodoDeFlujo;
   indice: number;
   esInicio: boolean;
+  seleccionado: boolean;
   destinos: { id: string; etiqueta: string }[];
   etiquetas: Etiqueta[];
   usuarios: Miembro[];
@@ -314,6 +327,7 @@ function Paso({
   nodo,
   indice,
   esInicio,
+  seleccionado,
   destinos,
   etiquetas,
   usuarios,
@@ -324,9 +338,24 @@ function Paso({
 }: PropsDePaso) {
   const [abriendo, setAbriendo] = useState(false);
   const otros = destinos.filter((d) => d.id !== nodo.id);
+  const tarjeta = useRef<HTMLLIElement>(null);
+
+  // Elegir en el mapa tiene que traer la tarjeta a la vista: si no, pulsar un
+  // nodo lejano parece que no hace nada.
+  useEffect(() => {
+    // `?.` en la función y no solo en el nodo: jsdom no implementa
+    // `scrollIntoView`, y no vale la pena que un test se caiga por algo que en
+    // un navegador siempre existe.
+    if (seleccionado) tarjeta.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [seleccionado]);
 
   return (
-    <li className={`${estilos.paso} ${problemas.length ? estilos.pasoConAviso : ''}`}>
+    <li
+      ref={tarjeta}
+      className={`${estilos.paso} ${problemas.length ? estilos.pasoConAviso : ''} ${
+        seleccionado ? estilos.pasoSeleccionado : ''
+      }`}
+    >
       <div className={estilos.pasoCabecera}>
         <span className={estilos.pasoIndice} aria-hidden="true">
           {esInicio ? '▶' : indice || '·'}

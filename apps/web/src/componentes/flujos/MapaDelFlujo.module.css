@@ -1,0 +1,126 @@
+@layer components {
+  /*
+   * El mapa se desplaza en horizontal dentro de su marco; no hay zoom. Un
+   * flujo que no cabe en dos pantallas de ancho es un flujo que hay que
+   * partir, no un mapa que hay que alejar.
+   */
+  .marco {
+    overflow: auto;
+    /* El sumando es el alto de la barra de desplazamiento horizontal: sin él,
+       la barra roba píxeles al contenido y aparece una vertical que no hace
+       falta. */
+    block-size: min(calc(var(--alto-mapa, 12rem) + 0.9rem), 18rem);
+    max-block-size: 18rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: color-mix(in oklch, var(--surface) 60%, transparent);
+    padding: var(--space-1);
+  }
+  /* Miniatura: entra entero, escalado, sin desplazamiento. */
+  .marcoAjustado {
+    block-size: auto;
+    overflow: hidden;
+  }
+  .marcoAjustado .lienzo {
+    inline-size: 100%;
+    block-size: auto;
+  }
+  .lienzo {
+    display: block;
+  }
+
+  /* --- Aristas --------------------------------------------------------- */
+  .linea {
+    fill: none;
+    stroke: var(--fg-faint);
+    stroke-width: 1.5;
+    opacity: 0.55;
+  }
+  .punta {
+    fill: var(--fg-faint);
+    opacity: 0.75;
+  }
+  /*
+   * La etiqueta va sobre la línea, y el contorno del mismo color del fondo es
+   * lo que la hace legible sin pintar una caja detrás: `paint-order` dibuja
+   * primero el trazo y encima el relleno.
+   */
+  .etiquetaArista {
+    font-size: 10px;
+    fill: var(--fg-muted);
+    stroke: var(--bg-a);
+    stroke-width: 3;
+    paint-order: stroke fill;
+  }
+
+  /* --- Cajas ------------------------------------------------------------ */
+  .caja {
+    cursor: pointer;
+  }
+  .cajaFondo {
+    fill: var(--surface-raised);
+    stroke: var(--hairline);
+    stroke-width: 1;
+    transition:
+      stroke 120ms ease,
+      filter 120ms ease;
+  }
+  .caja:hover .cajaFondo {
+    stroke: var(--accent);
+  }
+  .caja:focus-visible .cajaFondo {
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+  .caja:focus {
+    outline: none;
+  }
+  .cajaActiva .cajaFondo {
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+  .cajaTipo {
+    font-size: 11px;
+    font-weight: 700;
+    fill: var(--fg);
+  }
+  .cajaResumen {
+    font-size: 11px;
+    fill: var(--fg-muted);
+  }
+  /* Lo que no se alcanza desde el inicio: se ve, y se ve que sobra. */
+  .cajaSuelta {
+    opacity: 0.5;
+  }
+  .cajaSuelta .cajaFondo {
+    stroke-dasharray: 4 3;
+  }
+
+  /*
+   * Color por tipo en la franja, no en el fondo: cinco fondos de color
+   * convierten el mapa en un circo y dejan de leerse los textos. La franja
+   * basta para agrupar de un vistazo, y usa los tokens semánticos que ya
+   * significan algo en el resto del producto.
+   */
+  .cajaFranja {
+    fill: var(--fg-faint);
+  }
+  .tipo_mensaje .cajaFranja {
+    fill: var(--accent);
+  }
+  .tipo_esperar_respuesta .cajaFranja {
+    fill: var(--warn);
+  }
+  .tipo_condicion .cajaFranja {
+    fill: var(--accent-strong);
+  }
+  .tipo_etiquetar .cajaFranja {
+    fill: var(--ok);
+  }
+  .tipo_asignar .cajaFranja {
+    fill: var(--channel-whatsapp);
+  }
+  .tipo_fin .cajaFranja {
+    fill: var(--fg-faint);
+  }
+}

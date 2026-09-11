@@ -71,6 +71,24 @@ El barrido necesita mirar por encima de RLS, y se resuelve como en la migración
 
 Se añadió `GET /v1/usuarios` para el paso «asignar»: id, nombre y rol, sin correos — para elegir a quién asignar basta el nombre.
 
+## El mapa y las plantillas (PR-31, [[ADR-012-constructor-de-flujos]])
+
+![[2026-09-11-mapa-del-flujo.png]]
+
+El usuario comparó con el constructor de su Kommo y pidió «algo así o mejor». La evaluación dio **empate técnico** entre dejar la columna y añadir un mapa; lo desempató el criterio que él mismo estaba señalando —ver las ramas— y no el total.
+
+**El mapa se calcula, no se coloca.** Capas por recorrido en anchura desde el inicio: la distancia al inicio es la columna, el orden de aparición es la fila. No hay coordenadas en el grafo, así que el formato no cambia y las ejecuciones en vuelo siguen apuntando a su versión sin enterarse. Un lienzo arrastrable habría metido posiciones dentro de un grafo que ya está en producción.
+
+**El mapa no edita: selecciona.** Pulsar un nodo marca su tarjeta y la trae a la vista. Dos sitios en vez de uno, sí — a cambio de no mantener zoom, colisiones ni enrutado de aristas para siempre.
+
+Detalles con motivo: el color va en la **franja** del nodo y no en el fondo (cinco fondos de color y deja de leerse el texto); lo inalcanzable se dibuja **apagado y punteado**, porque el mapa también tiene que enseñar lo que sobra; y las aristas llevan etiqueta —«responde», «no responde», las palabras de cada caso— que es lo único que convierte un diagrama en una explicación.
+
+**La altura del mapa se pasa como dato.** Una fila `auto` de rejilla con un contenedor que desplaza no toma la altura de su contenido: el mapa salía aplastado a diez píxeles. Se calcula ya la disposición, así que la altura se sabe; va como propiedad personalizada, igual que el ancho de las barras del panel.
+
+![[2026-09-11-galeria-de-plantillas.png]]
+
+**La galería**: cinco plantillas publicables de verdad, agrupadas por para qué sirven. Cada tarjeta enseña **su mapa real**, el mismo componente que se verá al editar — un catálogo con ilustraciones que no coinciden con lo que sale es la forma más rápida de perder la confianza en la primera pantalla. Las plantillas viven en la web porque son contenido de la interfaz: en cuanto se crea el flujo, el grafo es del inquilino y la plantilla deja de existir.
+
 ## Lo que falta
 
 - **Interfaz.** Hoy los flujos se crean por API. El constructor visual es el PR siguiente.

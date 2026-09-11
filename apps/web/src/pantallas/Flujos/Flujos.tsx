@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { crearApi } from '../../api/cliente.ts';
-import type { GrafoDeFlujo, ResumenDeFlujo, Sesion, Yo } from '../../api/tipos.ts';
+import type { ResumenDeFlujo, Sesion, Yo } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
 import { EditorDeFlujo } from '../../componentes/flujos/EditorDeFlujo.tsx';
+import { GaleriaDePlantillas } from '../../componentes/flujos/GaleriaDePlantillas.tsx';
+import type { PlantillaDeFlujo } from '../../componentes/flujos/plantillas.ts';
 import { irA } from '../../estado/ruta.ts';
 import estilos from './Flujos.module.css';
 
@@ -16,21 +18,6 @@ const ESTADOS: Record<string, string> = {
   borrador: 'Borrador',
   activo: 'Activo',
   pausado: 'En pausa',
-};
-
-/** Flujo de partida: saluda, espera y ramifica. Nadie empieza con un lienzo en blanco. */
-const PLANTILLA: GrafoDeFlujo = {
-  inicio: 'saludo',
-  nodos: [
-    {
-      id: 'saludo',
-      tipo: 'mensaje',
-      texto: '¡Hola! Gracias por escribir. ¿En qué te podemos ayudar?',
-      siguiente: 'espera',
-    },
-    { id: 'espera', tipo: 'esperar_respuesta', segundos: 3600, siguiente: 'fin', alExpirar: 'fin' },
-    { id: 'fin', tipo: 'fin' },
-  ],
 };
 
 /**
@@ -48,6 +35,8 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
+  /** La galería tapa el editor mientras se elige: crear un bot es una decisión, no un botón. */
+  const [eligiendo, setEligiendo] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -68,17 +57,22 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
     void cargar();
   }, [api, cargar]);
 
-  async function nuevo() {
+  async function crearDesde(plantilla: PlantillaDeFlujo) {
     setCreando(true);
     setError(null);
     try {
-      const n = flujos.length + 1;
+      // El nombre se numera si ya existe: dos «Bienvenida» chocarían contra el
+      // único del servidor y el error no diría nada útil.
+      const usados = new Set(flujos.map((f) => f.nombre));
+      let nombre = plantilla.nombre;
+      for (let i = 2; usados.has(nombre); i++) nombre = `${plantilla.nombre} ${i}`;
       const { id } = await api.crearFlujo({
-        nombre: `Flujo ${n}`,
-        grafo: PLANTILLA,
-        disparadores: [{ tipo: 'conversacion_abierta' }],
+        nombre,
+        grafo: plantilla.grafo,
+        disparadores: plantilla.disparadores,
       });
       await cargar();
+      setEligiendo(false);
       irA({ pantalla: 'flujos', flujoId: id });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo crear el flujo.');
@@ -94,7 +88,7 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
       <nav className={`glass ${estilos.lista}`} aria-label="Flujos">
         <header className={estilos.cabecera}>
           <h1 className={estilos.titulo}>Bots</h1>
-          <button className={estilos.nuevo} onClick={nuevo} disabled={creando}>
+          <button className={estilos.nuevo} onClick={() => setEligiendo(true)} disabled={creando}>
             Nuevo flujo
           </button>
         </header>
@@ -137,7 +131,13 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
       </nav>
 
       <main className={estilos.contenido}>
-        {flujoId ? (
+        {eligiendo ? (
+          <GaleriaDePlantillas
+            ocupado={creando}
+            alElegir={crearDesde}
+            alCerrar={() => setEligiendo(false)}
+          />
+        ) : flujoId ? (
           <EditorDeFlujo key={flujoId} api={api} flujoId={flujoId} alCambiar={cargar} />
         ) : (
           <div className={`glass ${estilos.sinSeleccion}`}>

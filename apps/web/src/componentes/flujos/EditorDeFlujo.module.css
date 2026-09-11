@@ -180,6 +180,11 @@
     inline-size: 2px;
     background: var(--hairline);
   }
+  /* Elegido en el mapa: el mismo borde que marca el nodo allí. */
+  .pasoSeleccionado {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
   .pasoConAviso {
     border-color: color-mix(in oklch, var(--warn) 45%, var(--hairline));
   }
