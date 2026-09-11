@@ -28,6 +28,12 @@ const NodoSchema = z.discriminatedUnion('tipo', [
   }),
   z.object({
     id: z.string().min(1).max(64),
+    tipo: z.literal('pausa'),
+    segundos: z.number().int().positive(),
+    siguiente: z.string().nullable(),
+  }),
+  z.object({
+    id: z.string().min(1).max(64),
     tipo: z.literal('condicion'),
     casos: z
       .array(

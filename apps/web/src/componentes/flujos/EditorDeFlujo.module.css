@@ -236,6 +236,13 @@
     color: var(--warn);
   }
 
+  /* Una consecuencia que no se ve en el formulario y sorprende si no se dice. */
+  .pista {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    line-height: var(--leading);
+  }
+
   .texto,
   .palabras,
   .numero,

@@ -25,6 +25,7 @@ type Tipo = NodoDeFlujo['tipo'];
 const NOMBRES: Record<Tipo, string> = {
   mensaje: 'Enviar mensaje',
   esperar_respuesta: 'Esperar respuesta',
+  pausa: 'Pausa',
   condicion: 'Según lo que responda',
   etiquetar: 'Poner etiqueta',
   asignar: 'Asignar a alguien',
@@ -36,6 +37,16 @@ const UNIDADES: [string, number][] = [
   ['minutos', 60],
   ['horas', 3600],
   ['días', 86_400],
+];
+
+/**
+ * La pausa se mide en otra escala: sirve para no soltar dos mensajes en el
+ * mismo segundo, así que lo normal son segundos y el tope es un día.
+ */
+const UNIDADES_DE_PAUSA: [string, number][] = [
+  ['segundos', 1],
+  ['minutos', 60],
+  ['horas', 3600],
 ];
 
 /**
@@ -407,6 +418,26 @@ function Paso({
         </>
       )}
 
+      {nodo.tipo === 'pausa' && (
+        <>
+          <Espera
+            etiqueta="Calla durante"
+            unidades={UNIDADES_DE_PAUSA}
+            segundos={nodo.segundos}
+            alCambiar={(segundos) => alCambiar({ ...nodo, segundos })}
+          />
+          <p className={estilos.pista}>
+            Mientras calla no escucha: si el contacto escribe, la pausa sigue su curso.
+          </p>
+          <Enlace
+            etiqueta="Luego"
+            valor={nodo.siguiente}
+            destinos={otros}
+            alCambiar={(v) => alCambiar({ ...nodo, siguiente: v })}
+          />
+        </>
+      )}
+
       {nodo.tipo === 'condicion' && (
         <>
           {nodo.casos.map((caso, i) => (
@@ -595,17 +626,23 @@ function Enlace({
 function Espera({
   segundos,
   alCambiar,
+  etiqueta = 'Espera hasta',
+  unidades = UNIDADES,
 }: {
   segundos: number;
   alCambiar: (segundos: number) => void;
+  etiqueta?: string;
+  unidades?: [string, number][];
 }) {
-  const unidad = UNIDADES.slice()
+  const unidad = unidades
+    .slice()
     .reverse()
-    .find(([, s]) => segundos % s === 0 && segundos >= s) ?? ['minutos', 60];
+    .find(([, s]) => segundos % s === 0 && segundos >= s) ??
+    unidades[0] ?? ['minutos', 60];
   const cantidad = Math.max(1, Math.round(segundos / (unidad[1] as number)));
   return (
     <div className={estilos.espera}>
-      <span className={estilos.enlaceEtiqueta}>Espera hasta</span>
+      <span className={estilos.enlaceEtiqueta}>{etiqueta}</span>
       <input
         className={estilos.numero}
         type="number"
@@ -620,7 +657,7 @@ function Espera({
         aria-label="Unidad de espera"
         onChange={(e) => alCambiar(cantidad * Number(e.target.value))}
       >
-        {UNIDADES.map(([nombre, s]) => (
+        {unidades.map(([nombre, s]) => (
           <option key={s} value={s}>
             {nombre}
           </option>
@@ -763,6 +800,8 @@ function crearNodo(id: string, tipo: Tipo, siguiente: string | null): NodoDeFluj
       return { id, tipo, texto: '', siguiente };
     case 'esperar_respuesta':
       return { id, tipo, segundos: 3600, siguiente, alExpirar: siguiente };
+    case 'pausa':
+      return { id, tipo, segundos: 5, siguiente };
     case 'condicion':
       return { id, tipo, casos: [{ contiene: [], siguiente }], siNo: siguiente };
     case 'etiquetar':

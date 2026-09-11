@@ -1,6 +1,6 @@
 ---
 estado: vivo
-fecha: 2026-09-10
+fecha: 2026-09-11
 modulo: salesbots
 tags: [salesbots, flujos, fase-3, motor, adr-002]
 ---
@@ -15,20 +15,21 @@ Fase 3. El motor está en `apps/worker/src/flujos.ts`, el dominio del grafo en `
 
 Eso no es purismo: es lo que hace que el **modo prueba sin envío real** que pedía el requisito salga gratis y, sobre todo, seguro. Simular es llamar a las mismas funciones y no ejecutar los efectos. La alternativa —una bandera `prueba` repartida por el motor con un `if` en cada envío— es exactamente la clase de bandera que un día se queda a `false` en producción y le manda un mensaje de prueba a un cliente real.
 
-## Los seis nodos, y por qué solo seis
+## Los siete nodos, y por qué solo siete
 
-`mensaje`, `esperar_respuesta`, `condicion`, `etiquetar`, `asignar`, `fin`. Con eso se cumple el criterio de salida de la fase —calificar un lead sin humano— y se amplía cuando un flujo real lo pida. Un constructor visual con cuarenta tipos de nodo es un lenguaje de programación mal hecho, y cada nodo nuevo es superficie que hay que validar, versionar y explicar.
+`mensaje`, `esperar_respuesta`, `pausa`, `condicion`, `etiquetar`, `asignar`, `fin`. Con eso se cumple el criterio de salida de la fase —calificar un lead sin humano— y se amplía cuando un flujo real lo pida. Un constructor visual con cuarenta tipos de nodo es un lenguaje de programación mal hecho, y cada nodo nuevo es superficie que hay que validar, versionar y explicar.
 
 Dos detalles que parecen menores y no lo son:
 
 - **`esperar_respuesta` tiene dos salidas**: contestó y no contestó. Mezclarlas obliga al siguiente paso a adivinar cuál fue, y «no contestó» casi siempre merece otro trato que «contestó».
+- **`pausa` no es una espera corta.** Duerme sin escuchar: un entrante no la adelanta, y mientras dura, esa conversación no puede disparar ningún otro bot. Por eso el tope es **24 horas** y no 30 días como la espera — el costo de una pausa es tiempo sordo, y conviene que sea poco. Sirve para lo que parece una tontería y no lo es: no soltar dos mensajes en el mismo segundo, que es lo que delata a una máquina.
 - **`condicion` lee la respuesta del CONTEXTO, no del suceso.** La condición llega un paso después de la espera, ya con la entrada «entrar». Si solo mirara el suceso, *todas* las condiciones caerían siempre por la rama de escape: un bug silencioso que ningún error revela, solo un bot que nunca acierta. Hay un test que lo fija.
 
 ## Lo que se valida al publicar, y el problema que de verdad importa
 
 Guardar un borrador roto es gratis; publicarlo no, porque publicar es lo que lo pone a hablar con clientes. `validarGrafo` mira destinos inexistentes, pasos inalcanzables, mensajes vacíos y esperas imposibles, pero el hallazgo que justifica la función es **`bucle_sin_espera`**: un ciclo que no pasa por ninguna espera envía mensajes a la velocidad de la red. No es una molestia — es dinero del cliente y su número reportado por spam en minutos.
 
-Se detecta cortando las aristas que salen de las esperas: si en ese grafo recortado sigue habiendo un ciclo, el bucle es infinito. Un ciclo **que espera** es legítimo: es un recordatorio.
+Se detecta cortando las aristas que salen de las esperas: si en ese grafo recortado sigue habiendo un ciclo, el bucle es infinito. Un ciclo **que espera** es legítimo: es un recordatorio. Una **pausa no corta el ciclo**, y es deliberado: un bucle con pausas sigue enviando para siempre, solo que más lento, y «más lento» no es «no».
 
 El motor además corta por número de pasos por vuelta, pero eso es contener el incendio; la validación lo evita.
 
@@ -89,8 +90,22 @@ Detalles con motivo: el color va en la **franja** del nodo y no en el fondo (cin
 
 **La galería**: cinco plantillas publicables de verdad, agrupadas por para qué sirven. Cada tarjeta enseña **su mapa real**, el mismo componente que se verá al editar — un catálogo con ilustraciones que no coinciden con lo que sale es la forma más rápida de perder la confianza en la primera pantalla. Las plantillas viven en la web porque son contenido de la interfaz: en cuanto se crea el flujo, el grafo es del inquilino y la plantilla deja de existir.
 
+## El relevo: cuando habla una persona, el bot se calla (PR-32)
+
+![[2026-09-11-pausa-en-el-bot.png]]
+
+Un agente entra a rescatar una conversación, escribe dos frases, y el bot —que seguía dormido esperando su turno— suelta encima «¿Sigues ahí?». Para el contacto son dos personas que no se hablan entre ellas. Se arregla en dos sitios, y hacen falta los dos:
+
+- **Al responder**, la puerta de envío cancela las ejecuciones vivas de esa conversación (`status='cancelled'`, `error='humano_tomo_el_control'`) y deja una fila `relevo` en `flow_run_steps`, que es lo que después contesta «¿por qué el bot dejó de hablar?». Vive en `packages/envio/src/relevo.ts` y **no** en el motor: la puerta es el único sitio por el que sale un mensaje, así que es el único que ve «ha hablado un humano» sin que nadie tenga que acordarse de avisar. El costo, dicho: `envio` pasa a conocer la tabla `flow_runs`.
+- **Después**, `conversations.human_reply_at` impide que el siguiente mensaje con una palabra clave meta otro bot encima del agente. Se borra al **cerrar** la conversación, y eso devuelve el turno a los bots — sin ningún plazo mágico que afinar. Costo: un bot de palabra clave no volverá a saltar en un hilo abierto que un humano atendió, aunque pasen semanas; se arregla cerrándolo.
+
+Se intentó primero sin columna, deduciendo el estado de `messages` y `closed_at`. No vale: reabrir desde la bandeja pone `closed_at` a NULL y reabrir por un entrante no, así que el mismo hilo daba dos respuestas distintas según por dónde se hubiera reabierto.
+
+El despertador de Redis de una ejecución cancelada seguirá sonando a su hora y no hay que borrarlo: cuando suene, no encontrará la ejecución en `waiting` y se retirará. Hay test.
+
 ## Lo que falta
 
-- **Interfaz.** Hoy los flujos se crean por API. El constructor visual es el PR siguiente.
-- **El humano toma el control.** En Kommo, si un agente responde a mano, el bot se calla. Aquí todavía no: hay que decidir si cancelar la ejecución o solo pausarla.
+- **Horas activas.** El bot de Kommo tiene horario; el nuestro contesta a las 4 de la mañana.
+- **Nodos que Kommo tiene y nosotros no:** nota interna, reacción, lista de WhatsApp, Round Robin, «ir a otro paso».
+- **Disparadores.** Dos frente a los ~10 de Kommo, pero la mitad de los suyos dependen de un **embudo de leads** que aquí no existe.
 - **Enforcement.** El uso de bots ya se mide contra `bot_runs_mes`, pero pasarse no tiene consecuencia: qué ocurre al superar un límite es parte de P-21.

@@ -111,6 +111,14 @@
   .tipo_esperar_respuesta .cajaFranja {
     fill: var(--warn);
   }
+  /*
+   * La pausa es de la misma familia que la espera —las dos son tiempo— pero no
+   * escucha a nadie: mismo tono, apagado.
+   */
+  .tipo_pausa .cajaFranja {
+    fill: var(--warn);
+    fill-opacity: 0.45;
+  }
   .tipo_condicion .cajaFranja {
     fill: var(--accent-strong);
   }

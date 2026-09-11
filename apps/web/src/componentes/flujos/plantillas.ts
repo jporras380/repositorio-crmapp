@@ -51,7 +51,16 @@ export const PLANTILLAS: PlantillaDeFlujo[] = [
         {
           id: 'saludo',
           tipo: 'mensaje',
-          texto: '¡Hola! Gracias por escribirnos. Un asesor te atiende en un momento.',
+          texto: '¡Hola! Gracias por escribirnos.',
+          siguiente: 'respira',
+        },
+        // Dos mensajes seguidos en el mismo segundo se leen como una máquina.
+        // Cuatro segundos entre uno y otro se leen como alguien escribiendo.
+        { id: 'respira', tipo: 'pausa', segundos: 4, siguiente: 'aviso' },
+        {
+          id: 'aviso',
+          tipo: 'mensaje',
+          texto: 'Un asesor te atiende en un momento.',
           siguiente: 'asignar',
         },
         { id: 'asignar', tipo: 'asignar', usuarioId: '', siguiente: 'fin' },

@@ -94,6 +94,24 @@ describe('EditorDeFlujo', () => {
     expect((enlaces[0] as HTMLSelectElement).value).toBe('fin');
   });
 
+  it('una pausa se añade en segundos y avisa de que mientras calla no escucha', async () => {
+    const probar = vi.fn().mockResolvedValue({ pasos: [], final: 'fin', problemas: [] });
+    pintar(detalle(), probar);
+    await screen.findByDisplayValue('Hola');
+    await userEvent.click(screen.getAllByRole('button', { name: '+ Paso aquí debajo' })[0]!);
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Pausa' }));
+
+    const tipos = [...document.querySelectorAll('.pasoTipo')].map((t) => t.textContent);
+    expect(tipos).toEqual(['Enviar mensaje', 'Pausa', 'Esperar respuesta', 'Terminar']);
+    // La consecuencia que no se ve en el formulario, dicha donde se decide.
+    expect(screen.getByText(/mientras calla no escucha/i)).toBeTruthy();
+    // Y en segundos, que es la escala en la que sirve: no en minutos.
+    await waitFor(() => {
+      const ultimo = probar.mock.calls.at(-1);
+      expect(ultimo?.[0].nodos.find((n: { tipo: string }) => n.tipo === 'pausa').segundos).toBe(5);
+    });
+  });
+
   it('no deja activar un flujo con avisos', async () => {
     const probar = vi.fn().mockResolvedValue({
       pasos: [],

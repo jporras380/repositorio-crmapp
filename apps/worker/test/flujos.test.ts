@@ -11,6 +11,7 @@ import { Client, Pool } from 'pg';
 import { inicioDePeriodo, migrar, withTenant } from '@crmapp/db';
 import { AdaptadorSandbox, type ChannelAdapter } from '@crmapp/channels';
 import type { Grafo } from '@crmapp/core';
+import { cargarConversacionParaEnvio, enviarPorConversacion } from '@crmapp/envio';
 import { manejarTrabajoDeFlujo } from '../src/flujos.js';
 import { esperasVencidas } from '../src/mantenimiento.js';
 
@@ -59,6 +60,33 @@ const CALIFICAR = (): Grafo => ({
     { id: 'fin', tipo: 'fin' },
   ],
 });
+
+/** Un bot que saluda, calla cuatro segundos y vuelve a hablar. */
+const CON_PAUSA = (): Grafo => ({
+  inicio: 'saludo',
+  nodos: [
+    { id: 'saludo', tipo: 'mensaje', texto: 'Hola', siguiente: 'respira' },
+    { id: 'respira', tipo: 'pausa', segundos: 4, siguiente: 'segundo' },
+    { id: 'segundo', tipo: 'mensaje', texto: '¿En qué te ayudamos?', siguiente: 'fin' },
+    { id: 'fin', tipo: 'fin' },
+  ],
+});
+
+/** Un agente responde de verdad: por la misma puerta que usa la bandeja. */
+async function respondeUnAgente(texto: string): Promise<void> {
+  await withTenant(app, tenantId, async (c) => {
+    const conversacion = await cargarConversacionParaEnvio(c, conversationId, { bloquear: true });
+    await enviarPorConversacion(
+      c,
+      { canales },
+      {
+        conversacion,
+        peticion: { tipo: 'text', texto },
+        remitente: { tenantId, origen: 'human', userId: usuarioId },
+      },
+    );
+  });
+}
 
 async function crearFlujo(grafo: Grafo, disparador: 'conversacion_abierta' | 'palabra_clave') {
   const flowId = (
@@ -215,7 +243,7 @@ afterEach(async () => {
   await admin.query(`DELETE FROM messages`);
   await admin.query(`DELETE FROM conversation_tags`);
   await admin.query(
-    `UPDATE conversations SET assignee_user_id = NULL, status = 'open',
+    `UPDATE conversations SET assignee_user_id = NULL, status = 'open', human_reply_at = NULL,
             session_expires_at = now() + interval '24 hours' WHERE id = $1`,
     [conversationId],
   );
@@ -349,6 +377,77 @@ describe('criterio de salida de la fase 3', () => {
   });
 });
 
+describe('el bot se aparta cuando entra una persona', () => {
+  it('un agente responde y el bot dormido se apaga, con el motivo escrito', async () => {
+    await crearFlujo(CALIFICAR(), 'conversacion_abierta');
+    const id = await entrante('Hola');
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'h1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+    const dormida = (await ejecucion())[0]!;
+    expect(dormida.status).toBe('waiting');
+
+    await respondeUnAgente('Ya sigo yo, Ana. Soy Marta.');
+
+    const tras = (await ejecucion())[0]!;
+    expect(tras.status).toBe('cancelled');
+    expect(tras.error).toBe('humano_tomo_el_control');
+    // Y queda dicho en la auditoría del flujo, que es donde se mira cuando
+    // alguien pregunta por qué el bot dejó de hablar.
+    const { rows: pasos } = await admin.query<{ kind: string }>(
+      `SELECT kind FROM flow_run_steps WHERE flow_run_id = $1 ORDER BY at`,
+      [dormida.id],
+    );
+    expect(pasos.at(-1)!.kind).toBe('relevo');
+
+    // El despertador de Redis sigue programado y sonará igual: no debe hacer nada.
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'h2',
+      evento: { tipo: 'despertar', flowRunId: dormida.id },
+    });
+    expect(r.ignorado).toBe('ya_no_espera');
+    expect((await salientes()).map((m) => m.sent_by)).toEqual(['bot', 'human']);
+  });
+
+  it('después de que responda un agente, una palabra clave no vuelve a meter un bot', async () => {
+    await crearFlujo(CALIFICAR(), 'palabra_clave');
+    await respondeUnAgente('Hola, soy Marta. ¿Qué necesitas?');
+
+    const id = await entrante('quiero el precio');
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'h3',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+    expect(r.ignorado).toBe('la_lleva_una_persona');
+    expect(await ejecucion()).toHaveLength(0);
+  });
+
+  it('cerrar la conversación devuelve el turno a los bots', async () => {
+    await crearFlujo(CALIFICAR(), 'palabra_clave');
+    await respondeUnAgente('Resuelto, cierro.');
+    // Cerrar es lo que hace la bandeja al terminar: borra la marca.
+    await admin.query(
+      `UPDATE conversations SET status = 'closed', closed_at = now(), human_reply_at = NULL
+        WHERE id = $1`,
+      [conversationId],
+    );
+    // Y el entrante siguiente la reabre, como hace la ingesta.
+    const id = await entrante('precio');
+    await admin.query(`UPDATE conversations SET status = 'open' WHERE id = $1`, [conversationId]);
+
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'h4',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+    expect(r.ejecucionesIniciadas).toBe(1);
+  });
+});
+
 describe('el motor no se deja engañar', () => {
   it('un job duplicado no envía dos veces', async () => {
     await crearFlujo(CALIFICAR(), 'conversacion_abierta');
@@ -474,6 +573,44 @@ describe('el motor no se deja engañar', () => {
       evento: { tipo: 'mensaje_recibido', conversationId, messageId: rows[0]!.id },
     });
     expect(r.ignorado).toBe('no_es_entrante');
+  });
+
+  it('la pausa duerme sin escuchar: un entrante no la adelanta ni mete otro bot', async () => {
+    await crearFlujo(CON_PAUSA(), 'conversacion_abierta');
+    const id = await entrante('Hola');
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'p1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+
+    // Ha saludado y se ha dormido en la pausa, no en una espera de respuesta.
+    expect((await salientes()).map((m) => m.body)).toEqual(['Hola']);
+    const enPausa = (
+      await admin.query<{ wait_for: string; current_node_id: string }>(
+        `SELECT wait_for, current_node_id FROM flow_runs`,
+      )
+    ).rows[0]!;
+    expect(enPausa).toMatchObject({ wait_for: 'pausa', current_node_id: 'respira' });
+
+    // El contacto escribe mientras el bot calla: ni lo despierta ni arranca otro.
+    const otro = await entrante('¿hola?');
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'p2',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: otro },
+    });
+    expect(r.ignorado).toBe('ya_hay_flujo');
+    expect(await salientes()).toHaveLength(1);
+
+    // Suena el despertador: sigue donde estaba.
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'p3',
+      evento: { tipo: 'despertar', flowRunId: (await ejecucion())[0]!.id },
+    });
+    expect((await salientes()).map((m) => m.body)).toEqual(['Hola', '¿En qué te ayudamos?']);
+    expect((await ejecucion())[0]!.status).toBe('done');
   });
 
   it('el aislamiento entre inquilinos vale también para los bots', async () => {

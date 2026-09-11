@@ -57,6 +57,24 @@ describe('MapaDelFlujo', () => {
     expect(seleccionar).toHaveBeenCalledWith('frio');
   });
 
+  it('una pausa se lee en el mapa con lo único que hay que saber: cuánto calla', () => {
+    render(
+      <MapaDelFlujo
+        grafo={{
+          inicio: 'a',
+          nodos: [
+            { id: 'a', tipo: 'mensaje', texto: 'Hola', siguiente: 'p' },
+            { id: 'p', tipo: 'pausa', segundos: 4, siguiente: null },
+          ],
+        }}
+        seleccionado={null}
+        alSeleccionar={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Pausa/ })).toBeTruthy();
+    expect(screen.getByText('4 s')).toBeTruthy();
+  });
+
   it('el nodo elegido queda marcado', () => {
     render(<MapaDelFlujo grafo={GRAFO} seleccionado="espera" alSeleccionar={vi.fn()} />);
     const activo = document.querySelectorAll('.cajaActiva');

@@ -219,6 +219,23 @@ describe('flujos', () => {
     expect(rows).toHaveLength(0);
   });
 
+  it('una pausa se publica; una de más de 24 horas no', async () => {
+    const conPausa = (segundos: number) => ({
+      inicio: 'saludo',
+      nodos: [
+        { id: 'saludo', tipo: 'mensaje', texto: 'Hola', siguiente: 'respira' },
+        { id: 'respira', tipo: 'pausa', segundos, siguiente: 'fin' },
+        { id: 'fin', tipo: 'fin' },
+      ],
+    });
+    const bueno = await crear('Con pausa', conPausa(4));
+    await http.post(`/v1/flujos/${bueno.id}/publicar`).set(auth()).expect(201);
+
+    const largo = await crear('Pausa eterna', conPausa(86_401));
+    const r = await http.post(`/v1/flujos/${largo.id}/publicar`).set(auth()).expect(422);
+    expect(r.body.problemas.map((p: { codigo: string }) => p.codigo)).toContain('pausa_invalida');
+  });
+
   it('un grafo mal formado se rechaza antes de llegar al dominio', async () => {
     const r = await http
       .post('/v1/flujos')

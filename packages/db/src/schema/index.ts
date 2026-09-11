@@ -275,6 +275,7 @@ export const conversations = pgTable(
     sessionExpiresAt: timestamp('session_expires_at', { withTimezone: true }),
     firstResponseAt: timestamp('first_response_at', { withTimezone: true }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    humanReplyAt: timestamp('human_reply_at', { withTimezone: true }),
     unreadCount: integer('unread_count').notNull().default(0),
     createdAt: creado,
     updatedAt: actualizado,

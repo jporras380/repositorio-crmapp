@@ -1,6 +1,6 @@
 ---
 estado: vivo
-fecha: 2026-09-09
+fecha: 2026-09-11
 modulo: meta
 tags: [estado, sesion]
 ---
@@ -11,6 +11,7 @@ Fase actual: **fase 1 DEMOSTRADA CON TRÁFICO REAL** (2026-09-09: mensaje entran
 
 ## Completado
 
+- **PR-32, la pausa y el relevo** ([[salesbots]] §El relevo): nodo **`pausa`** —duerme sin escuchar, tope de 24 h, para no soltar dos mensajes en el mismo segundo— y **el bot se calla cuando responde una persona**: la puerta de envío cancela las ejecuciones vivas con motivo y `conversations.human_reply_at` impide que otra palabra clave meta un bot encima del agente hasta que se cierre la conversación. Migración 0017. 12 tests nuevos (5 core, 4 worker, 1 API, 2 web).
 - **PR-31, mapa del flujo y galería de plantillas** ([[salesbots]] §El mapa, [[ADR-012-constructor-de-flujos]]): el constructor enseña la forma del bot con sus ramas etiquetadas —disposición **calculada**, sin coordenadas en el grafo— y crear un bot empieza por una de cinco plantillas con su mapa real. Evaluado con `decision-eval`: empate técnico con «no hacer nada», desempatado por legibilidad. 8 tests de web.
 - **PR-30, Ajustes → Suscripción** ([[facturacion]], [[web]]): el cliente ve plan, importe por asientos ocupados, hasta cuándo está cubierto, los pagos registrados y los avisos de límite. Sin botón de pagar, porque el cobro es manual. 4 tests de web.
 - **PR-29, se puede cobrar — fase 4 CUMPLIDA** ([[facturacion]], [[ADR-011-modelo-de-cobro]]): suscripción **por asiento ocupado** (se cuentan, no se guardan), cobro **manual** registrado por el operador con `pnpm suscripcion:pago`, `GET /v1/cuenta/suscripcion` con importe, cobertura, pagos y avisos, límite de asientos al invitar y **tope de bots del plan** que corta lo nuestro sin tocar los entrantes. Migración 0016 con `subscription_payments` de **solo lectura para la aplicación**. Cierra P-10 y P-21. 3 tests de core, 7 de API, 1 de worker.

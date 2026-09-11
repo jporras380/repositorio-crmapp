@@ -154,6 +154,7 @@ export type NodoDeFlujo =
       casos: { contiene: string[]; siguiente: string | null }[];
       siNo: string | null;
     }
+  | { id: string; tipo: 'pausa'; segundos: number; siguiente: string | null }
   | { id: string; tipo: 'etiquetar'; etiquetaId: string; siguiente: string | null }
   | { id: string; tipo: 'asignar'; usuarioId: string; siguiente: string | null }
   | { id: string; tipo: 'fin'; cerrarConversacion?: boolean };

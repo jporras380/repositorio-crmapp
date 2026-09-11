@@ -15,12 +15,13 @@
  * ## El grafo
  *
  * Nodos deliberadamente pocos. Un constructor visual con cuarenta tipos de
- * nodo es un lenguaje de programación mal hecho; estos seis cubren el criterio
+ * nodo es un lenguaje de programación mal hecho; estos siete cubren el criterio
  * de salida de la fase 3 —calificar un lead sin humano— y se amplían cuando un
  * flujo real lo pida:
  *
  *   mensaje            envía un texto y sigue
  *   esperar_respuesta  se duerme hasta que el contacto escriba, o hasta el plazo
+ *   pausa              se duerme un rato sin esperar a nadie
  *   condicion          bifurca según lo que dijo el contacto
  *   etiquetar          pone una etiqueta (el filtro de primer nivel de la bandeja)
  *   asignar            pasa la conversación a una persona
@@ -50,6 +51,20 @@ export type Nodo =
       casos: { contiene: string[]; siguiente: string | null }[];
       siNo: string | null;
     }
+  | {
+      id: string;
+      tipo: 'pausa';
+      /**
+       * Cuánto calla antes de seguir. Tope de un día, y no es arbitrario: una
+       * ejecución dormida en una pausa NO se reanuda porque el contacto
+       * escriba —no está esperando respuesta—, así que mientras dura, la
+       * conversación no puede disparar ningún otro bot. Cuanto más larga la
+       * pausa, más tiempo sordo. Para esperar días, lo correcto es
+       * `esperar_respuesta`, que sí escucha.
+       */
+      segundos: number;
+      siguiente: string | null;
+    }
   | { id: string; tipo: 'etiquetar'; etiquetaId: string; siguiente: string | null }
   | { id: string; tipo: 'asignar'; usuarioId: string; siguiente: string | null }
   | { id: string; tipo: 'fin'; cerrarConversacion?: boolean };
@@ -71,6 +86,7 @@ export interface ProblemaDelGrafo {
     | 'destino_desconocido'
     | 'texto_vacio'
     | 'espera_invalida'
+    | 'pausa_invalida'
     | 'condicion_vacia'
     | 'bucle_sin_espera'
     | 'inalcanzable';
@@ -79,6 +95,7 @@ export interface ProblemaDelGrafo {
 }
 
 const MAX_SEGUNDOS_DE_ESPERA = 30 * 24 * 60 * 60; // 30 días
+const MAX_SEGUNDOS_DE_PAUSA = 24 * 60 * 60; // 1 día — ver el comentario del nodo
 
 /**
  * Valida el grafo antes de publicarlo. Publicar es lo que lo pone a hablar con
@@ -151,6 +168,16 @@ export function validarGrafo(g: Grafo): ProblemaDelGrafo[] {
         destino(n.siguiente, n.id);
         destino(n.alExpirar, n.id);
         break;
+      case 'pausa':
+        if (!Number.isFinite(n.segundos) || n.segundos <= 0 || n.segundos > MAX_SEGUNDOS_DE_PAUSA) {
+          problemas.push({
+            codigo: 'pausa_invalida',
+            mensaje: `La pausa de "${n.id}" tiene que estar entre 1 segundo y 24 horas.`,
+            nodoId: n.id,
+          });
+        }
+        destino(n.siguiente, n.id);
+        break;
       case 'condicion':
         if (n.casos.length === 0) {
           problemas.push({
@@ -187,6 +214,7 @@ export function validarGrafo(g: Grafo): ProblemaDelGrafo[] {
 function salidas(n: Nodo): (string | null)[] {
   switch (n.tipo) {
     case 'mensaje':
+    case 'pausa':
     case 'etiquetar':
     case 'asignar':
       return [n.siguiente];
@@ -229,13 +257,18 @@ function buscarBuclesSinEspera(g: Grafo, porId: Map<string, Nodo>): ProblemaDelG
     if (enCamino.has(id)) {
       encontrados.push({
         codigo: 'bucle_sin_espera',
-        mensaje: `El paso "${id}" forma un bucle que no espera nunca: enviaría mensajes sin parar.`,
+        mensaje:
+          `El paso "${id}" forma un bucle que enviaría mensajes sin parar. ` +
+          `Una pausa no lo corta: seguiría enviando, solo que más lento.`,
         nodoId: id,
       });
       return;
     }
     enCamino.add(id);
-    // Una espera corta el camino: lo que sigue ocurre en otra ejecución.
+    // Solo `esperar_respuesta` corta el camino: lo que sigue depende de que
+    // alguien escriba, así que el ciclo no se cierra solo. Una `pausa` NO
+    // corta nada — un bucle con pausas sigue siendo un bucle que manda
+    // mensajes para siempre, y «más lento» no es «no».
     if (n.tipo !== 'esperar_respuesta') {
       for (const s of salidas(n)) if (s) visitar(s);
     }
@@ -280,7 +313,7 @@ export interface Paso {
   /** Nodo siguiente, o `null` si el flujo termina aquí. */
   siguiente: string | null;
   /** Si el flujo queda dormido: qué espera y cuántos segundos. */
-  espera?: { segundos: number; motivo: 'respuesta' };
+  espera?: { segundos: number; motivo: 'respuesta' | 'pausa' };
 }
 
 /**
@@ -315,6 +348,15 @@ export function decidirPaso(
         efectos: nodo.cerrarConversacion ? [{ tipo: 'cerrar_conversacion' }] : [],
         siguiente: null,
       };
+
+    case 'pausa':
+      // Entrar duerme; volver —siempre por el reloj, nunca por un entrante—
+      // sigue. Es la misma mecánica que la espera, con una diferencia que
+      // decide el motor: `motivo: 'pausa'` hace que un mensaje del contacto
+      // NO la reanude.
+      return entrada.tipo === 'entrar'
+        ? { efectos: [], siguiente: nodo.id, espera: { segundos: nodo.segundos, motivo: 'pausa' } }
+        : { efectos: [], siguiente: nodo.siguiente };
 
     case 'esperar_respuesta':
       if (entrada.tipo === 'entrar') {
@@ -395,6 +437,9 @@ export function simular(g: Grafo, respuestas: string[]): Simulacion {
   const contexto: ContextoDelFlujo = {};
   let actual: string | null = g.inicio;
   let entrada: EntradaDelFlujo = { tipo: 'entrar' };
+  // Una pausa pasa dos veces por el mismo nodo —duerme y despierta— y en la
+  // simulación eso se vería como el paso repetido sin nada en medio.
+  let reanudandoPausa = false;
 
   for (let i = 0; i < LIMITE_DE_PASOS; i++) {
     if (actual === null) return { pasos, final: 'fin' };
@@ -402,12 +447,23 @@ export function simular(g: Grafo, respuestas: string[]): Simulacion {
     if (!nodo) return { pasos, final: 'fin' };
 
     const paso = decidirPaso(nodo, entrada, contexto);
-    pasos.push({
-      nodoId: nodo.id,
-      tipo: nodo.tipo,
-      efectos: paso.efectos,
-      ...(entrada.tipo === 'respuesta' ? { entrada: entrada.texto } : {}),
-    });
+    if (!reanudandoPausa) {
+      pasos.push({
+        nodoId: nodo.id,
+        tipo: nodo.tipo,
+        efectos: paso.efectos,
+        ...(entrada.tipo === 'respuesta' ? { entrada: entrada.texto } : {}),
+      });
+    }
+    reanudandoPausa = false;
+
+    if (paso.espera?.motivo === 'pausa') {
+      // En la simulación la pausa no hace perder el tiempo a nadie: se pinta
+      // el paso y se sigue como si el reloj ya hubiera pasado.
+      entrada = { tipo: 'expiro' };
+      reanudandoPausa = true;
+      continue;
+    }
 
     if (paso.espera) {
       const siguiente = cola.shift();

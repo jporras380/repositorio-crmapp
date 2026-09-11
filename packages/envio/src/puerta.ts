@@ -42,6 +42,7 @@ import {
   type PeticionDeEnvio,
   type PeticionEfectiva,
 } from './peticion.js';
+import { cederElTurnoAlHumano } from './relevo.js';
 import {
   exigirPlantillaAprobada,
   plantillasAprobadas,
@@ -322,10 +323,13 @@ export async function enviarPorConversacion(
         SET last_outbound_at = $2,
             first_response_at = COALESCE(first_response_at, $2),
             session_expires_at = $3,
+            -- Ha respondido una persona: el hilo pasa a ser suyo y ningún bot
+            -- arranca aquí hasta que se cierre la conversación (ver relevo.ts).
+            human_reply_at = CASE WHEN $4::boolean THEN $2 ELSE human_reply_at END,
             unread_count = 0,
             updated_at = now()
       WHERE id = $1`,
-    [conv.id, createdAt, nuevaExpiracion],
+    [conv.id, createdAt, nuevaExpiracion, remitente.origen === 'human'],
   );
 
   await escribirEnOutbox(c, {
@@ -346,6 +350,13 @@ export async function enviarPorConversacion(
       ),
     },
   });
+
+  // Ha hablado una persona: los bots que estuvieran vivos en esta conversación
+  // se apagan aquí mismo, en la transacción del mensaje. Ver `relevo.ts` para
+  // por qué esto vive en la puerta y no en el motor de flujos.
+  if (remitente.origen === 'human') {
+    await cederElTurnoAlHumano(c, { tenantId: remitente.tenantId, conversationId: conv.id });
+  }
 
   await c.query(
     `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id)

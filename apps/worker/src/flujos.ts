@@ -38,7 +38,12 @@ import {
   type Nodo,
 } from '@crmapp/core';
 import type { ChannelAdapter } from '@crmapp/channels';
-import { cargarConversacionParaEnvio, enviarPorConversacion, nuevoId } from '@crmapp/envio';
+import {
+  bloqueadaPorHumano,
+  cargarConversacionParaEnvio,
+  enviarPorConversacion,
+  nuevoId,
+} from '@crmapp/envio';
 import type { TrabajoDeFlujo } from '@crmapp/queue';
 
 export interface DependenciasDeFlujos {
@@ -143,6 +148,14 @@ async function alLlegarUnMensaje(
 
   const disparado = await buscarDisparo(c, conversationId, messageId, texto);
   if (!disparado) return { ...vacio, ignorado: 'sin_disparador' };
+
+  // La conversación la lleva una persona. Apagar el bot cuando el agente
+  // escribe (`relevo.ts`) no basta: sin esto, el siguiente mensaje del
+  // contacto con una palabra clave volvería a meter un bot encima del agente,
+  // que es el mismo daño una hora después.
+  if (await bloqueadaPorHumano(c, conversationId)) {
+    return { ...vacio, ignorado: 'la_lleva_una_persona' };
+  }
 
   // Tope de bots del plan (ADR-011). Se corta lo que consumimos nosotros, no
   // lo que le llega al cliente: la conversación entra igual y la atiende una
@@ -276,8 +289,9 @@ async function avanzar(
         [ejecucion.id, nodo.id, hasta, paso.espera.motivo, JSON.stringify(contexto)],
       );
       if (movida.rowCount === 0) return { ejecucionesAvanzadas: 0, ejecucionesTerminadas: 0 };
-      await registrarPaso(c, tenantId, ejecucion.id, nodo.id, 'esperar_respuesta', null, {
+      await registrarPaso(c, tenantId, ejecucion.id, nodo.id, nodo.tipo, null, {
         hasta: hasta.toISOString(),
+        espera: paso.espera.motivo,
       });
       // El despertador es de Redis, pero la verdad es la fila: si este job se
       // pierde, el barrido lo recoge.
@@ -365,7 +379,7 @@ async function ejecutarEfecto(
     case 'cerrar_conversacion':
       await c.query(
         `UPDATE conversations
-            SET status = 'closed', closed_at = now(), updated_at = now()
+            SET status = 'closed', closed_at = now(), human_reply_at = NULL, updated_at = now()
           WHERE id = $1 AND status <> 'closed'`,
         [ejecucion.conversation_id],
       );

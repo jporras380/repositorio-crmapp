@@ -294,7 +294,12 @@ export class BandejaService {
       await this.#exigirConversacion(c, conversationId);
       await c.query(
         `UPDATE conversations
-            SET status = $2, closed_at = CASE WHEN $2 = 'closed' THEN now() ELSE NULL END, updated_at = now()
+            SET status = $2, closed_at = CASE WHEN $2 = 'closed' THEN now() ELSE NULL END,
+                -- Cerrar devuelve el turno a los bots: el hilo ya no lo lleva
+                -- nadie, y el siguiente mensaje del contacto es una consulta
+                -- nueva (ver relevo.ts en packages/envio).
+                human_reply_at = CASE WHEN $2 = 'closed' THEN NULL ELSE human_reply_at END,
+                updated_at = now()
           WHERE id = $1`,
         [conversationId, estado],
       );

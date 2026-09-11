@@ -176,6 +176,55 @@ describe('decidirPaso', () => {
   });
 });
 
+describe('la pausa', () => {
+  const conPausa = (segundos: number): Grafo => ({
+    inicio: 'saludo',
+    nodos: [
+      { id: 'saludo', tipo: 'mensaje', texto: 'Hola', siguiente: 'respira' },
+      { id: 'respira', tipo: 'pausa', segundos, siguiente: 'segundo' },
+      { id: 'segundo', tipo: 'mensaje', texto: '¿En qué te ayudamos?', siguiente: 'fin' },
+      { id: 'fin', tipo: 'fin' },
+    ],
+  });
+
+  it('duerme al entrar y sigue al despertar, sin esperar a nadie', () => {
+    const nodo = conPausa(5).nodos[1]!;
+    const dormir = decidirPaso(nodo, { tipo: 'entrar' });
+    expect(dormir.espera).toEqual({ segundos: 5, motivo: 'pausa' });
+    expect(dormir.siguiente).toBe('respira');
+    expect(decidirPaso(nodo, { tipo: 'expiro' }).siguiente).toBe('segundo');
+  });
+
+  it('una respuesta del contacto NO la adelanta: la pausa la manda el reloj', () => {
+    const nodo = conPausa(5).nodos[1]!;
+    expect(decidirPaso(nodo, { tipo: 'respuesta', texto: 'hola?' }).siguiente).toBe('segundo');
+    expect(decidirPaso(nodo, { tipo: 'respuesta', texto: 'hola?' }).efectos).toEqual([]);
+  });
+
+  it('más de 24 horas no es una pausa: mientras dura, el hilo está sordo', () => {
+    expect(validarGrafo(conPausa(3600)).length).toBe(0);
+    expect(validarGrafo(conPausa(86_401))[0]?.codigo).toBe('pausa_invalida');
+    expect(validarGrafo(conPausa(0))[0]?.codigo).toBe('pausa_invalida');
+  });
+
+  it('un bucle con pausas SIGUE siendo spam: más lento no es no', () => {
+    const g: Grafo = {
+      inicio: 'a',
+      nodos: [
+        { id: 'a', tipo: 'mensaje', texto: '¿Sigues ahí?', siguiente: 'p' },
+        { id: 'p', tipo: 'pausa', segundos: 3600, siguiente: 'a' },
+      ],
+    };
+    expect(validarGrafo(g).some((x) => x.codigo === 'bucle_sin_espera')).toBe(true);
+  });
+
+  it('en la simulación no hace perder el tiempo: se pinta el paso y sigue', () => {
+    const r = simular(conPausa(3600), []);
+    expect(r.pasos.map((p) => p.nodoId)).toEqual(['saludo', 'respira', 'segundo', 'fin']);
+    expect(r.final).toBe('fin');
+  });
+});
+
 describe('contiene', () => {
   it('ignora acentos y mayúsculas: quien escribe desde el móvil pone «si»', () => {
     expect(contiene('SÍ, me interesa', 'si')).toBe(true);

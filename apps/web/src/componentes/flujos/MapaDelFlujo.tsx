@@ -23,6 +23,7 @@ const MARGEN = 16;
 const NOMBRES: Record<NodoDeFlujo['tipo'], string> = {
   mensaje: 'Mensaje',
   esperar_respuesta: 'Espera',
+  pausa: 'Pausa',
   condicion: 'Condición',
   etiquetar: 'Etiqueta',
   asignar: 'Asignar',
@@ -245,6 +246,7 @@ function trazo(a: Caja, b: Caja): { d: string; mx: number; my: number } {
 function salidas(n: NodoDeFlujo): { hasta: string | null; etiqueta: string | null }[] {
   switch (n.tipo) {
     case 'mensaje':
+    case 'pausa':
     case 'etiquetar':
     case 'asignar':
       return [{ hasta: n.siguiente, etiqueta: null }];
@@ -276,6 +278,12 @@ function resumen(n: NodoDeFlujo): string {
         : n.segundos >= 3600
           ? `hasta ${Math.round(n.segundos / 3600)} h`
           : `hasta ${Math.round(n.segundos / 60)} min`;
+    case 'pausa':
+      return n.segundos >= 3600
+        ? `${Math.round(n.segundos / 3600)} h`
+        : n.segundos >= 60
+          ? `${Math.round(n.segundos / 60)} min`
+          : `${n.segundos} s`;
     case 'condicion':
       return `${n.casos.length} caso(s)`;
     case 'etiquetar':
