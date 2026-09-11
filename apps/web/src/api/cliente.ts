@@ -9,6 +9,10 @@
 import type {
   ColumnaDelTablero,
   CuentaDeCanal,
+  DatosDeCliente,
+  FichaDeCliente,
+  ResultadoDeImportacion,
+  ResumenDeCliente,
   DetalleDeLead,
   Embudo,
   EtapaDeEmbudo,
@@ -220,6 +224,42 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { grafo, respuestas },
       }),
+    // --- Clientes ----------------------------------------------------------
+    clientes: (f: { q?: string; origen?: string; etiqueta?: string; cursor?: string } = {}) => {
+      const p = new URLSearchParams();
+      for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
+      const cola = p.toString();
+      return peticion<{ items: ResumenDeCliente[]; siguienteCursor: string | null }>(
+        `/v1/contactos${cola ? `?${cola}` : ''}`,
+        t,
+      );
+    },
+    cliente: (id: string) => peticion<FichaDeCliente>(`/v1/contactos/${id}`, t),
+    crearCliente: (d: DatosDeCliente) =>
+      peticion<{ id: string }>('/v1/contactos', { ...t, metodo: 'POST', cuerpo: d }),
+    editarCliente: (id: string, d: DatosDeCliente) =>
+      peticion<{ editado: true }>(`/v1/contactos/${id}`, { ...t, metodo: 'PATCH', cuerpo: d }),
+    borrarCliente: (id: string) =>
+      peticion<{ accion: 'borrado' | 'anonimizado' }>(`/v1/contactos/${id}`, {
+        ...t,
+        metodo: 'DELETE',
+      }),
+    importarClientes: (csv: string, prefijo?: string) =>
+      peticion<ResultadoDeImportacion>('/v1/contactos/importar', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { csv, ...(prefijo ? { prefijo } : {}) },
+      }),
+    exportarClientes: (f: { q?: string; origen?: string; etiqueta?: string } = {}) => {
+      const p = new URLSearchParams();
+      for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
+      const cola = p.toString();
+      return peticion<{ csv: string; nombreDeArchivo: string }>(
+        `/v1/contactos/exportar${cola ? `?${cola}` : ''}`,
+        t,
+      );
+    },
+
     // --- Embudo ------------------------------------------------------------
     embudos: () => peticion<Embudo[]>('/v1/embudos', t),
     tablero: (f: { embudo?: string; q?: string; responsable?: string; etiqueta?: string } = {}) => {

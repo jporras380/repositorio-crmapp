@@ -33,3 +33,4 @@ export const TOKEN_PANEL = Symbol('PanelService');
 
 export const TOKEN_FLUJOS = Symbol('FlujosService');
 export const TOKEN_EMBUDO = Symbol('EmbudoService');
+export const TOKEN_CONTACTOS = Symbol('ContactosService');

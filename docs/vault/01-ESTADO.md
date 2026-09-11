@@ -90,10 +90,10 @@ Nada.
 
 ## Qué sigue
 
-1. **PR-34 · Clientes**: API de contactos, pantalla con búsqueda, ficha editable, borrar, **importar y exportar CSV** y los campos del huésped como columnas tipadas.
-2. **PR-35 · Bandeja**: búsqueda, panel de filtros compuestos y vistas guardadas (lo que el usuario pidió con la captura del desplegable de Kommo), estados de atención nuevos y las **notas internas**, que tienen tabla desde la fase 0 y no las usa nadie.
-3. **PR-36 · Hotel** y **PR-37 · Reservas**: tipos de habitación, habitaciones y tarifas editables; reserva creada desde la conversación. **Sin motor de disponibilidad** en la primera entrega, por decisión explícita: el sistema no impide la sobreventa.
-4. **PR-38 · Dashboard** con reservas y agentes; **PR-39 · Facebook Messenger** (depende de App Review de Meta); **PR-40 · IA asistida** con clave del cliente.
+1. **PR-35 · Bandeja**: búsqueda, panel de filtros compuestos y vistas guardadas (lo que el usuario pidió con la captura del desplegable de Kommo), estados de atención nuevos y las **notas internas**, que tienen tabla desde la fase 0 y no las usa nadie.
+2. **PR-36 · Hotel** y **PR-37 · Reservas**: tipos de habitación, habitaciones y tarifas editables; reserva creada desde la conversación, **con líneas** (noches × tipo, extras) como enseñó idurar. **Sin motor de disponibilidad** en la primera entrega, por decisión explícita: el sistema no impide la sobreventa.
+3. **PR-38 · Dashboard** con reservas y agentes; **PR-39 · Facebook Messenger** (depende de App Review de Meta); **PR-40 · IA asistida** con clave del cliente.
+4. Del estudio de los repos de referencia ([[2026-09-11-repos-de-referencia]]): `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas) como candidato — la mejora de atención más barata que vi en los tres.
 
 Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, etiquetas editables, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
 

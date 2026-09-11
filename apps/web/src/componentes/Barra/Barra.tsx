@@ -4,7 +4,7 @@ import estilos from './Barra.module.css';
 
 interface Props {
   yo: Yo | null;
-  activa?: 'panel' | 'bandeja' | 'leads' | 'flujos' | 'ajustes';
+  activa?: 'panel' | 'bandeja' | 'clientes' | 'leads' | 'flujos' | 'ajustes';
   alSalir: () => void;
 }
 
@@ -38,6 +38,15 @@ export function Barra({ yo, activa = 'bandeja', alSalir }: Props) {
       >
         <IconoBandeja />
         <span className="visually-hidden">Bandeja</span>
+      </button>
+      <button
+        className={`${estilos.item} ${activa === 'clientes' ? estilos.activo : ''}`}
+        aria-current={activa === 'clientes' ? 'page' : undefined}
+        title="Clientes"
+        onClick={() => irA({ pantalla: 'clientes', clienteId: null })}
+      >
+        <IconoClientes />
+        <span className="visually-hidden">Clientes</span>
       </button>
       <button
         className={`${estilos.item} ${activa === 'leads' ? estilos.activo : ''}`}
@@ -104,6 +113,27 @@ function IconoPanel() {
         d="M4 19V11m5 8V5m5 14v-6m5 6V8"
         stroke="currentColor"
         strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Dos personas. A 22 px, dos círculos y dos hombros. */
+function IconoClientes() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M3.5 19c0-2.8 2.5-4.6 5.5-4.6s5.5 1.8 5.5 4.6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M16 5.6a3.2 3.2 0 0 1 0 4.8M17.5 14.8c2 .6 3.5 2.2 3.5 4.2"
+        stroke="currentColor"
+        strokeWidth="1.8"
         strokeLinecap="round"
       />
     </svg>

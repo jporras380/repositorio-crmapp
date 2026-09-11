@@ -306,3 +306,57 @@ export interface DetalleDeLead extends TarjetaDeLead {
     en: string;
   }[];
 }
+
+// ---------------------------------------------------------------------------
+// Clientes
+// ---------------------------------------------------------------------------
+
+export type OrigenDeCliente = 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'web' | 'otro';
+
+export interface ResumenDeCliente {
+  id: string;
+  nombre: string | null;
+  telefono: string | null;
+  email: string | null;
+  ciudad: string | null;
+  origen: string;
+  tipoDeHuesped: string | null;
+  etiquetas: Etiqueta[];
+  /** Canales por los que ha escrito; sale de sus identidades. */
+  canales: string[];
+  creadoEn: string;
+  ultimaActividad: string | null;
+}
+
+export interface FichaDeCliente extends ResumenDeCliente {
+  notas: string | null;
+  identidades: { canal: string; handle: string | null; telefono: string | null }[];
+  conversaciones: { id: string; canal: string; estado: string; ultimoMensajeEn: string | null }[];
+  reservas: {
+    id: string;
+    titulo: string;
+    etapa: string;
+    estado: string;
+    importe: number;
+    creadoEn: string;
+  }[];
+}
+
+export interface DatosDeCliente {
+  nombre?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  ciudad?: string | null;
+  origen?: OrigenDeCliente;
+  tipoDeHuesped?: string | null;
+  notas?: string | null;
+  etiquetas?: string[];
+}
+
+export interface ResultadoDeImportacion {
+  creados: number;
+  actualizados: number;
+  omitidos: number;
+  errores: { linea: number; motivo: string }[];
+  columnasIgnoradas: string[];
+}

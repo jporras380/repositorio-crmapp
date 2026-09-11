@@ -1,0 +1,137 @@
+@layer components {
+  .panel {
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: grid;
+    gap: var(--space-3);
+    align-content: start;
+  }
+
+  .cabecera {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+  .titulo {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .subtitulo {
+    margin: 0.2rem 0 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    line-height: var(--leading);
+    max-inline-size: 46rem;
+  }
+  .cerrar {
+    flex-shrink: 0;
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  .error {
+    margin: 0;
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+
+  /* Soltar el archivo encima es el gesto natural; el botón es el que funciona
+     con teclado, así que están los dos. */
+  .zona {
+    border: 1px dashed var(--hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
+    display: grid;
+    gap: var(--space-2);
+    justify-items: center;
+    background: var(--surface);
+  }
+  .oculto {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .elegir {
+    padding: 0.45rem 1rem;
+    border-radius: var(--radius-md);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  .pista {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--fg-faint);
+  }
+
+  .campo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .etiquetaCampo {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .select {
+    font-size: var(--text-sm);
+    font-family: inherit;
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--fg);
+  }
+
+  .acciones {
+    display: flex;
+    justify-content: end;
+  }
+  .primario {
+    padding: 0.45rem 1.1rem;
+    border-radius: var(--radius-md);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  .primario:disabled {
+    opacity: 0.45;
+  }
+
+  .resultado {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    padding: var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+    background: var(--surface);
+  }
+  .cuenta {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+  .aviso {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--warn);
+  }
+  .errores {
+    margin: 0;
+    padding-inline-start: var(--space-4);
+    font-size: var(--text-xs);
+    color: var(--danger);
+    display: grid;
+    gap: 0.15rem;
+  }
+}

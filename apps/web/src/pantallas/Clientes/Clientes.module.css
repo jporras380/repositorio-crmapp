@@ -1,0 +1,197 @@
+@layer components {
+  .pantalla {
+    block-size: 100dvb;
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr);
+    /* El riel declara `grid-area: barra` en su propio módulo. */
+    grid-template-areas: 'barra centro';
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .centro {
+    grid-area: centro;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+
+  .barra {
+    border-radius: var(--radius-lg);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .titulo {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-inline-end: auto;
+  }
+  .buscar,
+  .filtro {
+    font-size: var(--text-sm);
+    font-family: inherit;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--fg);
+    min-inline-size: 0;
+  }
+  .buscar {
+    flex: 1 1 18rem;
+    max-inline-size: 28rem;
+  }
+  .accion,
+  .primario {
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .accion {
+    border: 1px solid var(--hairline);
+    color: var(--fg-muted);
+  }
+  .accion:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .primario {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .primario:disabled {
+    opacity: 0.45;
+  }
+
+  .error {
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+
+  .cuerpo {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    min-block-size: 0;
+  }
+  .cuerpo:has(> aside) {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 23rem);
+  }
+
+  .tabla {
+    border-radius: var(--radius-lg);
+    padding: var(--space-2);
+    overflow: auto;
+    min-block-size: 0;
+  }
+  .vacio {
+    margin: 0;
+    padding: var(--space-5);
+    text-align: center;
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+
+  .rejilla {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  .rejilla th {
+    text-align: start;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--fg-muted);
+    padding: var(--space-2);
+    border-block-end: 1px solid var(--hairline);
+    position: sticky;
+    inset-block-start: 0;
+    background: var(--surface);
+    z-index: 1;
+  }
+  .rejilla td {
+    padding: var(--space-2);
+    border-block-end: 1px solid var(--hairline);
+    vertical-align: middle;
+  }
+  .rejilla tbody tr {
+    cursor: pointer;
+  }
+  .rejilla tbody tr:hover {
+    background: var(--surface);
+  }
+  .elegida {
+    background: var(--accent-soft);
+  }
+  .abrir {
+    font-weight: 600;
+    color: var(--fg);
+    text-align: start;
+  }
+  .numero {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .origen {
+    text-transform: capitalize;
+    color: var(--fg-muted);
+  }
+  .fecha {
+    color: var(--fg-faint);
+    white-space: nowrap;
+  }
+
+  .etiquetas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .etiqueta {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--radius-pill);
+    color: var(--color-etiqueta);
+    background: color-mix(in oklch, var(--color-etiqueta) 16%, transparent);
+  }
+
+  .mas {
+    display: block;
+    margin: var(--space-3) auto;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--accent);
+    padding: 0.35rem 1rem;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+  }
+
+  @media (max-width: 900px) {
+    .pantalla {
+      grid-template-columns: 3.2rem minmax(0, 1fr);
+    }
+    .cuerpo:has(> aside) {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+    /* En pantalla estrecha sobran columnas: se quedan las que identifican. */
+    .rejilla th:nth-child(3),
+    .rejilla td:nth-child(3),
+    .rejilla th:nth-child(5),
+    .rejilla td:nth-child(5) {
+      display: none;
+    }
+  }
+}

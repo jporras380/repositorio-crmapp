@@ -182,6 +182,15 @@ export const contacts = pgTable('contacts', {
   displayName: text('display_name'),
   locale: text('locale'),
   attributes: jsonb('attributes').notNull().default({}),
+  // Lo que sabe el NEGOCIO (0019). Lo que dice el canal vive en la identidad.
+  phone: text('phone'),
+  email: citext('email'),
+  city: text('city'),
+  photoUrl: text('photo_url'),
+  source: text('source').notNull().default('otro'),
+  guestType: text('guest_type'),
+  notes: text('notes'),
+  anonymizedAt: timestamp('anonymized_at', { withTimezone: true }),
   createdAt: creado,
   updatedAt: actualizado,
 });
