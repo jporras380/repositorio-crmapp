@@ -22,7 +22,13 @@ El usuario vio en Kommo el boton «Conectar nuevo numero» que lleva a Facebook 
 ### P-04 · Región de datos y marco legal
 UE, EEUU o LatAm. GDPR, LFPDPPP, u otro. Decide dónde vive PostgreSQL y si hacen falta DPA con subencargados. Cambiarlo después es una migración de datos personales, no un cambio de configuración.
 
-### P-05 · ¿Hay cliente concreto esperando el MVP, o es producto especulativo?
+### ~~P-05 · ¿Hay cliente concreto esperando el MVP?~~ *(cerrada 2026-09-11)*
+**Sí: Apart Hotel El Paraíso de Barranca.** El usuario es el cliente, y el dominio pasa a mandar sobre el orden de fases: bandeja única primero, después clientes, hotel y reservas. Cae el supuesto S-2 del ARCH. De paso apunta a **P-04 = Perú** y confirma la moneda PEN del embudo.
+
+### ~~P-11 · IA: BYOK o consumo del plan~~ *(cerrada 2026-09-11)*
+**BYOK y solo asistida.** El contenido de las conversaciones puede salir hacia un proveedor de IA de terceros **con la clave del propio cliente**, nunca con la nuestra: no pagamos tokens, no hace falta techo de gasto y el dato sale bajo el contrato del hotel. La IA **no responde sola** por defecto: genera un borrador que un agente revisa, y el mensaje queda marcado como generado por IA. Sale de la lista de parada.
+
+### P-05 (histórico) · ¿Hay cliente concreto esperando el MVP, o es producto especulativo?
 Si hay cliente, sus canales y su volumen mandan sobre el orden de fases. **Subió de importancia con [[ADR-004-modelo-whatsapp]]:** BYO-credentials filtra clientes, porque exige que sepan montar su propio Meta Business Portfolio. Si el mercado objetivo son micro-pymes, Embedded Signup deja de ser destino y pasa a requisito de venta.
 
 ### P-06 · Volumen esperado en el año 1

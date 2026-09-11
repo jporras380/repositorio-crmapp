@@ -600,3 +600,73 @@ export const subscriptionPayments = pgTable('subscription_payments', {
   note: text('note'),
   createdAt: creado,
 });
+
+// ---------------------------------------------------------------------------
+// Embudo de ventas (0018)
+// ---------------------------------------------------------------------------
+
+/** El tablero. Uno por defecto, al que van los leads que abre la ingesta. */
+export const pipelines = pgTable('pipelines', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  name: text('name').notNull(),
+  currency: char('currency', { length: 3 }).notNull().default('PEN'),
+  isDefault: boolean('is_default').notNull().default(false),
+  position: integer('position').notNull().default(0),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+/** Las columnas. `kind` decide el pronóstico; el nombre lo pone el cliente. */
+export const pipelineStages = pgTable('pipeline_stages', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  pipelineId: uuid('pipeline_id').notNull(),
+  name: text('name').notNull(),
+  color: text('color'),
+  kind: text('kind').notNull().default('abierta'),
+  position: integer('position').notNull().default(0),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+/** La oportunidad de venta. Cuelga del contacto, no de la conversación. */
+export const leads = pgTable('leads', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  pipelineId: uuid('pipeline_id').notNull(),
+  stageId: uuid('stage_id').notNull(),
+  contactId: uuid('contact_id').notNull(),
+  conversationId: uuid('conversation_id'),
+  title: text('title').notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull().default(0),
+  status: text('status').notNull().default('abierto'),
+  assigneeUserId: uuid('assignee_user_id'),
+  createdBy: uuid('created_by'),
+  createdAt: creado,
+  updatedAt: actualizado,
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+});
+
+export const leadTags = pgTable(
+  'lead_tags',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    leadId: uuid('lead_id').notNull(),
+    tagId: uuid('tag_id').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.leadId, t.tagId] })],
+);
+
+/** El historial: quién lo movió, de dónde a dónde y cuándo. */
+export const leadEvents = pgTable('lead_events', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  leadId: uuid('lead_id').notNull(),
+  type: text('type').notNull(),
+  fromStageId: uuid('from_stage_id'),
+  toStageId: uuid('to_stage_id'),
+  actorUserId: uuid('actor_user_id'),
+  meta: jsonb('meta'),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+});

@@ -26,6 +26,7 @@ import {
   TOKEN_USO,
   TOKEN_PANEL,
   TOKEN_FLUJOS,
+  TOKEN_EMBUDO,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -55,6 +56,8 @@ import { PanelService } from './panel/panel.service.js';
 import { PanelController } from './panel/panel.controller.js';
 import { FlujosService } from './flujos/flujos.service.js';
 import { FlujosController } from './flujos/flujos.controller.js';
+import { EmbudoService } from './embudo/embudo.service.js';
+import { EmbudoController } from './embudo/embudo.controller.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -115,6 +118,7 @@ export class AppModule {
         UsoController,
         PanelController,
         FlujosController,
+        EmbudoController,
       ],
       providers: [
         {
@@ -252,6 +256,11 @@ export class AppModule {
           useFactory: (db: BaseDeDatos) => new FlujosService({ db }),
         },
         {
+          provide: TOKEN_EMBUDO,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) => new EmbudoService({ db }),
+        },
+        {
           provide: TOKEN_USO,
           inject: [TOKEN_DB],
           useFactory: (db: BaseDeDatos) =>
@@ -271,6 +280,7 @@ export class AppModule {
         TOKEN_USO,
         TOKEN_PANEL,
         TOKEN_FLUJOS,
+        TOKEN_EMBUDO,
       ],
     };
   }

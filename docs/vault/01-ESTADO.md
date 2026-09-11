@@ -5,12 +5,19 @@ modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 9 de septiembre de 2026
+# Estado — 11 de septiembre de 2026
 
-Fase actual: **fase 1 DEMOSTRADA CON TRÁFICO REAL** (2026-09-09: mensaje entrante verificado y saliente `delivered` con el número de prueba de Meta) y **fase 2 empezada** (Instagram DM y comentarios, PR-19) sobre una fase 1 completa con web (PR-17/18). `packages/core` no se tocó para meter el segundo canal: el criterio de salida de fase 2 se cumple en el núcleo; falta la web de comentarios y la prueba real. Falta la prueba con el número de prueba de Meta —la hará el usuario cuando tenga la app creada—; el recorrido entero está cubierto por tests sin red. Fase 0 **completada**, con su criterio de salida cumplido y con evidencia ejecutable: `apps/api/test/fase0.e2e.test.ts`. Repositorio en `github.com/jporras380/repositorio-crmapp`.
+**El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
+
+Fases 0 a 4 del ARCH **cumplidas y demostradas**: multi-inquilino con RLS, WhatsApp Cloud API con tráfico real (entrante firmado y saliente `delivered`), Instagram (DM y comentarios), bandeja, multimedia, plantillas, medición de uso, Salesbots con constructor visual, panel y cobro por asiento. 541 tests.
+
+El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y añade tres módulos que no existían: clientes con importar/exportar, hotel (habitaciones, tipos y tarifas) y reservas. Plan completo en `~/.claude/plans/prompt-maestro-crispy-ripple.md`.
+
+**Decisión que manda sobre el resto:** la atención vive en la conversación y la venta en el embudo ([[ADR-013-lead-no-es-conversacion]]).
 
 ## Completado
 
+- **PR-33, el embudo de reservas** ([[embudo]], [[ADR-013-lead-no-es-conversacion]]): tablero kanban con etapas editables (crear, renombrar, recolorear, reordenar y borrar **diciendo a dónde van sus leads**), tarjetas que se mueven arrastrando o con desplegable, ficha lateral con importe, responsable, etiquetas e historial, y **leads que se abren solos** con cada conversación nueva, titulados con lo que pidió el cliente. Migración 0018 y `app.sembrar_embudo()`, que llaman la migración y el alta de cuenta para que no se separen. 24 tests nuevos.
 - **PR-32, la pausa y el relevo** ([[salesbots]] §El relevo): nodo **`pausa`** —duerme sin escuchar, tope de 24 h, para no soltar dos mensajes en el mismo segundo— y **el bot se calla cuando responde una persona**: la puerta de envío cancela las ejecuciones vivas con motivo y `conversations.human_reply_at` impide que otra palabra clave meta un bot encima del agente hasta que se cierre la conversación. Migración 0017. 12 tests nuevos (5 core, 4 worker, 1 API, 2 web).
 - **PR-31, mapa del flujo y galería de plantillas** ([[salesbots]] §El mapa, [[ADR-012-constructor-de-flujos]]): el constructor enseña la forma del bot con sus ramas etiquetadas —disposición **calculada**, sin coordenadas en el grafo— y crear un bot empieza por una de cinco plantillas con su mapa real. Evaluado con `decision-eval`: empate técnico con «no hacer nada», desempatado por legibilidad. 8 tests de web.
 - **PR-30, Ajustes → Suscripción** ([[facturacion]], [[web]]): el cliente ve plan, importe por asientos ocupados, hasta cuándo está cubierto, los pagos registrados y los avisos de límite. Sin botón de pagar, porque el cobro es manual. 4 tests de web.
@@ -83,16 +90,12 @@ Nada.
 
 ## Qué sigue
 
-**Fase 1**: adaptador de WhatsApp, webhooks, bandeja, multimedia y los dos tipos de plantilla. Criterio de salida: un agente atiende WhatsApp de punta a punta.
+1. **PR-34 · Clientes**: API de contactos, pantalla con búsqueda, ficha editable, borrar, **importar y exportar CSV** y los campos del huésped como columnas tipadas.
+2. **PR-35 · Bandeja**: búsqueda, panel de filtros compuestos y vistas guardadas (lo que el usuario pidió con la captura del desplegable de Kommo), estados de atención nuevos y las **notas internas**, que tienen tabla desde la fase 0 y no las usa nadie.
+3. **PR-36 · Hotel** y **PR-37 · Reservas**: tipos de habitación, habitaciones y tarifas editables; reserva creada desde la conversación. **Sin motor de disponibilidad** en la primera entrega, por decisión explícita: el sistema no impide la sobreventa.
+4. **PR-38 · Dashboard** con reservas y agentes; **PR-39 · Facebook Messenger** (depende de App Review de Meta); **PR-40 · IA asistida** con clave del cliente.
 
-1. **Prueba con número real** (la hace el usuario): ya tiene app y número de prueba; `DEV_WA_*` y `META_WEBHOOK_VERIFY_TOKEN` están en su `.env`. Le falta `META_APP_SECRET`, el túnel, dar de alta el webhook y `pnpm wa:conectar` (orden completo en el README). Es el criterio de salida de fase 1 demostrado de verdad.
-2. **Editor de HSM** (crear y enviar a revisión desde el CRM) y paginación de `syncTemplates`; ver pendientes en [[plantillas]].
-3. Miniaturas/transcodificación en la cola `media` y CORS del bucket cuando llegue `apps/web`.
-4. Smoke test de arranque en CI (lección del 2026-09-09).
-5. ~~Web de comentarios~~ (hecho, PR-22). Siguiente: distinguir hilos de comentarios en la lista y ofrecer «responder en público / en privado» en el compositor.
-6. WebSocket para no sondear; editor de HSM.
-6. **Decidir P-21** (qué se cobra: asientos + IA por defecto según Kommo) y qué pasa al superar `conversaciones_mes`: hoy solo se muestra.
-5. Pendiente de responder: P-04, P-05, P-06 y P-22 — con la señal de Kommo, P-04 y P-05 casi se responden solas.
+Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, etiquetas editables, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
 
 ## Cambio propuesto al plan de fases
 

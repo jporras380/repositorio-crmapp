@@ -13,6 +13,7 @@
  */
 import type { Pool, PoolClient } from 'pg';
 import { registrarUso, withTenant } from '@crmapp/db';
+import { asegurarLead } from './leads.js';
 import {
   capacidades,
   expiracionTrasMensaje,
@@ -287,6 +288,20 @@ async function procesarMensaje(
       dedupKey: `conversation:${conversacion.id}:opened:${messageId}`,
       occurredAt: createdAt,
       meta: { channel: fila.channel, reabierta: conversacion.status === 'closed' },
+    });
+    // Y con ella, el lead: la columna «Leads entrantes» del tablero se llena
+    // con lo que entra por los canales, no a mano. La regla de cuándo se abre
+    // uno nuevo vive en `leads.ts`, en esta misma transacción.
+    const { rows: quien } = await c.query<{ display_name: string | null }>(
+      `SELECT display_name FROM contacts WHERE id = $1`,
+      [contacto.contactId],
+    );
+    await asegurarLead(c, {
+      tenantId: fila.tenant_id,
+      contactId: contacto.contactId,
+      conversationId: conversacion.id,
+      texto: evento.texto ?? null,
+      nombreDelContacto: quien[0]?.display_name ?? null,
     });
   }
 

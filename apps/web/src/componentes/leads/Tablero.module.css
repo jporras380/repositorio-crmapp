@@ -1,0 +1,185 @@
+@layer components {
+  /*
+   * Columnas de ancho fijo y desplazamiento horizontal: es la única forma de
+   * que seis etapas quepan sin que ninguna se estreche hasta dejar de leerse.
+   * El alto lo manda el contenedor; cada columna desplaza lo suyo.
+   */
+  .tablero {
+    display: flex;
+    gap: var(--space-3);
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-block-size: 0;
+    padding-block-end: var(--space-2);
+    scroll-snap-type: x proximity;
+  }
+
+  .columna {
+    flex: 0 0 17.5rem;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-block-size: 0;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    scroll-snap-align: start;
+    transition: border-color 120ms ease;
+  }
+  /* Mientras se arrastra encima: el destino se declara, no se adivina. */
+  .columnaSobre {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .cabecera {
+    padding: var(--space-3);
+    display: grid;
+    gap: 0.15rem;
+    border-block-end: 1px solid var(--hairline);
+  }
+  /* El color de la etapa va en una franja, no en el fondo de la columna. */
+  .franja {
+    display: block;
+    block-size: 3px;
+    inline-size: 2.2rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-etapa, var(--fg-faint));
+    margin-block-end: 0.3rem;
+  }
+  .nombre {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .cuenta {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+  .suma {
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .pila {
+    overflow-y: auto;
+    min-block-size: 0;
+    padding: var(--space-2);
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+  }
+  .vacia,
+  .resto {
+    margin: 0;
+    padding: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--fg-faint);
+    text-align: center;
+  }
+
+  .tarjeta {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-2);
+    cursor: grab;
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      transform 120ms ease;
+  }
+  .tarjeta:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-pop);
+  }
+  .tarjeta:active {
+    cursor: grabbing;
+  }
+  .tarjetaElegida {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .abrir {
+    display: grid;
+    gap: 0.2rem;
+    text-align: start;
+    inline-size: 100%;
+    color: var(--fg);
+  }
+  .contacto {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+  .canal {
+    inline-size: 0.5rem;
+    block-size: 0.5rem;
+    border-radius: 50%;
+    background: var(--color-canal, var(--fg-faint));
+    flex-shrink: 0;
+  }
+  .titulo {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: var(--leading-tight);
+    /* Dos líneas y elipsis: el título viene del primer mensaje del cliente y
+       puede ser tan largo como quiera. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .importe {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ok);
+  }
+  .etiquetas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .etiqueta {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--radius-pill);
+    color: var(--color-etiqueta);
+    background: color-mix(in oklch, var(--color-etiqueta) 16%, transparent);
+  }
+  .fecha {
+    font-size: var(--text-xs);
+    color: var(--fg-faint);
+  }
+
+  .mover {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: 0.15rem 0.2rem;
+    inline-size: 100%;
+  }
+  .mover:hover,
+  .mover:focus {
+    border-color: var(--hairline);
+    background: var(--surface);
+    color: var(--fg);
+  }
+
+  @media (max-width: 760px) {
+    .columna {
+      flex-basis: 80vw;
+    }
+  }
+}

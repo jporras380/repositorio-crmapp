@@ -4,7 +4,7 @@ import estilos from './Barra.module.css';
 
 interface Props {
   yo: Yo | null;
-  activa?: 'panel' | 'bandeja' | 'flujos' | 'ajustes';
+  activa?: 'panel' | 'bandeja' | 'leads' | 'flujos' | 'ajustes';
   alSalir: () => void;
 }
 
@@ -38,6 +38,15 @@ export function Barra({ yo, activa = 'bandeja', alSalir }: Props) {
       >
         <IconoBandeja />
         <span className="visually-hidden">Bandeja</span>
+      </button>
+      <button
+        className={`${estilos.item} ${activa === 'leads' ? estilos.activo : ''}`}
+        aria-current={activa === 'leads' ? 'page' : undefined}
+        title="Leads"
+        onClick={() => irA({ pantalla: 'leads', leadId: null })}
+      >
+        <IconoEmbudo />
+        <span className="visually-hidden">Leads</span>
       </button>
       <button
         className={`${estilos.item} ${activa === 'flujos' ? estilos.activo : ''}`}
@@ -96,6 +105,20 @@ function IconoPanel() {
         stroke="currentColor"
         strokeWidth="1.9"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Un embudo: tres trazos que se estrechan. Se lee a 22 px, que es el punto. */
+function IconoEmbudo() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 5h16l-6 7v6l-4 2v-8L4 5z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
       />
     </svg>
   );

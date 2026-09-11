@@ -7,7 +7,13 @@
  * pintar; el mensaje se muestra tal cual, viene ya redactado para personas.
  */
 import type {
+  ColumnaDelTablero,
   CuentaDeCanal,
+  DetalleDeLead,
+  Embudo,
+  EtapaDeEmbudo,
+  Tablero,
+  TipoDeEtapa,
   DetalleDeFlujo,
   DisparadorDeFlujo,
   EjecucionDeFlujo,
@@ -214,6 +220,54 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { grafo, respuestas },
       }),
+    // --- Embudo ------------------------------------------------------------
+    embudos: () => peticion<Embudo[]>('/v1/embudos', t),
+    tablero: (f: { embudo?: string; q?: string; responsable?: string; etiqueta?: string } = {}) => {
+      const p = new URLSearchParams();
+      for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
+      const cola = p.toString();
+      return peticion<Tablero>(`/v1/leads/tablero${cola ? `?${cola}` : ''}`, t);
+    },
+    lead: (id: string) => peticion<DetalleDeLead>(`/v1/leads/${id}`, t),
+    crearLead: (d: {
+      contactoId: string;
+      titulo: string;
+      importe?: number;
+      etapaId?: string;
+      responsableId?: string | null;
+    }) => peticion<{ id: string }>('/v1/leads', { ...t, metodo: 'POST', cuerpo: d }),
+    editarLead: (
+      id: string,
+      d: {
+        etapaId?: string;
+        titulo?: string;
+        importe?: number;
+        responsableId?: string | null;
+        etiquetas?: string[];
+      },
+    ) => peticion<{ editado: true }>(`/v1/leads/${id}`, { ...t, metodo: 'PATCH', cuerpo: d }),
+    borrarLead: (id: string) =>
+      peticion<{ borrado: true }>(`/v1/leads/${id}`, { ...t, metodo: 'DELETE' }),
+    crearEtapa: (embudoId: string, d: { nombre: string; color?: string; tipo?: TipoDeEtapa }) =>
+      peticion<EtapaDeEmbudo>(`/v1/embudos/${embudoId}/etapas`, {
+        ...t,
+        metodo: 'POST',
+        cuerpo: d,
+      }),
+    editarEtapa: (id: string, d: { nombre?: string; color?: string; tipo?: TipoDeEtapa }) =>
+      peticion<{ editada: true }>(`/v1/etapas/${id}`, { ...t, metodo: 'PATCH', cuerpo: d }),
+    borrarEtapa: (id: string, destinoId?: string) =>
+      peticion<{ borrada: true }>(`/v1/etapas/${id}${destinoId ? `?destino=${destinoId}` : ''}`, {
+        ...t,
+        metodo: 'DELETE',
+      }),
+    ordenarEtapas: (embudoId: string, ids: string[]) =>
+      peticion<{ ordenadas: number }>(`/v1/embudos/${embudoId}/etapas/orden`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { ids },
+      }),
+
     confirmarSubida: (mediaAssetId: string) =>
       peticion<{ mediaAssetId: string }>(`/v1/medios/subidas/${mediaAssetId}/confirmar`, {
         ...t,

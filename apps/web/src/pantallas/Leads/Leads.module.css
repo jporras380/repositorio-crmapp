@@ -1,0 +1,121 @@
+@layer components {
+  .pantalla {
+    block-size: 100dvb;
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr);
+    /* El riel declara `grid-area: barra` en su propio módulo: sin estas áreas
+       nombradas se coloca en una pista implícita y acaba al otro lado. */
+    grid-template-areas: 'barra centro';
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  /*
+   * Columna flexible y NO una rejilla de filas fijas: el aviso de error y el
+   * panel de etapas aparecen y desaparecen, así que una fila por posición
+   * dejaba el tablero en una pista `auto` —sin alto— justo cuando no había
+   * error que mostrar.
+   */
+  .centro {
+    grid-area: centro;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+
+  .barra {
+    border-radius: var(--radius-lg);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .identidad {
+    margin-inline-end: auto;
+  }
+  .titulo {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .resumen {
+    margin: 0.1rem 0 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  /* Lo que está en juego es el número que se busca al entrar. */
+  .pronostico {
+    color: var(--ok);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .buscar,
+  .filtro {
+    font-size: var(--text-sm);
+    font-family: inherit;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--fg);
+    min-inline-size: 0;
+  }
+  .buscar {
+    flex: 1 1 16rem;
+    max-inline-size: 26rem;
+  }
+  .accion {
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+  .accion[aria-pressed='true'],
+  .accion:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .error {
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+  .cargando {
+    margin: 0;
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+
+  .cuerpo {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    min-block-size: 0;
+  }
+  /* Con ficha abierta, el tablero cede sitio en vez de quedar debajo: mover
+     una tarjeta y leerla a la vez es el gesto normal aquí. */
+  .cuerpo:has(> aside) {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  }
+
+  @media (max-width: 900px) {
+    .pantalla {
+      grid-template-columns: 3.2rem minmax(0, 1fr);
+    }
+
+    .cuerpo:has(> aside) {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+  }
+}

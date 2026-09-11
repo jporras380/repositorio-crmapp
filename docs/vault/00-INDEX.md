@@ -32,6 +32,9 @@ Si algo se averigua leyendo el código en menos de un minuto, no va aquí. No ha
 | [[ADR-008-visibilidad-entre-agentes]] | Visibilidad entre agentes, configurable por cuenta | aceptado |
 | [[ADR-009-medios]] | Medios: nada público, URL firmadas, subida directa | aceptado |
 | [[ADR-010-css-en-web]] | CSS Modules por componente sobre tokens globales | aceptado |
+| [[ADR-011-modelo-de-cobro]] | Cobro por asiento, manual, con la mensajería fuera | aceptado |
+| [[ADR-012-constructor-de-flujos]] | Constructor de bots: mapa calculado, no lienzo | aceptado |
+| [[ADR-013-lead-no-es-conversacion]] | El lead cuelga del contacto, no del hilo | aceptado |
 
 Los siete ADR previstos están escritos. El siguiente se creará cuando aparezca una decisión nueva, no antes.
 
@@ -52,6 +55,8 @@ Una nota por módulo, con las decisiones que le afectan enlazadas. Se crean al e
 - [[plantillas]] — HSM sincronizadas desde Meta y respuestas rápidas con versiones
 - [[uso]] — medición de uso (`usage_events`/`usage_rollups`) y precreación diaria de particiones
 - [[web]] — convenciones de la aplicación web (estilo en CSS aparte).
+- [[salesbots]] — motor de flujos, constructor y relevo al humano
+- [[embudo]] — tablero de reservas: leads, etapas y pronóstico
 
 Previstos: bandeja, plantillas, salesbots, ia, usuarios, facturacion, panel, integraciones.
 

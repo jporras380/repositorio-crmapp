@@ -13,7 +13,9 @@ export type Ruta =
       seccion: 'canales' | 'plantillas' | 'respuestas' | 'uso' | 'suscripcion';
     }
   /** Constructor de Salesbots. Sin flujo elegido, la lista. */
-  | { pantalla: 'flujos'; flujoId: string | null };
+  | { pantalla: 'flujos'; flujoId: string | null }
+  /** Embudo de ventas. Con lead elegido, su ficha al lado del tablero. */
+  | { pantalla: 'leads'; leadId: string | null };
 
 const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'uso', 'suscripcion']);
 
@@ -32,6 +34,9 @@ export function leerRuta(hash: string = location.hash): Ruta {
       ...(vista === 'sinRespuesta' ? { vista: 'sinRespuesta' as const } : {}),
     };
   }
+  if (hash.startsWith('#leads')) {
+    return { pantalla: 'leads', leadId: hash.split('/')[1] ?? null };
+  }
   if (hash.startsWith('#flujos')) {
     return { pantalla: 'flujos', flujoId: hash.split('/')[1] ?? null };
   }
@@ -49,17 +54,21 @@ export function irA(ruta: Ruta): void {
   const hash =
     ruta.pantalla === 'panel'
       ? '#panel'
-      : ruta.pantalla === 'flujos'
-        ? ruta.flujoId
-          ? `#flujos/${ruta.flujoId}`
-          : '#flujos'
-        : ruta.pantalla === 'ajustes'
-          ? `#ajustes/${ruta.seccion}`
-          : ruta.conversacionId
-            ? `#c=${ruta.conversacionId}`
-            : ruta.vista
-              ? `#bandeja/${ruta.vista}`
-              : '#bandeja';
+      : ruta.pantalla === 'leads'
+        ? ruta.leadId
+          ? `#leads/${ruta.leadId}`
+          : '#leads'
+        : ruta.pantalla === 'flujos'
+          ? ruta.flujoId
+            ? `#flujos/${ruta.flujoId}`
+            : '#flujos'
+          : ruta.pantalla === 'ajustes'
+            ? `#ajustes/${ruta.seccion}`
+            : ruta.conversacionId
+              ? `#c=${ruta.conversacionId}`
+              : ruta.vista
+                ? `#bandeja/${ruta.vista}`
+                : '#bandeja';
   if (hash) location.hash = hash;
   else history.pushState(null, '', location.pathname);
   window.dispatchEvent(new HashChangeEvent('hashchange'));

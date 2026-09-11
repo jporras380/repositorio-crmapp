@@ -241,3 +241,68 @@ export interface ResumenDeSuscripcion {
   }[];
   avisos: { limite: string; nivel: 'holgado' | 'cerca' | 'pasado'; usado: number; tope: number }[];
 }
+
+// ---------------------------------------------------------------------------
+// Embudo de ventas
+// ---------------------------------------------------------------------------
+
+export type TipoDeEtapa = 'abierta' | 'ganada' | 'perdida';
+
+export interface EtapaDeEmbudo {
+  id: string;
+  nombre: string;
+  color: string | null;
+  tipo: TipoDeEtapa;
+  posicion: number;
+}
+
+export interface Embudo {
+  id: string;
+  nombre: string;
+  /** ISO 4217. La interfaz la pinta, no la convierte. */
+  moneda: string;
+  porDefecto: boolean;
+  etapas: EtapaDeEmbudo[];
+}
+
+export interface TarjetaDeLead {
+  id: string;
+  titulo: string;
+  /** En céntimos: el servidor no sabe de comas y la interfaz tampoco debería. */
+  importe: number;
+  contacto: { id: string; nombre: string | null };
+  conversacionId: string | null;
+  canal: string | null;
+  responsableId: string | null;
+  etiquetas: Etiqueta[];
+  creadoEn: string;
+  actualizadoEn: string;
+}
+
+export interface ColumnaDelTablero {
+  etapa: EtapaDeEmbudo;
+  total: number;
+  importe: number;
+  tarjetas: TarjetaDeLead[];
+}
+
+export interface Tablero {
+  embudo: { id: string; nombre: string; moneda: string };
+  columnas: ColumnaDelTablero[];
+  pronostico: number;
+  leadsAbiertos: number;
+}
+
+export interface DetalleDeLead extends TarjetaDeLead {
+  embudoId: string;
+  etapaId: string;
+  estado: 'abierto' | 'ganado' | 'perdido';
+  cerradoEn: string | null;
+  historial: {
+    tipo: string;
+    desde: string | null;
+    hasta: string | null;
+    actorId: string | null;
+    en: string;
+  }[];
+}

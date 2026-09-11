@@ -70,6 +70,8 @@ beforeAll(async () => {
     [tenantId],
   );
   channelAccountId = ca.rows[0]!.id;
+  // El embudo por defecto, igual que lo monta el alta de cuenta.
+  await conf.query(`SELECT app.sembrar_embudo($1)`, [tenantId]);
   // Suscripción en prueba, vigente durante todo el test.
   const plan = await conf.query<{ id: string }>(`SELECT id FROM plans WHERE code = 'starter'`);
   await conf.query(
@@ -352,6 +354,49 @@ describe('mensaje nuevo', () => {
     await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.1')]));
     const { rows } = await admin.query<{ event_type: string }>(`SELECT event_type FROM outbox`);
     expect(rows.map((r) => r.event_type)).toContain('mensaje.recibido');
+  });
+});
+
+describe('embudo', () => {
+  const leads = async () =>
+    (
+      await admin.query<{ title: string; stage: string; conversation_id: string | null }>(
+        `SELECT l.title, s.name AS stage, l.conversation_id
+           FROM leads l JOIN pipeline_stages s ON s.id = l.stage_id
+          ORDER BY l.created_at`,
+      )
+    ).rows;
+
+  it('una conversación nueva abre un lead, y el título es lo que pidió el cliente', async () => {
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      // `text` y no `texto`: es la clave del formato CRUDO del sandbox.
+      await webhook([mensaje('wamid.lead-1', { text: 'Hola, ¿tienen bungalow para el 28?' })]),
+    );
+    expect(await leads()).toEqual([
+      {
+        title: 'Hola, ¿tienen bungalow para el 28?',
+        stage: 'Consulta',
+        conversation_id: expect.any(String),
+      },
+    ]);
+  });
+
+  it('el segundo mensaje del mismo huésped NO abre otra tarjeta', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.lead-2')]));
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.lead-3')]));
+    // Tres mensajes seguidos abriendo tres tarjetas iguales destrozan el
+    // tablero en una tarde: por eso la regla es «uno abierto por contacto».
+    expect(await leads()).toHaveLength(1);
+  });
+
+  it('sin embudo no se pierde el mensaje: el lead es lo accesorio', async () => {
+    await admin.query(`DELETE FROM pipelines`);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.lead-4')]));
+    expect(await contar('messages')).toBe(1);
+    expect(await leads()).toHaveLength(0);
+    await admin.query(`SELECT app.sembrar_embudo($1)`, [tenantId]);
   });
 });
 

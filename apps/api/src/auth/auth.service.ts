@@ -149,6 +149,12 @@ export class AuthService {
         [tenantId, plan.id, finDePrueba(ahora, plan.trial_months), plan.grace_days],
       );
 
+      // El embudo por defecto entra con la cuenta: un tablero sin columnas no
+      // es una pantalla vacía, es una pantalla rota. La definición vive en
+      // `app.sembrar_embudo` (migración 0018) para que la migración y esto no
+      // se separen nunca.
+      await c.query(`SELECT app.sembrar_embudo($1)`, [tenantId]);
+
       await this.#auditar(c, tenantId, userId, 'cuenta.creada', 'tenant', tenantId);
 
       await escribirEnOutbox(c, {
