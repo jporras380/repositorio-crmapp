@@ -1,5 +1,7 @@
 @layer components {
   .cabecera {
+    /* `relative` para que el panel de filtros caiga anclado a la cabecera. */
+    position: relative;
     display: grid;
     gap: var(--space-3);
     padding: var(--space-4) var(--space-4) var(--space-3);
@@ -9,6 +11,38 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .buscar {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    font-size: var(--text-sm);
+    font-family: inherit;
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--fg);
+  }
+  .masFiltros {
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--fg-muted);
+    padding: 0.35rem 0.7rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    white-space: nowrap;
+  }
+  .masFiltros:hover {
+    color: var(--fg);
+  }
+  /* Con filtros puestos se nota: un filtro invisible es el que confunde. */
+  .masFiltrosActivo {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
   .titulo {
     font-size: var(--text-xl);

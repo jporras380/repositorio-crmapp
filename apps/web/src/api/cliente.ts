@@ -10,6 +10,8 @@ import type {
   ColumnaDelTablero,
   CuentaDeCanal,
   DatosDeCliente,
+  NotaInterna,
+  VistaDeBandeja,
   FichaDeCliente,
   ResultadoDeImportacion,
   ResumenDeCliente,
@@ -224,6 +226,26 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { grafo, respuestas },
       }),
+    // --- Bandeja: aplazar, notas y vistas -----------------------------------
+    aplazar: (id: string, hasta: string | null) =>
+      peticion<void>(`/v1/conversaciones/${id}/aplazar`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { hasta },
+      }),
+    notas: (id: string) => peticion<NotaInterna[]>(`/v1/conversaciones/${id}/notas`, t),
+    anotar: (id: string, cuerpo: string) =>
+      peticion<{ id: string }>(`/v1/conversaciones/${id}/notas`, {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { cuerpo },
+      }),
+    borrarNota: (id: string) => peticion<void>(`/v1/notas/${id}`, { ...t, metodo: 'DELETE' }),
+    vistas: () => peticion<VistaDeBandeja[]>('/v1/vistas', t),
+    guardarVista: (nombre: string, filtros: Record<string, string>) =>
+      peticion<{ id: string }>('/v1/vistas', { ...t, metodo: 'POST', cuerpo: { nombre, filtros } }),
+    borrarVista: (id: string) => peticion<void>(`/v1/vistas/${id}`, { ...t, metodo: 'DELETE' }),
+
     // --- Clientes ----------------------------------------------------------
     clientes: (f: { q?: string; origen?: string; etiqueta?: string; cursor?: string } = {}) => {
       const p = new URLSearchParams();

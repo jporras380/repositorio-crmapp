@@ -1,14 +1,29 @@
 import { useState, type FormEvent } from 'react';
-import type { Etiqueta, FiltrosDeBandeja } from '../../api/tipos.ts';
+import type {
+  Embudo,
+  Etiqueta,
+  FiltrosDeBandeja,
+  Miembro,
+  VistaDeBandeja,
+} from '../../api/tipos.ts';
+import { PanelDeFiltros } from './PanelDeFiltros.tsx';
 import estilos from './Filtros.module.css';
 
 interface Props {
   filtros: FiltrosDeBandeja;
   etiquetas: Etiqueta[];
   userId: string;
+  miembros: Miembro[];
+  embudos: Embudo[];
+  vistas: VistaDeBandeja[];
   alCambiar: (f: FiltrosDeBandeja) => void;
   alCrearEtiqueta: (nombre: string, color: string | null) => Promise<void>;
+  alGuardarVista: (nombre: string) => void | Promise<void>;
+  alBorrarVista: (id: string) => void | Promise<void>;
 }
+
+/** Filtros que no salen de la fila de vistas: los que abre el panel. */
+const AVANZADOS = ['atencion', 'agenteId', 'etapaId', 'desde', 'hasta'] as const;
 
 const COLORES = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#af52de', '#8e8e93'];
 
@@ -16,8 +31,21 @@ const COLORES = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#af52de
  * Filtros de primer nivel. Las etiquetas de color van arriba y siempre
  * visibles (Zenvia): el usuario marca lo importante con color y filtra por él.
  */
-export function Filtros({ filtros, etiquetas, userId, alCambiar, alCrearEtiqueta }: Props) {
+export function Filtros({
+  filtros,
+  etiquetas,
+  userId,
+  miembros,
+  embudos,
+  vistas,
+  alCambiar,
+  alCrearEtiqueta,
+  alGuardarVista,
+  alBorrarVista,
+}: Props) {
   const [creando, setCreando] = useState(false);
+  const [abierto, setAbierto] = useState(false);
+  const avanzados = AVANZADOS.filter((k) => filtros[k] !== undefined && filtros[k] !== '').length;
 
   const vista =
     filtros.estado === 'closed'
@@ -68,6 +96,44 @@ export function Filtros({ filtros, etiquetas, userId, alCambiar, alCrearEtiqueta
           </button>
         </div>
       </div>
+
+      <div className={estilos.fila}>
+        <input
+          className={estilos.buscar}
+          type="search"
+          placeholder="Buscar por cliente o teléfono…"
+          aria-label="Buscar conversaciones"
+          value={filtros.q ?? ''}
+          onChange={(e) => alCambiar({ ...filtros, q: e.target.value || undefined })}
+        />
+        <button
+          className={`${estilos.masFiltros} ${avanzados > 0 ? estilos.masFiltrosActivo : ''}`}
+          aria-expanded={abierto}
+          onClick={() => setAbierto((v) => !v)}
+        >
+          Filtros{avanzados > 0 ? ` · ${avanzados}` : ''}
+        </button>
+      </div>
+
+      {abierto && (
+        <PanelDeFiltros
+          filtros={filtros}
+          miembros={miembros}
+          embudos={embudos}
+          vistas={vistas}
+          alCambiar={alCambiar}
+          alGuardarVista={alGuardarVista}
+          alBorrarVista={alBorrarVista}
+          alAplicarVista={(v) => {
+            // Una vista guardada es el filtro ENTERO, no un añadido: aplicarla
+            // sobre lo que había dejaría restos invisibles de la búsqueda
+            // anterior y el resultado no sería el que se guardó.
+            alCambiar({ ...(v.filtros as FiltrosDeBandeja) });
+            setAbierto(false);
+          }}
+          alCerrar={() => setAbierto(false)}
+        />
+      )}
 
       <div className={estilos.vistas} role="tablist" aria-label="Vista">
         {(

@@ -17,6 +17,8 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-35, la bandeja se puede filtrar** ([[bandeja]]): búsqueda, panel de filtros compuestos (atención, responsable, **etapa del embudo**, fechas), **vistas guardadas** por agente, **aplazar** conversaciones y **notas internas** —que tenían tabla desde la fase 0 sin usar—. El estado de atención **se deduce**, no se guarda: solo el aplazamiento necesita columna. Migración 0020. 15 tests nuevos.
+- **PR-34, clientes** ([[clientes]]): pantalla de Clientes con búsqueda y filtros, ficha editable con etiquetas, conversaciones e historial de reservas, **importar y exportar CSV** —lector propio en `core`, probado contra los archivos que llegan de verdad— y borrado que **anonimiza** en vez de arrasar cuando la persona ya habló con el hotel. Migración 0019. 37 tests nuevos.
 - **PR-33, el embudo de reservas** ([[embudo]], [[ADR-013-lead-no-es-conversacion]]): tablero kanban con etapas editables (crear, renombrar, recolorear, reordenar y borrar **diciendo a dónde van sus leads**), tarjetas que se mueven arrastrando o con desplegable, ficha lateral con importe, responsable, etiquetas e historial, y **leads que se abren solos** con cada conversación nueva, titulados con lo que pidió el cliente. Migración 0018 y `app.sembrar_embudo()`, que llaman la migración y el alta de cuenta para que no se separen. 24 tests nuevos.
 - **PR-32, la pausa y el relevo** ([[salesbots]] §El relevo): nodo **`pausa`** —duerme sin escuchar, tope de 24 h, para no soltar dos mensajes en el mismo segundo— y **el bot se calla cuando responde una persona**: la puerta de envío cancela las ejecuciones vivas con motivo y `conversations.human_reply_at` impide que otra palabra clave meta un bot encima del agente hasta que se cierre la conversación. Migración 0017. 12 tests nuevos (5 core, 4 worker, 1 API, 2 web).
 - **PR-31, mapa del flujo y galería de plantillas** ([[salesbots]] §El mapa, [[ADR-012-constructor-de-flujos]]): el constructor enseña la forma del bot con sus ramas etiquetadas —disposición **calculada**, sin coordenadas en el grafo— y crear un bot empieza por una de cinco plantillas con su mapa real. Evaluado con `decision-eval`: empate técnico con «no hacer nada», desempatado por legibilidad. 8 tests de web.
@@ -90,10 +92,9 @@ Nada.
 
 ## Qué sigue
 
-1. **PR-35 · Bandeja**: búsqueda, panel de filtros compuestos y vistas guardadas (lo que el usuario pidió con la captura del desplegable de Kommo), estados de atención nuevos y las **notas internas**, que tienen tabla desde la fase 0 y no las usa nadie.
-2. **PR-36 · Hotel** y **PR-37 · Reservas**: tipos de habitación, habitaciones y tarifas editables; reserva creada desde la conversación, **con líneas** (noches × tipo, extras) como enseñó idurar. **Sin motor de disponibilidad** en la primera entrega, por decisión explícita: el sistema no impide la sobreventa.
-3. **PR-38 · Dashboard** con reservas y agentes; **PR-39 · Facebook Messenger** (depende de App Review de Meta); **PR-40 · IA asistida** con clave del cliente.
-4. Del estudio de los repos de referencia ([[2026-09-11-repos-de-referencia]]): `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas) como candidato — la mejora de atención más barata que vi en los tres.
+1. **PR-36 · Hotel** y **PR-37 · Reservas**: tipos de habitación, habitaciones y tarifas editables; reserva creada desde la conversación, **con líneas** (noches × tipo, extras) como enseñó idurar. **Sin motor de disponibilidad** en la primera entrega, por decisión explícita: el sistema no impide la sobreventa.
+2. **PR-38 · Dashboard** con reservas y agentes; **PR-39 · Facebook Messenger** (depende de App Review de Meta); **PR-40 · IA asistida** con clave del cliente.
+3. Del estudio de los repos de referencia ([[2026-09-11-repos-de-referencia]]): `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas) como candidato — la mejora de atención más barata que vi en los tres.
 
 Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, etiquetas editables, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
 

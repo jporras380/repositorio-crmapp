@@ -36,6 +36,9 @@ export interface ResumenDeConversacion {
   ultimoEntranteEn: string | null;
   ultimoSalienteEn: string | null;
   ventanaExpiraEn: string | null;
+  /** Calculado al leer, nunca guardado a mano: por eso no puede mentir. */
+  atencion: EstadoDeAtencion;
+  aplazadaHasta: string | null;
   ventanaAbierta: boolean;
   etiquetas: Etiqueta[];
   vistaPrevia: string | null;
@@ -132,7 +135,33 @@ export interface FiltrosDeBandeja {
   agenteId?: string | undefined;
   etiquetaId?: string | undefined;
   sinRespuesta?: boolean | undefined;
+  /** Estado de atención, deducido por el servidor (0020). */
+  atencion?: string | undefined;
+  /** Busca por nombre del contacto, su @ o su teléfono. */
+  q?: string | undefined;
+  desde?: string | undefined;
+  hasta?: string | undefined;
+  etapaId?: string | undefined;
   cursor?: string | undefined;
+}
+
+export type EstadoDeAtencion =
+  'nueva' | 'por_responder' | 'esperando_cliente' | 'seguimiento' | 'cerrada';
+
+/** Un filtro compuesto con nombre, guardado por agente. */
+export interface VistaDeBandeja {
+  id: string;
+  nombre: string;
+  filtros: Record<string, string>;
+  posicion: number;
+}
+
+export interface NotaInterna {
+  id: string;
+  cuerpo: string;
+  autorId: string | null;
+  autor: string | null;
+  creadaEn: string;
 }
 
 // ---------------------------------------------------------------------------

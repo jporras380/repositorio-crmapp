@@ -20,6 +20,8 @@ const hilo: ResumenDeConversacion = {
   ventanaAbierta: false,
   etiquetas: [],
   vistaPrevia: 'Precio?',
+  atencion: 'nueva',
+  aplazadaHasta: null,
 };
 
 const api = (enviar: unknown) => ({ enviar }) as unknown as Api;

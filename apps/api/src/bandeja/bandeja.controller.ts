@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
@@ -27,8 +28,27 @@ const Filtros = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
+  atencion: z
+    .enum(['nueva', 'por_responder', 'esperando_cliente', 'seguimiento', 'cerrada'])
+    .optional(),
+  q: z.string().min(1).max(80).optional(),
+  desde: z.string().datetime().optional(),
+  hasta: z.string().datetime().optional(),
+  etapaId: z.string().uuid().optional(),
   cursor: z.string().optional(),
   limite: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const Aplazar = z.object({ hasta: z.string().datetime().nullable() });
+
+const Nota = z.object({ cuerpo: z.string().min(1).max(4000) });
+
+const Vista = z.object({
+  nombre: z.string().min(1).max(40),
+  // Los mismos filtros que acepta la lista, tal cual. Validar aquí una copia
+  // de ese esquema significaría mantener dos, y la vista guardada dejaría de
+  // aceptar el filtro nuevo el día que se añada uno.
+  filtros: z.record(z.string(), z.string()).default({}),
 });
 
 const Paginacion = z.object({
@@ -123,6 +143,52 @@ export class BandejaController {
   async estado(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
     const { estado } = validar(Estado, body);
     await conContextoDePeticion(req, () => this.bandeja.cambiarEstado(id, estado));
+  }
+
+  /** `hasta: null` la despierta ya. */
+  @Patch('conversaciones/:id/aplazar')
+  @HttpCode(204)
+  async aplazar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const { hasta } = validar(Aplazar, body);
+    await conContextoDePeticion(req, () =>
+      this.bandeja.aplazar(id, hasta ? new Date(hasta) : null),
+    );
+  }
+
+  @Get('conversaciones/:id/notas')
+  notas(@Req() req: Req, @Param('id') id: string) {
+    return conContextoDePeticion(req, () => this.bandeja.notas(id));
+  }
+
+  @Post('conversaciones/:id/notas')
+  @HttpCode(201)
+  anotar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const { cuerpo } = validar(Nota, body);
+    return conContextoDePeticion(req, () => this.bandeja.anotar(id, cuerpo));
+  }
+
+  @Delete('notas/:id')
+  @HttpCode(204)
+  async borrarNota(@Req() req: Req, @Param('id') id: string) {
+    await conContextoDePeticion(req, () => this.bandeja.borrarNota(id));
+  }
+
+  @Get('vistas')
+  vistas(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.bandeja.vistas());
+  }
+
+  @Post('vistas')
+  @HttpCode(201)
+  guardarVista(@Req() req: Req, @Body() body: unknown) {
+    const { nombre, filtros } = validar(Vista, body);
+    return conContextoDePeticion(req, () => this.bandeja.guardarVista(nombre, filtros));
+  }
+
+  @Delete('vistas/:id')
+  @HttpCode(204)
+  async borrarVista(@Req() req: Req, @Param('id') id: string) {
+    await conContextoDePeticion(req, () => this.bandeja.borrarVista(id));
   }
 
   @Patch('conversaciones/:id/etiquetas')

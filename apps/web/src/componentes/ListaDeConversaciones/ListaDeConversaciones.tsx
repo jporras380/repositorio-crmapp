@@ -13,6 +13,13 @@ interface Props {
   alCargarMas: () => void;
 }
 
+/** Solo lo que hay que mirar. Lo normal no lleva insignia. */
+const ATENCION: Record<string, string> = {
+  nueva: 'Nueva',
+  por_responder: 'Por responder',
+  seguimiento: 'Aplazada',
+};
+
 export function ListaDeConversaciones({
   items,
   seleccionadaId,
@@ -107,6 +114,14 @@ function Fila({
             )}
           </span>
           <span className={estilos.pie}>
+            {/* El estado de atención lo calcula el servidor; aquí solo se
+                pinta. «Esperando cliente» no se marca porque es el estado
+                normal tras responder: señalarlo sería ruido en cada fila. */}
+            {ATENCION[c.atencion] && (
+              <span className={`${estilos.atencion} ${estilos[`atencion_${c.atencion}`] ?? ''}`}>
+                {ATENCION[c.atencion]}
+              </span>
+            )}
             {c.tipo === 'comment_thread' ? (
               <span className={estilos.comentario}>Comentario</span>
             ) : (

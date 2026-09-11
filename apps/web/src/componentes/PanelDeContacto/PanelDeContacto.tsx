@@ -3,6 +3,7 @@ import type { Api } from '../../api/cliente.ts';
 import type { Etiqueta, ResumenDeConversacion } from '../../api/tipos.ts';
 import { horaCorta, inicial } from '../../vista/tiempo.ts';
 import { pintar } from '../Filtros/Filtros.tsx';
+import { Notas } from './Notas.tsx';
 import estilos from './PanelDeContacto.module.css';
 
 interface Props {
@@ -170,6 +171,8 @@ export function PanelDeContacto({
           </div>
         </dl>
       </section>
+
+      <Notas api={api} conversacionId={conversacion.id} userId={userId} />
 
       {error && (
         <p className={estilos.error} role="alert">

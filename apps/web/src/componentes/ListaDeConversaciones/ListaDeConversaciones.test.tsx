@@ -24,6 +24,8 @@ const base: ResumenDeConversacion = {
     { id: 'e3', nombre: 'Sin color', color: null },
   ],
   vistaPrevia: 'Tiene el filtro GA16?',
+  atencion: 'nueva',
+  aplazadaHasta: null,
 };
 
 afterEach(cleanup);

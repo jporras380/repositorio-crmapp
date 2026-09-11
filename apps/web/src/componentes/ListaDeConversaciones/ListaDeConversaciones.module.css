@@ -215,3 +215,25 @@
     font-weight: 600;
   }
 }
+
+@layer components {
+  /* Insignia de atención: el dato que decide a cuál entrar primero. */
+  .atencion {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--radius-pill);
+    color: var(--fg-muted);
+    background: var(--hairline);
+    white-space: nowrap;
+  }
+  .atencion_nueva {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .atencion_por_responder {
+    color: var(--warn);
+    background: var(--warn-soft);
+  }
+}

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { crearApi, ErrorDeApi } from '../../api/cliente.ts';
 import type {
+  Embudo,
   Etiqueta,
   FiltrosDeBandeja,
+  Miembro,
   ResumenDeConversacion,
   Sesion,
+  VistaDeBandeja,
   Yo,
 } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
@@ -41,6 +44,9 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
   const api = useMemo(() => crearApi(sesion.token), [sesion.token]);
   const [yo, setYo] = useState<Yo | null>(null);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
+  const [miembros, setMiembros] = useState<Miembro[]>([]);
+  const [embudos, setEmbudos] = useState<Embudo[]>([]);
+  const [vistas, setVistas] = useState<VistaDeBandeja[]>([]);
   const [filtros, setFiltros] = useState<FiltrosDeBandeja>(
     vistaInicial === 'sinRespuesta' ? { sinRespuesta: true } : {},
   );
@@ -104,6 +110,20 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
       .etiquetas()
       .then(setEtiquetas)
       .catch(() => undefined);
+    // Lo que alimenta el panel de filtros. Si algo de esto falla, el panel
+    // sale con menos opciones; la bandeja sigue funcionando.
+    api
+      .usuarios()
+      .then(setMiembros)
+      .catch(() => undefined);
+    api
+      .embudos()
+      .then(setEmbudos)
+      .catch(() => undefined);
+    api
+      .vistas()
+      .then(setVistas)
+      .catch(() => undefined);
   }, [api]);
 
   useEffect(() => {
@@ -122,6 +142,24 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
   async function nuevaEtiqueta(nombre: string, color: string | null) {
     await api.crearEtiqueta(nombre, color);
     setEtiquetas(await api.etiquetas());
+  }
+
+  async function guardarVista(nombre: string) {
+    // Se guarda lo que hay puesto AHORA, sin el cursor: una vista con cursor
+    // apuntaría a una página concreta de hace días.
+    const { cursor: _, ...resto } = filtros;
+    const limpios = Object.fromEntries(
+      Object.entries(resto)
+        .filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => [k, String(v)]),
+    );
+    await api.guardarVista(nombre, limpios);
+    setVistas(await api.vistas());
+  }
+
+  async function borrarVista(id: string) {
+    await api.borrarVista(id);
+    setVistas(await api.vistas());
   }
 
   const seleccionada = items.find((c) => c.id === seleccionadaId) ?? null;
@@ -144,8 +182,13 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
           filtros={filtros}
           etiquetas={etiquetas}
           userId={sesion.userId}
+          miembros={miembros}
+          embudos={embudos}
+          vistas={vistas}
           alCambiar={setFiltros}
           alCrearEtiqueta={nuevaEtiqueta}
+          alGuardarVista={guardarVista}
+          alBorrarVista={borrarVista}
         />
         <ListaDeConversaciones
           items={items}

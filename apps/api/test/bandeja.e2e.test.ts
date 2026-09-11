@@ -652,3 +652,132 @@ describe('aislamiento y acciones', () => {
     );
   });
 });
+
+describe('estado de atención, aplazar, notas y vistas (0020)', () => {
+  const listar = async (query = '') =>
+    (await http.get(`/v1/conversaciones${query}`).set(auth()).expect(200)).body as {
+      items: { id: string; atencion: string; aplazadaHasta: string | null }[];
+    };
+
+  it('el estado se DEDUCE: nueva → por responder → esperando cliente → cerrada', async () => {
+    const id = await conversacion('Elena Deduce');
+    const de = async () => (await listar()).items.find((x) => x.id === id)!.atencion;
+
+    // Nadie ha respondido nunca: nueva. Que el bot conteste no la atiende.
+    expect(await de()).toBe('nueva');
+
+    // Responde una persona por la puerta de envío: pasa a esperando cliente.
+    await http
+      .post(`/v1/conversaciones/${id}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'text', texto: 'Buenas, ¿para qué fechas?' })
+      .expect(202);
+    expect(await de()).toBe('esperando_cliente');
+
+    // Escribe el cliente: vuelve a estar en nuestro tejado.
+    await admin.query(
+      `UPDATE conversations SET last_inbound_at = now() + interval '1 minute' WHERE id = $1`,
+      [id],
+    );
+    expect(await de()).toBe('por_responder');
+
+    await http
+      .patch(`/v1/conversaciones/${id}/estado`)
+      .set(auth())
+      .send({ estado: 'closed' })
+      .expect(204);
+    expect(await de()).toBe('cerrada');
+  });
+
+  it('aplazar la manda a seguimiento, y despertarla la devuelve', async () => {
+    const id = await conversacion('Jorge Aplazado');
+    const hasta = new Date(Date.now() + 2 * 3_600_000).toISOString();
+    await http.patch(`/v1/conversaciones/${id}/aplazar`).set(auth()).send({ hasta }).expect(204);
+
+    const aplazada = (await listar()).items.find((x) => x.id === id)!;
+    expect(aplazada.atencion).toBe('seguimiento');
+    expect(aplazada.aplazadaHasta).not.toBeNull();
+
+    // Y se puede filtrar por ello, con la MISMA definición que se muestra.
+    expect((await listar('?atencion=seguimiento')).items.map((x) => x.id)).toContain(id);
+
+    await http
+      .patch(`/v1/conversaciones/${id}/aplazar`)
+      .set(auth())
+      .send({ hasta: null })
+      .expect(204);
+    expect((await listar()).items.find((x) => x.id === id)!.atencion).toBe('nueva');
+  });
+
+  it('aplazar hacia atrás no aplaza nada', async () => {
+    const id = await conversacion('Sin futuro');
+    const r = await http
+      .patch(`/v1/conversaciones/${id}/aplazar`)
+      .set(auth())
+      .send({ hasta: new Date(Date.now() - 60_000).toISOString() })
+      .expect(422);
+    expect(r.body.codigo).toBe('fecha_pasada');
+  });
+
+  it('la búsqueda encuentra por el nombre del contacto', async () => {
+    await conversacion('Lucía Buscada');
+    const r = await listar('?q=Buscada');
+    expect(r.items).toHaveLength(1);
+    expect((await listar('?q=nadie-asi')).items).toHaveLength(0);
+  });
+
+  it('las notas internas no son mensajes: quedan aparte y no tocan la ventana', async () => {
+    const id = await conversacion('Con notas');
+    const { body } = await http
+      .post(`/v1/conversaciones/${id}/notas`)
+      .set(auth())
+      .send({ cuerpo: 'Pidió cuna y cama extra. Confirmar con limpieza.' })
+      .expect(201);
+
+    const notas = await http.get(`/v1/conversaciones/${id}/notas`).set(auth()).expect(200);
+    expect(notas.body[0]).toMatchObject({
+      cuerpo: 'Pidió cuna y cama extra. Confirmar con limpieza.',
+    });
+    expect(notas.body[0].autor).toBeTruthy();
+
+    // No ha entrado en `messages`: si entrara, la puerta de envío podría
+    // mandársela al cliente.
+    const { rows } = await admin.query<{ n: string }>(
+      `SELECT count(*) AS n FROM messages WHERE conversation_id = $1 AND body LIKE '%limpieza%'`,
+      [id],
+    );
+    expect(Number(rows[0]!.n)).toBe(0);
+
+    await http.delete(`/v1/notas/${body.id}`).set(auth()).expect(204);
+    expect((await http.get(`/v1/conversaciones/${id}/notas`).set(auth())).body).toHaveLength(0);
+  });
+
+  it('una vista guardada se vuelve a guardar con el mismo nombre en vez de fallar', async () => {
+    const primera = await http
+      .post('/v1/vistas')
+      .set(auth())
+      .send({ nombre: 'Sin responder de hoy', filtros: { sinRespuesta: 'true' } })
+      .expect(201);
+
+    const segunda = await http
+      .post('/v1/vistas')
+      .set(auth())
+      .send({
+        nombre: 'Sin responder de hoy',
+        filtros: { sinRespuesta: 'true', canal: 'whatsapp' },
+      })
+      .expect(201);
+    expect(segunda.body.id).toBe(primera.body.id);
+
+    const vistas = (await http.get('/v1/vistas').set(auth()).expect(200)).body as {
+      id: string;
+      nombre: string;
+      filtros: Record<string, string>;
+    }[];
+    expect(vistas).toHaveLength(1);
+    expect(vistas[0]!.filtros).toEqual({ sinRespuesta: 'true', canal: 'whatsapp' });
+
+    await http.delete(`/v1/vistas/${primera.body.id}`).set(auth()).expect(204);
+    expect((await http.get('/v1/vistas').set(auth())).body).toHaveLength(0);
+  });
+});

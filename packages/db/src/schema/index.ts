@@ -285,6 +285,7 @@ export const conversations = pgTable(
     firstResponseAt: timestamp('first_response_at', { withTimezone: true }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
     humanReplyAt: timestamp('human_reply_at', { withTimezone: true }),
+    snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
     unreadCount: integer('unread_count').notNull().default(0),
     createdAt: creado,
     updatedAt: actualizado,
@@ -678,4 +679,16 @@ export const leadEvents = pgTable('lead_events', {
   actorUserId: uuid('actor_user_id'),
   meta: jsonb('meta'),
   at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Vistas guardadas de la bandeja, por agente (0020). */
+export const inboxViews = pgTable('inbox_views', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  filters: jsonb('filters').notNull().default({}),
+  position: integer('position').notNull().default(0),
+  createdAt: creado,
+  updatedAt: actualizado,
 });

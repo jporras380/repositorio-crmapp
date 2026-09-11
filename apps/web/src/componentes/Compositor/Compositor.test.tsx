@@ -20,6 +20,8 @@ const conversacion: ResumenDeConversacion = {
   ventanaAbierta: false,
   etiquetas: [],
   vistaPrevia: null,
+  atencion: 'nueva',
+  aplazadaHasta: null,
 };
 
 function apiFalsa(enviar: Api['enviar']): Api {

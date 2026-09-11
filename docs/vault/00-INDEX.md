@@ -58,6 +58,7 @@ Una nota por módulo, con las decisiones que le afectan enlazadas. Se crean al e
 - [[salesbots]] — motor de flujos, constructor y relevo al humano
 - [[embudo]] — tablero de reservas: leads, etapas y pronóstico
 - [[clientes]] — ficha del huésped, importar y exportar CSV, y qué pasa al borrar
+- [[bandeja]] — estado de atención deducido, filtros, vistas guardadas y notas internas
 
 Previstos: bandeja, plantillas, salesbots, ia, usuarios, facturacion, panel, integraciones.
 

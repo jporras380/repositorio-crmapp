@@ -36,6 +36,15 @@ export type { MensajeEncolado, PeticionDeEnvio };
 
 export interface FiltrosDeBandeja {
   canal?: string | undefined;
+  /** Estado de atención DEDUCIDO (0020): nueva, por_responder, … */
+  atencion?: string | undefined;
+  /** Busca por nombre del contacto, su @ o su teléfono. */
+  q?: string | undefined;
+  /** Rango sobre la última actividad, en ISO. */
+  desde?: string | undefined;
+  hasta?: string | undefined;
+  /** Conversaciones cuyo lead está en esta etapa del embudo. */
+  etapaId?: string | undefined;
   /** `dm` o `comment_thread`. Sin filtro, ambos. */
   tipo?: string | undefined;
   estado?: string | undefined;
@@ -62,6 +71,12 @@ export interface ResumenDeConversacion {
   ultimoSalienteEn: Date | null;
   /** Instante; la interfaz calcula el tiempo restante para pintarlo. */
   ventanaExpiraEn: Date | null;
+  /**
+   * Estado de atención, calculado al leer y no guardado (migración 0020). Un
+   * campo mantenido a mano por el agente miente a los dos días.
+   */
+  atencion: EstadoDeAtencion;
+  aplazadaHasta: Date | null;
   ventanaAbierta: boolean;
   etiquetas: { id: string; nombre: string; color: string | null }[];
   vistaPrevia: string | null;
@@ -75,6 +90,43 @@ export interface OpcionesDeBandeja {
 
 const LIMITE_POR_DEFECTO = 30;
 const LIMITE_MAXIMO = 100;
+
+export type EstadoDeAtencion =
+  'nueva' | 'por_responder' | 'esperando_cliente' | 'seguimiento' | 'cerrada';
+
+/**
+ * El estado de atención, en SQL y en UN solo sitio.
+ *
+ * Se usa tanto para devolverlo como para filtrar por él. Dos copias —una en
+ * el SELECT y otra en el WHERE— se separarían el día que alguien ajuste una
+ * de las dos, y el filtro dejaría de coincidir con lo que se ve en pantalla.
+ *
+ * `human_reply_at` lo pone la puerta de envío cuando escribe una PERSONA: que
+ * el bot haya contestado no convierte la conversación en atendida.
+ */
+const ESTADO_DE_ATENCION = `CASE
+  WHEN c.status = 'closed' THEN 'cerrada'
+  WHEN c.snoozed_until > now() THEN 'seguimiento'
+  WHEN c.human_reply_at IS NULL THEN 'nueva'
+  WHEN c.last_inbound_at > COALESCE(c.last_outbound_at, '-infinity'::timestamptz)
+    THEN 'por_responder'
+  ELSE 'esperando_cliente'
+END`;
+
+export interface VistaDeBandeja {
+  id: string;
+  nombre: string;
+  filtros: Record<string, string>;
+  posicion: number;
+}
+
+export interface NotaInterna {
+  id: string;
+  cuerpo: string;
+  autorId: string | null;
+  autor: string | null;
+  creadaEn: Date;
+}
 
 export class BandejaService {
   readonly #db: BaseDeDatos;
@@ -113,6 +165,32 @@ export class BandejaService {
     };
 
     if (filtros.canal) condiciones.push(`ca.channel = ${p(filtros.canal)}`);
+    if (filtros.atencion) condiciones.push(`(${ESTADO_DE_ATENCION}) = ${p(filtros.atencion)}`);
+    if (filtros.q) {
+      // Por el contacto, no por el contenido de los mensajes: `messages` está
+      // particionada y sin índice de texto, y un ILIKE sobre ella recorrería
+      // meses enteros. Buscar dentro de los mensajes es otro PR, con su índice.
+      const patron = `%${filtros.q.trim()}%`;
+      const i = p(patron);
+      condiciones.push(
+        `(co.display_name ILIKE ${i} OR ci.handle ILIKE ${i} OR co.phone ILIKE ${i})`,
+      );
+    }
+    if (filtros.desde) {
+      condiciones.push(
+        `COALESCE(c.last_inbound_at, c.created_at) >= ${p(filtros.desde)}::timestamptz`,
+      );
+    }
+    if (filtros.hasta) {
+      condiciones.push(
+        `COALESCE(c.last_inbound_at, c.created_at) < ${p(filtros.hasta)}::timestamptz`,
+      );
+    }
+    if (filtros.etapaId) {
+      condiciones.push(
+        `EXISTS (SELECT 1 FROM leads l WHERE l.conversation_id = c.id AND l.stage_id = ${p(filtros.etapaId)})`,
+      );
+    }
     if (filtros.estado) condiciones.push(`c.status = ${p(filtros.estado)}`);
     if (filtros.agenteId) condiciones.push(`c.assignee_user_id = ${p(filtros.agenteId)}`);
     if (filtros.tipo) condiciones.push(`c.kind = ${p(filtros.tipo)}`);
@@ -146,7 +224,8 @@ export class BandejaService {
 
       const { rows } = await c.query<FilaResumen>(
         `SELECT c.id, ca.channel AS canal, c.status AS estado, c.assignee_user_id,
-                c.kind, c.external_thread_id,
+                c.kind, c.external_thread_id, c.snoozed_until,
+                ${ESTADO_DE_ATENCION} AS atencion,
                 c.unread_count, c.last_inbound_at, c.last_outbound_at,
                 c.session_expires_at, c.created_at,
                 co.id AS contact_id, co.display_name, ci.handle,
@@ -260,6 +339,163 @@ export class BandejaService {
   // -------------------------------------------------------------------------
   // Acciones sobre la conversación
   // -------------------------------------------------------------------------
+
+  /**
+   * Aplaza una conversación hasta una fecha. Es el único estado de atención
+   * que se guarda, porque es el único que no está en los datos: nada en la
+   * conversación dice «vuelve a acordarte de esto el jueves».
+   *
+   * Con `null` se despierta ya. No hace falta un trabajo que las despierte:
+   * el estado se calcula al listar, así que a su hora reaparece sola.
+   */
+  async aplazar(conversationId: string, hasta: Date | null): Promise<void> {
+    const ctx = this.#exigirContexto();
+    await this.#db.enTransaccion(async (c) => {
+      await this.#exigirConversacion(c, conversationId);
+      if (hasta && hasta.getTime() <= this.#ahora().getTime()) {
+        throw new ErrorDeNegocio(
+          'fecha_pasada',
+          'Aplazar hacia atrás no aplaza nada: elige una fecha futura.',
+          422,
+        );
+      }
+      await c.query(
+        `UPDATE conversations SET snoozed_until = $2, updated_at = now() WHERE id = $1`,
+        [conversationId, hasta],
+      );
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'conversacion.aplazada', 'conversation', $3, $4)`,
+        [ctx.tenantId, ctx.userId, conversationId, JSON.stringify({ hasta })],
+      );
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Notas internas
+  // -------------------------------------------------------------------------
+
+  /**
+   * Las notas NO son mensajes: no salen al canal, no cuentan para la ventana
+   * de 24 h y no las ve el cliente. Por eso viven en su propia tabla y no en
+   * `messages` con una bandera — una bandera mal leída en la puerta de envío
+   * mandaría al cliente lo que el equipo dijo de él.
+   */
+  async notas(conversationId: string): Promise<NotaInterna[]> {
+    this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      await this.#exigirConversacion(c, conversationId);
+      const { rows } = await c.query<{
+        id: string;
+        body: string;
+        user_id: string | null;
+        autor: string | null;
+        created_at: Date;
+      }>(
+        `SELECT n.id, n.body, n.user_id, u.full_name AS autor, n.created_at
+           FROM internal_notes n
+           LEFT JOIN users u ON u.id = n.user_id
+          WHERE n.conversation_id = $1
+          ORDER BY n.created_at DESC
+          LIMIT 100`,
+        [conversationId],
+      );
+      return rows.map((r) => ({
+        id: r.id,
+        cuerpo: r.body,
+        autorId: r.user_id,
+        autor: r.autor,
+        creadaEn: r.created_at,
+      }));
+    });
+  }
+
+  async anotar(conversationId: string, cuerpo: string): Promise<{ id: string }> {
+    const ctx = this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      await this.#exigirConversacion(c, conversationId);
+      const id = await this.#db.nuevoId(c);
+      await c.query(
+        `INSERT INTO internal_notes (id, tenant_id, conversation_id, user_id, body)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [id, ctx.tenantId, conversationId, ctx.userId, cuerpo.trim()],
+      );
+      return { id };
+    });
+  }
+
+  /** Solo el autor borra su nota; lo demás es reescribir lo que dijo otro. */
+  async borrarNota(notaId: string): Promise<void> {
+    const ctx = this.#exigirContexto();
+    await this.#db.enTransaccion(async (c) => {
+      const { rowCount } = await c.query(
+        `DELETE FROM internal_notes WHERE id = $1 AND user_id = $2`,
+        [notaId, ctx.userId],
+      );
+      if (rowCount === 0) {
+        throw new ErrorDeNegocio('nota_no_encontrada', 'Esa nota no existe o no es tuya.', 404);
+      }
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Vistas guardadas
+  // -------------------------------------------------------------------------
+
+  async vistas(): Promise<VistaDeBandeja[]> {
+    const ctx = this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{
+        id: string;
+        name: string;
+        filters: Record<string, string>;
+        position: number;
+      }>(
+        `SELECT id, name, filters, position FROM inbox_views
+          WHERE user_id = $1 ORDER BY position, created_at`,
+        [ctx.userId],
+      );
+      return rows.map((r) => ({
+        id: r.id,
+        nombre: r.name,
+        filtros: r.filters,
+        posicion: r.position,
+      }));
+    });
+  }
+
+  async guardarVista(nombre: string, filtros: Record<string, string>): Promise<{ id: string }> {
+    const ctx = this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const id = await this.#db.nuevoId(c);
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO inbox_views (id, tenant_id, user_id, name, filters, position)
+           VALUES ($1, $2, $3, $4, $5,
+                   COALESCE((SELECT max(position) + 1 FROM inbox_views WHERE user_id = $3), 0))
+           ON CONFLICT (user_id, lower(name))
+             DO UPDATE SET filters = EXCLUDED.filters, updated_at = now()
+           RETURNING id`,
+        [id, ctx.tenantId, ctx.userId, nombre.trim(), JSON.stringify(filtros)],
+      );
+      // Guardar dos veces con el mismo nombre ACTUALIZA la vista. Es lo que
+      // espera quien ajusta un filtro y vuelve a pulsar «Guardar»; un error de
+      // nombre repetido ahí solo obligaría a borrar y repetir.
+      return { id: rows[0]?.id ?? id };
+    });
+  }
+
+  async borrarVista(vistaId: string): Promise<void> {
+    const ctx = this.#exigirContexto();
+    await this.#db.enTransaccion(async (c) => {
+      const { rowCount } = await c.query(`DELETE FROM inbox_views WHERE id = $1 AND user_id = $2`, [
+        vistaId,
+        ctx.userId,
+      ]);
+      if (rowCount === 0) {
+        throw new ErrorDeNegocio('vista_no_encontrada', 'Esa vista no existe.', 404);
+      }
+    });
+  }
 
   async asignar(conversationId: string, agenteId: string | null): Promise<void> {
     const ctx = this.#exigirContexto();
@@ -523,6 +759,8 @@ interface FilaResumen {
   handle: string | null;
   etiquetas: { id: string; nombre: string; color: string | null }[];
   vista_previa: string | null;
+  atencion: EstadoDeAtencion;
+  snoozed_until: Date | null;
 }
 
 export interface MensajeDeConversacion {
@@ -558,6 +796,8 @@ function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
       tiempoRestante(f.session_expires_at, ahora) !== 0,
     etiquetas: f.etiquetas,
     vistaPrevia: f.vista_previa,
+    atencion: f.atencion,
+    aplazadaHasta: f.snoozed_until,
   };
 }
 
