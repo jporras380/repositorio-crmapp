@@ -1,0 +1,137 @@
+@layer components {
+  .cotizador {
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: grid;
+    gap: var(--space-3);
+    align-content: start;
+  }
+  .titulo {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: 600;
+  }
+  .pista {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+
+  .campos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--space-2);
+  }
+  .campo {
+    display: grid;
+    gap: 0.25rem;
+    min-inline-size: 0;
+  }
+  .etiqueta {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+  .control {
+    font-size: var(--text-sm);
+    font-family: inherit;
+    padding: 0.4rem 0.5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--fg);
+    min-inline-size: 0;
+    inline-size: 100%;
+  }
+
+  .extras {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.8rem;
+    align-items: center;
+  }
+  .extra {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: var(--text-sm);
+  }
+
+  .error {
+    margin: 0;
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+
+  .resultado {
+    border-block-start: 1px solid var(--hairline);
+    padding-block-start: var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+  }
+  /* La cifra es lo que se dice por teléfono: grande, y en números tabulares
+     para que no baile mientras se cambian fechas. */
+  .total {
+    margin: 0;
+    font-size: var(--text-2xl, 1.9rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+  }
+  /* Tachada, no escondida: se ve lo que falta, y que no se puede dar. */
+  .totalIncompleto {
+    color: var(--fg-faint);
+    text-decoration: line-through;
+    text-decoration-color: var(--danger);
+  }
+  .resumen {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+
+  .avisos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .aviso,
+  .avisoGrave {
+    font-size: var(--text-xs);
+    padding: 0.3rem 0.5rem;
+    border-radius: var(--radius-sm);
+  }
+  .aviso {
+    color: var(--warn);
+    background: var(--warn-soft);
+  }
+  .avisoGrave {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+
+  .desglose {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  .desglose td {
+    padding: 0.25rem 0;
+    border-block-end: 1px solid var(--hairline);
+  }
+  .tarifa {
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+  }
+  .cifra {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+}

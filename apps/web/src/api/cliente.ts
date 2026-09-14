@@ -9,7 +9,12 @@
 import type {
   ColumnaDelTablero,
   CuentaDeCanal,
+  CatalogoDeHotel,
+  Cotizacion,
   DatosDeCliente,
+  Tarifa,
+  UnidadDeServicio,
+  EstadoDeHabitacion,
   NotaInterna,
   VistaDeBandeja,
   FichaDeCliente,
@@ -245,6 +250,49 @@ export function crearApi(token: string | null) {
     guardarVista: (nombre: string, filtros: Record<string, string>) =>
       peticion<{ id: string }>('/v1/vistas', { ...t, metodo: 'POST', cuerpo: { nombre, filtros } }),
     borrarVista: (id: string) => peticion<void>(`/v1/vistas/${id}`, { ...t, metodo: 'DELETE' }),
+
+    // --- Hotel -------------------------------------------------------------
+    hotel: () => peticion<CatalogoDeHotel>('/v1/hotel', t),
+    cotizar: (d: {
+      tipoId: string;
+      entrada: string;
+      salida: string;
+      personas: number;
+      servicios?: string[];
+    }) => peticion<Cotizacion>('/v1/hotel/cotizar', { ...t, metodo: 'POST', cuerpo: d }),
+    crearTipo: (d: {
+      nombre: string;
+      capacidad: number;
+      precioBase: number | null;
+      descripcion?: string | null;
+    }) => peticion<{ id: string }>('/v1/hotel/tipos', { ...t, metodo: 'POST', cuerpo: d }),
+    editarTipo: (
+      id: string,
+      d: Partial<{
+        nombre: string;
+        capacidad: number;
+        precioBase: number | null;
+        descripcion: string | null;
+        activo: boolean;
+      }>,
+    ) => peticion<void>(`/v1/hotel/tipos/${id}`, { ...t, metodo: 'PATCH', cuerpo: d }),
+    borrarTipo: (id: string) => peticion<void>(`/v1/hotel/tipos/${id}`, { ...t, metodo: 'DELETE' }),
+    crearHabitacion: (d: { tipoId: string; nombre: string }) =>
+      peticion<{ id: string }>('/v1/hotel/habitaciones', { ...t, metodo: 'POST', cuerpo: d }),
+    editarHabitacion: (
+      id: string,
+      d: Partial<{ nombre: string; estado: EstadoDeHabitacion; notas: string | null }>,
+    ) => peticion<void>(`/v1/hotel/habitaciones/${id}`, { ...t, metodo: 'PATCH', cuerpo: d }),
+    borrarHabitacion: (id: string) =>
+      peticion<void>(`/v1/hotel/habitaciones/${id}`, { ...t, metodo: 'DELETE' }),
+    crearTarifa: (d: Omit<Tarifa, 'id'>) =>
+      peticion<{ id: string }>('/v1/hotel/tarifas', { ...t, metodo: 'POST', cuerpo: d }),
+    borrarTarifa: (id: string) =>
+      peticion<void>(`/v1/hotel/tarifas/${id}`, { ...t, metodo: 'DELETE' }),
+    crearServicio: (d: { nombre: string; precio: number; unidad: UnidadDeServicio }) =>
+      peticion<{ id: string }>('/v1/hotel/servicios', { ...t, metodo: 'POST', cuerpo: d }),
+    editarServicio: (id: string, d: Partial<{ activo: boolean; precio: number }>) =>
+      peticion<void>(`/v1/hotel/servicios/${id}`, { ...t, metodo: 'PATCH', cuerpo: d }),
 
     // --- Clientes ----------------------------------------------------------
     clientes: (f: { q?: string; origen?: string; etiqueta?: string; cursor?: string } = {}) => {

@@ -4,7 +4,7 @@ import estilos from './Barra.module.css';
 
 interface Props {
   yo: Yo | null;
-  activa?: 'panel' | 'bandeja' | 'clientes' | 'leads' | 'flujos' | 'ajustes';
+  activa?: 'panel' | 'bandeja' | 'clientes' | 'leads' | 'hotel' | 'flujos' | 'ajustes';
   alSalir: () => void;
 }
 
@@ -56,6 +56,15 @@ export function Barra({ yo, activa = 'bandeja', alSalir }: Props) {
       >
         <IconoEmbudo />
         <span className="visually-hidden">Leads</span>
+      </button>
+      <button
+        className={`${estilos.item} ${activa === 'hotel' ? estilos.activo : ''}`}
+        aria-current={activa === 'hotel' ? 'page' : undefined}
+        title="Hotel"
+        onClick={() => irA({ pantalla: 'hotel' })}
+      >
+        <IconoHotel />
+        <span className="visually-hidden">Hotel</span>
       </button>
       <button
         className={`${estilos.item} ${activa === 'flujos' ? estilos.activo : ''}`}
@@ -115,6 +124,22 @@ function IconoPanel() {
         strokeWidth="1.9"
         strokeLinecap="round"
       />
+    </svg>
+  );
+}
+
+/** Una cama: cabecera y colchón. A 22 px se lee cama, no «edificio genérico». */
+function IconoHotel() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 18V7M21 18v-5a3 3 0 0 0-3-3h-7v5M3 14h18"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="7" cy="11" r="1.8" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   );
 }

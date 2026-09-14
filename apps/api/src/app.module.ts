@@ -28,6 +28,7 @@ import {
   TOKEN_FLUJOS,
   TOKEN_EMBUDO,
   TOKEN_CONTACTOS,
+  TOKEN_HOTEL,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -61,6 +62,8 @@ import { EmbudoService } from './embudo/embudo.service.js';
 import { EmbudoController } from './embudo/embudo.controller.js';
 import { ContactosService } from './contactos/contactos.service.js';
 import { ContactosController } from './contactos/contactos.controller.js';
+import { HotelService } from './hotel/hotel.service.js';
+import { HotelController } from './hotel/hotel.controller.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -123,6 +126,7 @@ export class AppModule {
         FlujosController,
         EmbudoController,
         ContactosController,
+        HotelController,
       ],
       providers: [
         {
@@ -270,6 +274,11 @@ export class AppModule {
           useFactory: (db: BaseDeDatos) => new ContactosService({ db }),
         },
         {
+          provide: TOKEN_HOTEL,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) => new HotelService({ db }),
+        },
+        {
           provide: TOKEN_USO,
           inject: [TOKEN_DB],
           useFactory: (db: BaseDeDatos) =>
@@ -291,6 +300,7 @@ export class AppModule {
         TOKEN_FLUJOS,
         TOKEN_EMBUDO,
         TOKEN_CONTACTOS,
+        TOKEN_HOTEL,
       ],
     };
   }

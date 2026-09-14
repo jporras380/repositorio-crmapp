@@ -692,3 +692,58 @@ export const inboxViews = pgTable('inbox_views', {
   createdAt: creado,
   updatedAt: actualizado,
 });
+
+// ---------------------------------------------------------------------------
+// Hotel (0021): el catálogo. Las reservas llegan en la migración siguiente.
+// ---------------------------------------------------------------------------
+
+export const roomTypes = pgTable('room_types', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  capacity: integer('capacity').notNull().default(2),
+  baseRateCents: bigint('base_rate_cents', { mode: 'number' }),
+  currency: char('currency', { length: 3 }).notNull().default('PEN'),
+  active: boolean('active').notNull().default(true),
+  position: integer('position').notNull().default(0),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+export const rooms = pgTable('rooms', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  roomTypeId: uuid('room_type_id').notNull(),
+  name: text('name').notNull(),
+  status: text('status').notNull().default('disponible'),
+  notes: text('notes'),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+export const rates = pgTable('rates', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  roomTypeId: uuid('room_type_id').notNull(),
+  name: text('name').notNull(),
+  validFrom: date('valid_from').notNull(),
+  validTo: date('valid_to').notNull(),
+  priceCents: bigint('price_cents', { mode: 'number' }).notNull(),
+  minNights: integer('min_nights').notNull().default(1),
+  weekdays: integer('weekdays').array(),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+export const hotelServices = pgTable('hotel_services', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  name: text('name').notNull(),
+  priceCents: bigint('price_cents', { mode: 'number' }).notNull(),
+  currency: char('currency', { length: 3 }).notNull().default('PEN'),
+  unit: text('unit').notNull().default('por_estancia'),
+  active: boolean('active').notNull().default(true),
+  createdAt: creado,
+  updatedAt: actualizado,
+});

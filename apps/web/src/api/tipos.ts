@@ -389,3 +389,72 @@ export interface ResultadoDeImportacion {
   errores: { linea: number; motivo: string }[];
   columnasIgnoradas: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Hotel
+// ---------------------------------------------------------------------------
+
+export type EstadoDeHabitacion = 'disponible' | 'mantenimiento' | 'fuera_de_servicio';
+export type UnidadDeServicio = 'por_estancia' | 'por_noche' | 'por_persona_noche';
+
+export interface Habitacion {
+  id: string;
+  tipoId: string;
+  nombre: string;
+  estado: EstadoDeHabitacion;
+  notas: string | null;
+}
+
+export interface Tarifa {
+  id: string;
+  tipoId: string;
+  nombre: string;
+  /** `YYYY-MM-DD`, inclusive. */
+  desde: string;
+  hasta: string;
+  /** Céntimos por noche. */
+  precio: number;
+  minNoches: number;
+  /** 0 = domingo … 6 = sábado; `null` = todos. */
+  dias: number[] | null;
+}
+
+export interface TipoDeHabitacion {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  capacidad: number;
+  precioBase: number | null;
+  moneda: string;
+  activo: boolean;
+  habitaciones: Habitacion[];
+  tarifas: Tarifa[];
+}
+
+export interface ServicioDeHotel {
+  id: string;
+  nombre: string;
+  precio: number;
+  moneda: string;
+  unidad: UnidadDeServicio;
+  activo: boolean;
+}
+
+export interface CatalogoDeHotel {
+  tipos: TipoDeHabitacion[];
+  servicios: ServicioDeHotel[];
+}
+
+export interface Cotizacion {
+  tipo: string;
+  noches: number;
+  personas: number;
+  moneda: string;
+  detalle: { fecha: string; precio: number; tarifa: string | null }[];
+  alojamiento: number;
+  servicios: { nombre: string; cantidad: number; precioUnitario: number; total: number }[];
+  total: number;
+  problemas: { codigo: string; mensaje: string; fecha?: string }[];
+  /** `false` si falta el precio de alguna noche: esa cifra no se le da a un cliente. */
+  completa: boolean;
+}

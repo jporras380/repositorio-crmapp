@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-36, el hotel** ([[hotel]]): tipos de habitación, habitaciones con estado, **tarifas por fechas y días de la semana**, servicios adicionales y un **cotizador** siempre a la vista. El precio se calcula en `core` noche a noche —gana la tarifa de rango más corto, nunca se inventa una noche a cero— para que cotizador y reserva den lo mismo. Ningún precio en el código: el catálogo empieza vacío. Migración 0021. 28 tests nuevos.
 - **PR-35, la bandeja se puede filtrar** ([[bandeja]]): búsqueda, panel de filtros compuestos (atención, responsable, **etapa del embudo**, fechas), **vistas guardadas** por agente, **aplazar** conversaciones y **notas internas** —que tenían tabla desde la fase 0 sin usar—. El estado de atención **se deduce**, no se guarda: solo el aplazamiento necesita columna. Migración 0020. 15 tests nuevos.
 - **PR-34, clientes** ([[clientes]]): pantalla de Clientes con búsqueda y filtros, ficha editable con etiquetas, conversaciones e historial de reservas, **importar y exportar CSV** —lector propio en `core`, probado contra los archivos que llegan de verdad— y borrado que **anonimiza** en vez de arrasar cuando la persona ya habló con el hotel. Migración 0019. 37 tests nuevos.
 - **PR-33, el embudo de reservas** ([[embudo]], [[ADR-013-lead-no-es-conversacion]]): tablero kanban con etapas editables (crear, renombrar, recolorear, reordenar y borrar **diciendo a dónde van sus leads**), tarjetas que se mueven arrastrando o con desplegable, ficha lateral con importe, responsable, etiquetas e historial, y **leads que se abren solos** con cada conversación nueva, titulados con lo que pidió el cliente. Migración 0018 y `app.sembrar_embudo()`, que llaman la migración y el alta de cuenta para que no se separen. 24 tests nuevos.
@@ -92,9 +93,9 @@ Nada.
 
 ## Qué sigue
 
-1. **PR-36 · Hotel** y **PR-37 · Reservas**: tipos de habitación, habitaciones y tarifas editables; reserva creada desde la conversación, **con líneas** (noches × tipo, extras) como enseñó idurar. **Sin motor de disponibilidad** en la primera entrega, por decisión explícita: el sistema no impide la sobreventa.
-2. **PR-38 · Dashboard** con reservas y agentes; **PR-39 · Facebook Messenger** (depende de App Review de Meta); **PR-40 · IA asistida** con clave del cliente.
-3. Del estudio de los repos de referencia ([[2026-09-11-repos-de-referencia]]): `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas) como candidato — la mejora de atención más barata que vi en los tres.
+1. **PR-37 · Reservas**: crear la reserva desde la conversación, **copiando la cotización** —con sus líneas— en vez de apuntar a la tarifa; historial en la ficha del cliente, estado de la reserva reflejado en la etapa del embudo, pagos registrados. Sin disponibilidad, por decisión explícita.
+2. **PR-38 · Dashboard** con reservas, agentes y canales; **PR-39 · Facebook Messenger** (depende de App Review de Meta); **PR-40 · IA asistida** con clave del cliente.
+3. Del estudio de los repos de referencia ([[2026-09-11-repos-de-referencia]]): `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas).
 
 Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, etiquetas editables, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
 

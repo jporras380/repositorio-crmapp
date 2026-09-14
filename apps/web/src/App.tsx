@@ -7,12 +7,14 @@ import { Ajustes } from './pantallas/Ajustes/Ajustes.tsx';
 import { Flujos } from './pantallas/Flujos/Flujos.tsx';
 import { Leads } from './pantallas/Leads/Leads.tsx';
 import { Clientes } from './pantallas/Clientes/Clientes.tsx';
+import { Hotel } from './pantallas/Hotel/Hotel.tsx';
 
 export function App() {
   const { sesion, iniciar, cerrar } = useSesion();
   const ruta = useRuta();
   if (!sesion) return <Acceso alEntrar={iniciar} />;
   if (ruta.pantalla === 'panel') return <Panel sesion={sesion} alSalir={cerrar} />;
+  if (ruta.pantalla === 'hotel') return <Hotel sesion={sesion} alSalir={cerrar} />;
   if (ruta.pantalla === 'clientes') {
     return <Clientes sesion={sesion} clienteId={ruta.clienteId} alSalir={cerrar} />;
   }
