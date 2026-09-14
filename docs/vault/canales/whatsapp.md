@@ -100,7 +100,17 @@ Desde PR-39 la web **ya no pide los identificadores**: el cliente pega token y a
 - **`expires_at` se enseña:** un token temporal avisa de cuándo caduca. Es el fallo que más veces nos ha dejado sin mensajes.
 - **«Ya conectado» solo mira la cuenta propia (RLS).** Si el número está en otra cuenta, el alta devuelve 409 sin decir en cuál.
 
-**Pendiente de verificar con tráfico real:** la lista con un token de usuario del sistema válido. El token de prueba caducó antes de poder probarlo; los tests usan respuestas con la forma documentada.
+**Verificado con Meta real el mismo día** con un token temporal nuevo: `debug_token` devuelve la WABA en `granular_scopes` y el número se lista sin escribir ningún id.
+
+### «Mandé un WhatsApp y no llegó nada» (2026-09-14)
+
+Entrante y saliente volvieron a funcionar a las 21:07 UTC («prueba 02» → respuesta del CRM con estado `read`). Se había cortado **cinco días sin ningún error visible**, por tres cosas a la vez, ninguna del código:
+
+1. **El túnel rápido de cloudflared cambia de URL cada vez que arranca.** Meta seguía enviando a la del día 9, muerta. Se ve con `GET /{app-id}/subscriptions` (token de app): muestra `callback_url`. Hay que volver a pegarla en el panel de la app → WhatsApp → Configuración → Webhook. Una URL estable exige túnel con nombre (cuenta de Cloudflare) o despliegue.
+2. **El worker no estaba corriendo.** Sin él, el webhook se guarda en `inbound_events`, pero no se convierte en conversación.
+3. **Cambiar `DEV_WA_ACCESS_TOKEN` en `.env` no cambia el token del canal**, que vive cifrado en `channel_secrets`. Hay que renovarlo: `pnpm wa:conectar` o «Renovar token» en Ajustes.
+
+Primera comprobación ante «no llega»: la fecha del último `inbound_events`. Si es vieja, el problema está antes de nuestra API.
 
 **Para desarrollar no hace falta comprar número:** Meta da un número de prueba gratuito que envía a hasta 5 destinatarios verificados. El móvil personal del usuario sirve como destinatario. **El número de producción de Nippon no se toca hasta el final**: está en uso en Kommo.
 
