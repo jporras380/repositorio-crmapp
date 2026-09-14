@@ -215,8 +215,9 @@ export class ContactosService {
           LIMIT 20`,
         [id],
       );
-      // El «historial de reservas» que pide la ficha. Hoy son los leads del
-      // embudo; cuando exista `reservations` (PR-37) se sumarán aquí.
+      // El «historial de reservas» que pide la ficha: las ESTANCIAS, no las
+      // oportunidades del embudo. Una consulta que no llegó a reservar vive en
+      // el embudo; aquí se ve lo que el huésped reservó de verdad, con fechas.
       const { rows: reservas } = await c.query<{
         id: string;
         title: string;
@@ -225,10 +226,13 @@ export class ContactosService {
         amount_cents: string;
         created_at: Date;
       }>(
-        `SELECT l.id, l.title, s.name AS etapa, l.status, l.amount_cents, l.created_at
-           FROM leads l JOIN pipeline_stages s ON s.id = l.stage_id
-          WHERE l.contact_id = $1
-          ORDER BY l.created_at DESC
+        `SELECT r.id,
+                r.room_type_name || ' · ' || to_char(r.check_in, 'DD/MM/YYYY')
+                  || ' → ' || to_char(r.check_out, 'DD/MM/YYYY') AS title,
+                r.status AS etapa, r.status, r.total_cents AS amount_cents, r.created_at
+           FROM reservations r
+          WHERE r.contact_id = $1
+          ORDER BY r.check_in DESC
           LIMIT 50`,
         [id],
       );

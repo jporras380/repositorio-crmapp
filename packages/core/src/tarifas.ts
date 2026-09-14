@@ -61,11 +61,17 @@ export interface PeticionDeCotizacion {
   moneda: string;
   /** En orden de creación: ante un empate, gana la última. */
   tarifas: TarifaParaCotizar[];
+  /**
+   * `YYYY-MM-DD`. Si llega, una entrada anterior se avisa. Lo pasa quien
+   * sabe qué día es; el dominio no mira el reloj.
+   */
+  hoy?: string;
   servicios?: ServicioParaCotizar[];
 }
 
 export type CodigoDeProblemaDeCotizacion =
   | 'fechas_invalidas'
+  | 'entrada_pasada'
   | 'sin_noches'
   | 'estancia_demasiado_larga'
   | 'noche_sin_precio'
@@ -144,6 +150,16 @@ export function cotizarEstancia(p: PeticionDeCotizacion): Cotizacion {
       mensaje: `Una cotización llega a ${MAX_NOCHES} noches como mucho.`,
     });
     return vacia();
+  }
+
+  // Equivocarse de año al reservar es de los errores más comunes en
+  // recepción, y el sistema lo aceptaba en silencio. Es un AVISO y no un
+  // bloqueo: registrar tarde la estancia de alguien que ya vino es legítimo.
+  if (p.hoy && p.entrada < p.hoy) {
+    problemas.push({
+      codigo: 'entrada_pasada',
+      mensaje: `La entrada (${p.entrada}) ya pasó. ¿Es el año correcto?`,
+    });
   }
 
   if (p.personas > p.capacidad) {

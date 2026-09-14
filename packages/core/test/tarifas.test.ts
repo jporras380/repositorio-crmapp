@@ -171,6 +171,25 @@ describe('lo que no se puede dar por bueno', () => {
   });
 });
 
+describe('la fecha de hoy', () => {
+  it('una entrada en el pasado se avisa, pero la cifra sigue siendo real', () => {
+    const c = cotizarEstancia(
+      base({ entrada: '2026-07-27', salida: '2026-07-30', hoy: '2026-09-14' }),
+    );
+    expect(c.problemas.map((p) => p.codigo)).toEqual(['entrada_pasada']);
+    expect(c.completa).toBe(true);
+    expect(c.total).toBe(60_000);
+  });
+
+  it('sin decirle qué día es, no avisa: el dominio no mira el reloj', () => {
+    expect(cotizarEstancia(base()).problemas).toEqual([]);
+  });
+
+  it('entrar hoy no es entrar en el pasado', () => {
+    expect(cotizarEstancia(base({ hoy: '2026-07-27' })).problemas).toEqual([]);
+  });
+});
+
 describe('servicios', () => {
   it('cada unidad multiplica por lo suyo: estancia, noche o persona y noche', () => {
     const c = cotizarEstancia(

@@ -4,7 +4,7 @@ import estilos from './Barra.module.css';
 
 interface Props {
   yo: Yo | null;
-  activa?: 'panel' | 'bandeja' | 'clientes' | 'leads' | 'hotel' | 'flujos' | 'ajustes';
+  activa?: 'panel' | 'bandeja' | 'clientes' | 'leads' | 'reservas' | 'hotel' | 'flujos' | 'ajustes';
   alSalir: () => void;
 }
 
@@ -56,6 +56,15 @@ export function Barra({ yo, activa = 'bandeja', alSalir }: Props) {
       >
         <IconoEmbudo />
         <span className="visually-hidden">Leads</span>
+      </button>
+      <button
+        className={`${estilos.item} ${activa === 'reservas' ? estilos.activo : ''}`}
+        aria-current={activa === 'reservas' ? 'page' : undefined}
+        title="Reservas"
+        onClick={() => irA({ pantalla: 'reservas', reservaId: null })}
+      >
+        <IconoReservas />
+        <span className="visually-hidden">Reservas</span>
       </button>
       <button
         className={`${estilos.item} ${activa === 'hotel' ? estilos.activo : ''}`}
@@ -123,6 +132,28 @@ function IconoPanel() {
         stroke="currentColor"
         strokeWidth="1.9"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Un calendario con una marca: una fecha apartada. */
+function IconoReservas() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M4 10h16M9 3v4M15 3v4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="m9.5 14.5 2 2 3.5-3.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

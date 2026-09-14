@@ -1,0 +1,222 @@
+@layer components {
+  .ficha {
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: grid;
+    gap: var(--space-3);
+    align-content: start;
+    overflow-y: auto;
+    min-block-size: 0;
+  }
+  .cabecera {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .titulo {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+  .subtitulo {
+    margin: 0.2rem 0 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .cerrar {
+    font-size: var(--text-xl);
+    line-height: 1;
+    color: var(--fg-faint);
+  }
+  .error {
+    margin: 0;
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+
+  .estado {
+    justify-self: start;
+    margin: 0;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-pill);
+    color: var(--fg-muted);
+    background: var(--hairline);
+  }
+  .estado_pendiente {
+    color: var(--warn);
+    background: var(--warn-soft);
+  }
+  .estado_confirmada,
+  .estado_en_casa {
+    color: var(--ok);
+    background: var(--ok-soft);
+  }
+  .estado_cancelada {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+
+  .acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .primario,
+  .secundario,
+  .peligro {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    padding: 0.45rem 0.9rem;
+    border-radius: var(--radius-md);
+    white-space: nowrap;
+  }
+  .primario {
+    color: var(--accent-fg);
+    background: var(--accent);
+  }
+  .secundario {
+    color: var(--fg-muted);
+    border: 1px solid var(--hairline);
+  }
+  .peligro {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+  .primario:disabled,
+  .secundario:disabled,
+  .peligro:disabled {
+    opacity: 0.45;
+  }
+  .confirmar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+
+  .bloque {
+    border-block-start: 1px solid var(--hairline);
+    padding-block-start: var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+  }
+  .bloqueTitulo {
+    margin: 0;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--fg-muted);
+  }
+  .control {
+    font-size: var(--text-sm);
+    font-family: inherit;
+    padding: 0.4rem 0.5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--fg);
+    min-inline-size: 0;
+  }
+
+  /* El solape es el error caro: se ve en rojo y enlaza a la otra reserva. */
+  .solape {
+    font-size: var(--text-sm);
+    color: var(--danger);
+    background: var(--danger-soft);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+  }
+  .solape ul {
+    margin: 0.25rem 0 0;
+    padding-inline-start: var(--space-4);
+  }
+
+  .lineas {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  .lineas td {
+    padding: 0.25rem 0;
+    border-block-end: 1px solid var(--hairline);
+  }
+  .lineas tfoot td {
+    font-weight: 700;
+    border-block-end: 0;
+    padding-block-start: var(--space-2);
+  }
+  .descuento td {
+    color: var(--ok);
+  }
+  .detalle {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+  .cifra {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .saldo {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: var(--space-2);
+  }
+  .saldo div {
+    display: grid;
+    gap: 0.1rem;
+  }
+  .saldo dt {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+  .saldo dd {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .pendiente dd {
+    color: var(--warn);
+  }
+  .aFavor dd {
+    color: var(--accent);
+  }
+  .pagos,
+  .historial {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.3rem;
+  }
+  .pagos li,
+  .historial li {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: var(--text-sm);
+    flex-wrap: wrap;
+  }
+  .pagos li .cifra {
+    margin-inline-start: auto;
+  }
+  .nuevoPago {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: var(--space-2);
+  }
+  .enlace {
+    justify-self: start;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--accent);
+    text-align: start;
+  }
+}

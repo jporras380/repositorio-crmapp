@@ -19,7 +19,9 @@ export type Ruta =
   /** Clientes. Con uno elegido, su ficha al lado de la lista. */
   | { pantalla: 'clientes'; clienteId: string | null }
   /** Catálogo del hotel y cotizador. */
-  | { pantalla: 'hotel' };
+  | { pantalla: 'hotel' }
+  /** Reservas. Con una elegida, su ficha al lado de la lista. */
+  | { pantalla: 'reservas'; reservaId: string | null };
 
 const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'uso', 'suscripcion']);
 
@@ -39,6 +41,9 @@ export function leerRuta(hash: string = location.hash): Ruta {
     };
   }
   if (hash.startsWith('#hotel')) return { pantalla: 'hotel' };
+  if (hash.startsWith('#reservas')) {
+    return { pantalla: 'reservas', reservaId: hash.split('/')[1] ?? null };
+  }
   if (hash.startsWith('#clientes')) {
     return { pantalla: 'clientes', clienteId: hash.split('/')[1] ?? null };
   }
@@ -64,25 +69,29 @@ export function irA(ruta: Ruta): void {
       ? '#panel'
       : ruta.pantalla === 'hotel'
         ? '#hotel'
-        : ruta.pantalla === 'clientes'
-          ? ruta.clienteId
-            ? `#clientes/${ruta.clienteId}`
-            : '#clientes'
-          : ruta.pantalla === 'leads'
-            ? ruta.leadId
-              ? `#leads/${ruta.leadId}`
-              : '#leads'
-            : ruta.pantalla === 'flujos'
-              ? ruta.flujoId
-                ? `#flujos/${ruta.flujoId}`
-                : '#flujos'
-              : ruta.pantalla === 'ajustes'
-                ? `#ajustes/${ruta.seccion}`
-                : ruta.conversacionId
-                  ? `#c=${ruta.conversacionId}`
-                  : ruta.vista
-                    ? `#bandeja/${ruta.vista}`
-                    : '#bandeja';
+        : ruta.pantalla === 'reservas'
+          ? ruta.reservaId
+            ? `#reservas/${ruta.reservaId}`
+            : '#reservas'
+          : ruta.pantalla === 'clientes'
+            ? ruta.clienteId
+              ? `#clientes/${ruta.clienteId}`
+              : '#clientes'
+            : ruta.pantalla === 'leads'
+              ? ruta.leadId
+                ? `#leads/${ruta.leadId}`
+                : '#leads'
+              : ruta.pantalla === 'flujos'
+                ? ruta.flujoId
+                  ? `#flujos/${ruta.flujoId}`
+                  : '#flujos'
+                : ruta.pantalla === 'ajustes'
+                  ? `#ajustes/${ruta.seccion}`
+                  : ruta.conversacionId
+                    ? `#c=${ruta.conversacionId}`
+                    : ruta.vista
+                      ? `#bandeja/${ruta.vista}`
+                      : '#bandeja';
   if (hash) location.hash = hash;
   else history.pushState(null, '', location.pathname);
   window.dispatchEvent(new HashChangeEvent('hashchange'));

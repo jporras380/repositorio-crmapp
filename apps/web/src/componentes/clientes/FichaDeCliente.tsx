@@ -233,7 +233,7 @@ export function FichaDeCliente({
             <li key={r.id}>
               <button
                 className={estilos.enlace}
-                onClick={() => irA({ pantalla: 'leads', leadId: r.id })}
+                onClick={() => irA({ pantalla: 'reservas', reservaId: r.id })}
               >
                 <span>{r.titulo}</span>
                 <span className={estilos.secundario}>

@@ -3,6 +3,7 @@ import type { Api } from '../../api/cliente.ts';
 import type { Etiqueta, ResumenDeConversacion } from '../../api/tipos.ts';
 import { horaCorta, inicial } from '../../vista/tiempo.ts';
 import { pintar } from '../Filtros/Filtros.tsx';
+import { ReservaDeConversacion } from './ReservaDeConversacion.tsx';
 import { Notas } from './Notas.tsx';
 import estilos from './PanelDeContacto.module.css';
 
@@ -171,6 +172,8 @@ export function PanelDeContacto({
           </div>
         </dl>
       </section>
+
+      <ReservaDeConversacion api={api} conversacionId={conversacion.id} />
 
       <Notas api={api} conversacionId={conversacion.id} userId={userId} />
 

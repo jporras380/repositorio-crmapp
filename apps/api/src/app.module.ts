@@ -29,6 +29,7 @@ import {
   TOKEN_EMBUDO,
   TOKEN_CONTACTOS,
   TOKEN_HOTEL,
+  TOKEN_RESERVAS,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -64,6 +65,8 @@ import { ContactosService } from './contactos/contactos.service.js';
 import { ContactosController } from './contactos/contactos.controller.js';
 import { HotelService } from './hotel/hotel.service.js';
 import { HotelController } from './hotel/hotel.controller.js';
+import { ReservasService } from './reservas/reservas.service.js';
+import { ReservasController } from './reservas/reservas.controller.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -127,6 +130,7 @@ export class AppModule {
         EmbudoController,
         ContactosController,
         HotelController,
+        ReservasController,
       ],
       providers: [
         {
@@ -276,7 +280,14 @@ export class AppModule {
         {
           provide: TOKEN_HOTEL,
           inject: [TOKEN_DB],
-          useFactory: (db: BaseDeDatos) => new HotelService({ db }),
+          useFactory: (db: BaseDeDatos) => new HotelService({ db, ahora: opciones.ahora }),
+        },
+        {
+          // La reserva recibe el MISMO servicio de hotel que usa el cotizador:
+          // es lo que garantiza que el precio reservado es el cotizado.
+          provide: TOKEN_RESERVAS,
+          inject: [TOKEN_DB, TOKEN_HOTEL],
+          useFactory: (db: BaseDeDatos, hotel: HotelService) => new ReservasService({ db, hotel }),
         },
         {
           provide: TOKEN_USO,
@@ -301,6 +312,7 @@ export class AppModule {
         TOKEN_EMBUDO,
         TOKEN_CONTACTOS,
         TOKEN_HOTEL,
+        TOKEN_RESERVAS,
       ],
     };
   }

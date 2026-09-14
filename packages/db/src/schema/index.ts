@@ -747,3 +747,66 @@ export const hotelServices = pgTable('hotel_services', {
   createdAt: creado,
   updatedAt: actualizado,
 });
+
+// ---------------------------------------------------------------------------
+// Reservas (0022): copian el precio, no apuntan a la tarifa.
+// ---------------------------------------------------------------------------
+
+export const reservations = pgTable('reservations', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  contactId: uuid('contact_id').notNull(),
+  conversationId: uuid('conversation_id'),
+  leadId: uuid('lead_id'),
+  roomTypeId: uuid('room_type_id').notNull(),
+  roomId: uuid('room_id'),
+  roomTypeName: text('room_type_name').notNull(),
+  checkIn: date('check_in').notNull(),
+  checkOut: date('check_out').notNull(),
+  guests: integer('guests').notNull(),
+  status: text('status').notNull().default('pendiente'),
+  totalCents: bigint('total_cents', { mode: 'number' }).notNull(),
+  currency: char('currency', { length: 3 }).notNull().default('PEN'),
+  notes: text('notes'),
+  createdBy: uuid('created_by'),
+  createdAt: creado,
+  updatedAt: actualizado,
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+});
+
+export const reservationLines = pgTable('reservation_lines', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  reservationId: uuid('reservation_id').notNull(),
+  kind: text('kind').notNull(),
+  description: text('description').notNull(),
+  night: date('night'),
+  quantity: integer('quantity').notNull().default(1),
+  unitCents: bigint('unit_cents', { mode: 'number' }).notNull(),
+  totalCents: bigint('total_cents', { mode: 'number' }).notNull(),
+  position: integer('position').notNull().default(0),
+});
+
+export const reservationPayments = pgTable('reservation_payments', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  reservationId: uuid('reservation_id').notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  method: text('method').notNull(),
+  reference: text('reference'),
+  paidAt: timestamp('paid_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  createdAt: creado,
+});
+
+export const reservationEvents = pgTable('reservation_events', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  reservationId: uuid('reservation_id').notNull(),
+  type: text('type').notNull(),
+  fromStatus: text('from_status'),
+  toStatus: text('to_status'),
+  actorUserId: uuid('actor_user_id'),
+  meta: jsonb('meta'),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+});

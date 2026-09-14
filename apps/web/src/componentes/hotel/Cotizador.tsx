@@ -10,7 +10,24 @@ interface Props {
   servicios: ServicioDeHotel[];
   /** Tipo con el que abrir, si viene elegido de la lista. */
   tipoInicial?: string | null;
+  /**
+   * Si llega, el cotizador se convierte en el formulario de reserva: mismos
+   * campos, misma cifra, y un botón más. Es a propósito el mismo componente:
+   * un formulario de reserva aparte sería una segunda forma de pedir el
+   * precio, y tarde o temprano daría otro.
+   */
+  alReservar?: (d: {
+    tipoId: string;
+    entrada: string;
+    salida: string;
+    personas: number;
+    servicios: string[];
+    aceptarAvisos: boolean;
+  }) => Promise<void>;
 }
+
+/** Avisos con cifra real que una persona puede aceptar a sabiendas. */
+const ACEPTABLES = new Set(['minimo_de_noches', 'excede_capacidad', 'entrada_pasada']);
 
 function hoyMas(dias: number): string {
   const d = new Date();
@@ -34,7 +51,7 @@ function hoyMas(dias: number): string {
  * una noche. Los avisos que no invalidan el precio —mínimo de noches, más
  * personas de las que caben— se ven, pero la cifra sigue siendo real.
  */
-export function Cotizador({ api, tipos, servicios, tipoInicial }: Props) {
+export function Cotizador({ api, tipos, servicios, tipoInicial, alReservar }: Props) {
   const activos = tipos.filter((t) => t.activo);
   const [tipoId, setTipoId] = useState(tipoInicial ?? activos[0]?.id ?? '');
   const [entrada, setEntrada] = useState(hoyMas(1));
@@ -43,6 +60,8 @@ export function Cotizador({ api, tipos, servicios, tipoInicial }: Props) {
   const [extras, setExtras] = useState<string[]>([]);
   const [cotizacion, setCotizacion] = useState<Cotizacion | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [aceptar, setAceptar] = useState(false);
+  const [reservando, setReservando] = useState(false);
 
   useEffect(() => {
     if (tipoInicial) setTipoId(tipoInicial);
@@ -179,6 +198,51 @@ export function Cotizador({ api, tipos, servicios, tipoInicial }: Props) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {alReservar && (
+            <div className={estilos.reservar}>
+              {aviso.some((p) => ACEPTABLES.has(p.codigo)) && cotizacion.completa && (
+                <label className={estilos.aceptar}>
+                  <input
+                    type="checkbox"
+                    checked={aceptar}
+                    onChange={(e) => setAceptar(e.target.checked)}
+                  />
+                  Reservar igualmente, sabiendo lo de arriba
+                </label>
+              )}
+              <button
+                className={estilos.botonReservar}
+                disabled={
+                  reservando ||
+                  !cotizacion.completa ||
+                  (aviso.some((p) => ACEPTABLES.has(p.codigo)) && !aceptar)
+                }
+                onClick={async () => {
+                  setReservando(true);
+                  setError(null);
+                  try {
+                    await alReservar({
+                      tipoId,
+                      entrada,
+                      salida,
+                      personas,
+                      servicios: extras,
+                      aceptarAvisos: aceptar,
+                    });
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'No se pudo reservar.');
+                  } finally {
+                    setReservando(false);
+                  }
+                }}
+              >
+                {reservando
+                  ? 'Reservando…'
+                  : `Crear reserva por ${importe(cotizacion.total, cotizacion.moneda)}`}
+              </button>
+            </div>
           )}
 
           <table className={estilos.desglose}>

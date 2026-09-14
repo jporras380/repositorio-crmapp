@@ -9,7 +9,12 @@
 import type {
   ColumnaDelTablero,
   CuentaDeCanal,
+  AccionDeReserva,
   CatalogoDeHotel,
+  DetalleDeReserva,
+  MetodoDePago,
+  PeticionDeReserva,
+  ResumenDeReserva,
   Cotizacion,
   DatosDeCliente,
   Tarifa,
@@ -250,6 +255,42 @@ export function crearApi(token: string | null) {
     guardarVista: (nombre: string, filtros: Record<string, string>) =>
       peticion<{ id: string }>('/v1/vistas', { ...t, metodo: 'POST', cuerpo: { nombre, filtros } }),
     borrarVista: (id: string) => peticion<void>(`/v1/vistas/${id}`, { ...t, metodo: 'DELETE' }),
+
+    // --- Reservas ----------------------------------------------------------
+    reservas: (
+      f: {
+        estado?: string;
+        desde?: string;
+        hasta?: string;
+        contactoId?: string;
+        conversacionId?: string;
+      } = {},
+    ) => {
+      const p = new URLSearchParams();
+      for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
+      const cola = p.toString();
+      return peticion<ResumenDeReserva[]>(`/v1/reservas${cola ? `?${cola}` : ''}`, t);
+    },
+    reserva: (id: string) => peticion<DetalleDeReserva>(`/v1/reservas/${id}`, t),
+    crearReserva: (d: PeticionDeReserva) =>
+      peticion<DetalleDeReserva>('/v1/reservas', { ...t, metodo: 'POST', cuerpo: d }),
+    moverReserva: (id: string, accion: AccionDeReserva) =>
+      peticion<DetalleDeReserva>(`/v1/reservas/${id}/estado`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { accion },
+      }),
+    asignarHabitacion: (id: string, habitacionId: string | null) =>
+      peticion<DetalleDeReserva>(`/v1/reservas/${id}/habitacion`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { habitacionId },
+      }),
+    registrarPago: (
+      id: string,
+      d: { importe: number; metodo: MetodoDePago; referencia?: string },
+    ) =>
+      peticion<DetalleDeReserva>(`/v1/reservas/${id}/pagos`, { ...t, metodo: 'POST', cuerpo: d }),
 
     // --- Hotel -------------------------------------------------------------
     hotel: () => peticion<CatalogoDeHotel>('/v1/hotel', t),

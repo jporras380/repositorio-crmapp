@@ -458,3 +458,75 @@ export interface Cotizacion {
   /** `false` si falta el precio de alguna noche: esa cifra no se le da a un cliente. */
   completa: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Reservas
+// ---------------------------------------------------------------------------
+
+export type EstadoDeReserva = 'pendiente' | 'confirmada' | 'en_casa' | 'finalizada' | 'cancelada';
+export type AccionDeReserva = 'confirmar' | 'llegar' | 'salir' | 'cancelar';
+export type MetodoDePago = 'efectivo' | 'transferencia' | 'yape' | 'plin' | 'tarjeta' | 'otro';
+
+export interface ResumenDeReserva {
+  id: string;
+  estado: EstadoDeReserva;
+  contacto: { id: string; nombre: string | null };
+  tipo: string;
+  habitacion: string | null;
+  entrada: string;
+  salida: string;
+  noches: number;
+  personas: number;
+  total: number;
+  pagado: number;
+  moneda: string;
+  conversacionId: string | null;
+  creadaEn: string;
+}
+
+export interface DetalleDeReserva extends ResumenDeReserva {
+  tipoId: string;
+  habitacionId: string | null;
+  leadId: string | null;
+  notas: string | null;
+  lineas: {
+    tipo: 'noche' | 'servicio' | 'descuento';
+    descripcion: string;
+    noche: string | null;
+    cantidad: number;
+    unitario: number;
+    total: number;
+  }[];
+  pagos: {
+    id: string;
+    importe: number;
+    metodo: MetodoDePago;
+    referencia: string | null;
+    pagadoEn: string;
+  }[];
+  historial: {
+    tipo: string;
+    desde: string | null;
+    hasta: string | null;
+    en: string;
+    actor: string | null;
+  }[];
+  saldo: { total: number; pagado: number; pendiente: number; aFavor: number };
+  /** Lo que se puede hacer ahora. Lo decide el servidor; la pantalla pinta botones. */
+  acciones: AccionDeReserva[];
+  solapes: { id: string; contacto: string | null; entrada: string; salida: string }[];
+}
+
+export interface PeticionDeReserva {
+  conversacionId?: string;
+  contactoId?: string;
+  tipoId: string;
+  entrada: string;
+  salida: string;
+  personas: number;
+  servicios?: string[];
+  habitacionId?: string;
+  descuento?: { importe: number; motivo: string };
+  notas?: string;
+  aceptarAvisos?: boolean;
+}

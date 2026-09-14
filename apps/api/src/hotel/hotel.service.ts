@@ -72,9 +72,23 @@ export interface Catalogo {
 
 export class HotelService {
   readonly #db: BaseDeDatos;
+  readonly #ahora: () => Date;
 
-  constructor(opciones: { db: BaseDeDatos }) {
+  constructor(opciones: { db: BaseDeDatos; ahora?: (() => Date) | undefined }) {
     this.#db = opciones.db;
+    this.#ahora = opciones.ahora ?? (() => new Date());
+  }
+
+  /**
+   * «Hoy» a efectos de avisar de una entrada pasada: el día UTC de AYER.
+   *
+   * No se guarda la zona horaria de cada cuenta, y con el día UTC a secas un
+   * hotel de Lima vería «ya pasó» entre las 19:00 y la medianoche. Ayer en UTC
+   * es un día que ya terminó en cualquier sitio del planeta: el aviso puede
+   * llegar un día tarde, pero nunca salta por error.
+   */
+  #hoyParaAvisar(): string {
+    return new Date(this.#ahora().getTime() - 86_400_000).toISOString().slice(0, 10);
   }
 
   // -------------------------------------------------------------------------
@@ -218,6 +232,7 @@ export class HotelService {
         moneda: tipo.currency,
         tarifas,
         servicios,
+        hoy: this.#hoyParaAvisar(),
       });
       return { ...cotizacion, tipo: tipo.name };
     });

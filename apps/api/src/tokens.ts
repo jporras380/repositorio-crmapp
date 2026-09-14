@@ -35,3 +35,4 @@ export const TOKEN_FLUJOS = Symbol('FlujosService');
 export const TOKEN_EMBUDO = Symbol('EmbudoService');
 export const TOKEN_CONTACTOS = Symbol('ContactosService');
 export const TOKEN_HOTEL = Symbol('HotelService');
+export const TOKEN_RESERVAS = Symbol('ReservasService');

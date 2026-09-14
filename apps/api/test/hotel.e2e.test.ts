@@ -77,6 +77,9 @@ beforeAll(async () => {
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
       modoSandbox: true,
+      // Reloj fijo: las fechas de estas pruebas son de 2026 y 2027, y sin esto
+      // pasarían a estar «en el pasado» con el calendario y el test se pudriría.
+      ahora: () => new Date('2026-01-15T12:00:00Z'),
     }),
     { logger: false, rawBody: true },
   );

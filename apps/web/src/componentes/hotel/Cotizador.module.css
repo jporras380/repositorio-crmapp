@@ -134,4 +134,28 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+
+  .reservar {
+    display: grid;
+    gap: var(--space-2);
+  }
+  .aceptar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--text-xs);
+    color: var(--warn);
+  }
+  /* El botón lleva la cifra: se reserva POR ese importe, no «a lo que salga». */
+  .botonReservar {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--accent-fg);
+    background: var(--accent);
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-md);
+  }
+  .botonReservar:disabled {
+    opacity: 0.45;
+  }
 }
