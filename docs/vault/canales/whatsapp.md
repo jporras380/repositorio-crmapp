@@ -100,7 +100,10 @@ Desde PR-39 la web **ya no pide los identificadores**: el cliente pega token y a
 - **`expires_at` se enseña:** un token temporal avisa de cuándo caduca. Es el fallo que más veces nos ha dejado sin mensajes.
 - **«Ya conectado» solo mira la cuenta propia (RLS).** Si el número está en otra cuenta, el alta devuelve 409 sin decir en cuál.
 
-**Verificado con Meta real el mismo día** con un token temporal nuevo: `debug_token` devuelve la WABA en `granular_scopes` y el número se lista sin escribir ningún id.
+**Verificado con Meta real el mismo día**, con dos tokens distintos, y no se comportan igual:
+
+- **Token temporal de usuario** (`type: USER`): `debug_token` trae la WABA en `granular_scopes` y el número se lista sin escribir ningún id.
+- **Token de usuario del sistema** (`type: SYSTEM_USER`, 60 días): `granular_scopes` llega **sin `target_ids`**, aunque el token puede usar la WABA (las plantillas responden 200). Por eso se añadió la segunda vía documentada, `/me/assigned_whatsapp_business_accounts`. **Con la WABA del número de prueba de Meta también viene vacía**: esa cuenta cuelga de la app, no está asignada al usuario. Resultado: con el número de prueba se pide el id; con la cuenta real del hotel asignada al usuario del sistema debería listarse sola. **Esto último está sin comprobar hasta tener la WABA real.**
 
 ### «Mandé un WhatsApp y no llegó nada» (2026-09-14)
 

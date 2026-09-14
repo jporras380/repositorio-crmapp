@@ -172,6 +172,21 @@ export function descubridorGraph(
         throw rechazado(d.status, 'comprobar el token');
       }
 
+      // Un token de usuario del sistema llegó SIN ids en `granular_scopes`
+      // (Meta real, 2026-09-14). Sus WABA son las asignadas a ese usuario:
+      // `/{user-id}/assigned_whatsapp_business_accounts`, documentado. La WABA
+      // del número de prueba de Meta cuelga de la app y tampoco sale por aquí:
+      // en ese caso se pide el id.
+      if (wabas.length === 0 && !wabaId) {
+        const asignadas = await pedir(
+          '/me/assigned_whatsapp_business_accounts?fields=id',
+          accessToken,
+        );
+        if (asignadas.ok) {
+          wabas = arr(asignadas.json['data']).flatMap((w) => str(obj(w)['id']) ?? []);
+        }
+      }
+
       if (wabaId) wabas = [wabaId, ...wabas.filter((w) => w !== wabaId)];
       if (wabas.length === 0) return { cuentas: [], necesitaWaba: true, caducaEn };
 

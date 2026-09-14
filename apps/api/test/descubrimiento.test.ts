@@ -99,6 +99,26 @@ describe('WhatsApp', () => {
     expect(d.caducaEn).toEqual(new Date(1_800_000_000_000));
   });
 
+  it('token de usuario del sistema sin ids granulares: usa sus WABA asignadas', async () => {
+    const { f } = redFalsa({
+      '/debug_token': {
+        json: {
+          data: {
+            is_valid: true,
+            type: 'SYSTEM_USER',
+            granular_scopes: [{ scope: 'whatsapp_business_management' }],
+          },
+        },
+      },
+      '/me/assigned_whatsapp_business_accounts': { json: { data: [{ id: '777' }] } },
+      '/777?fields=name': { json: { name: 'Hotel' } },
+      '/777/phone_numbers': NUMEROS,
+    });
+    const d = await descubridorGraph({ fetch: f }).whatsapp({ accessToken: 'EAAG-token' });
+    expect(d.necesitaWaba).toBe(false);
+    expect(d.cuentas.map((c) => c.wabaId)).toEqual(['777']);
+  });
+
   it('si Meta no deja listar las cuentas, pide el id de WABA en vez de inventar', async () => {
     const { f } = redFalsa({
       '/debug_token': { status: 400, json: { error: { code: 100 } } },
