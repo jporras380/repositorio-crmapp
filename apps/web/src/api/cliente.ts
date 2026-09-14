@@ -9,6 +9,8 @@
 import type {
   ColumnaDelTablero,
   CuentaDeCanal,
+  CuentaDeInstagramDescubierta,
+  DescubrimientoWhatsapp,
   AccionDeReserva,
   CatalogoDeHotel,
   ClaveDePeriodo,
@@ -185,6 +187,24 @@ export function crearApi(token: string | null) {
       appSecret: string;
       displayName?: string;
     }) => peticion<CuentaDeCanal>('/v1/canales/whatsapp', { ...t, metodo: 'POST', cuerpo: cred }),
+    descubrirWhatsapp: (d: { accessToken: string; wabaId?: string }) =>
+      peticion<DescubrimientoWhatsapp>('/v1/canales/whatsapp/descubrir', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: d,
+      }),
+    descubrirInstagram: (d: { accessToken: string }) =>
+      peticion<CuentaDeInstagramDescubierta[]>('/v1/canales/instagram/descubrir', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: d,
+      }),
+    conectarInstagram: (cred: {
+      igUserId: string;
+      accessToken: string;
+      appSecret: string;
+      displayName?: string;
+    }) => peticion<CuentaDeCanal>('/v1/canales/instagram', { ...t, metodo: 'POST', cuerpo: cred }),
     desconectarCanal: (id: string) =>
       peticion<void>(`/v1/canales/${id}`, { ...t, metodo: 'DELETE' }),
     renovarCredenciales: (id: string, d: { accessToken: string; appSecret?: string }) =>

@@ -18,6 +18,8 @@ import { migrar } from '@crmapp/db';
 import { AppModule } from '../src/app.module.js';
 import { FiltroDeErrores } from '../src/errores.js';
 import { ErrorDeNegocio } from '../src/auth/auth.service.js';
+import type { CanalesService } from '../src/canales/canales.service.js';
+import { TOKEN_CANALES } from '../src/tokens.js';
 
 const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
 const PORT = process.env['TEST_PG_PORT'] ?? '55432';
@@ -39,6 +41,10 @@ const CRED_IG = {
   accessToken: 'EAAP-token-de-pagina-suficientemente-largo',
   appSecret: 'secreto-de-app-de-instagram-16',
 };
+
+const IG_DE_PAGINA = '17841400000000099';
+const TOKEN_DE_PAGINA = 'EAAP-token-de-pagina-devuelto-por-me-accounts';
+let paginasSuscritas: string[] = [];
 
 let app: INestApplication;
 let admin: Pool;
@@ -90,6 +96,58 @@ beforeAll(async () => {
         suscripciones.push(providerAccountId);
         // Un token sin permiso de gestión no puede suscribir: se conecta igual.
         return !accessToken.startsWith('SINPERMISO');
+      },
+      // Descubridor falso: un token de USUARIO ve una página con Instagram; el
+      // resto de tokens no ve ninguna (y se usa el verificador de siempre).
+      descubridor: {
+        whatsapp: async ({ accessToken, wabaId }) => {
+          if (accessToken.startsWith('MALO')) {
+            throw new ErrorDeNegocio('credenciales_rechazadas', 'Meta rechazó el token.', 422);
+          }
+          if (accessToken.startsWith('SINLISTA') && !wabaId) {
+            return { cuentas: [], necesitaWaba: true, caducaEn: null };
+          }
+          return {
+            necesitaWaba: false,
+            caducaEn: new Date('2026-09-15T12:00:00Z'),
+            cuentas: [
+              {
+                wabaId: wabaId ?? CRED.wabaId,
+                nombre: 'Paraíso Barranca',
+                numeros: [
+                  {
+                    phoneNumberId: CRED.phoneNumberId,
+                    numero: '+51 929 833 609',
+                    nombreVerificado: 'El Paraíso',
+                    calidad: 'GREEN',
+                  },
+                  {
+                    phoneNumberId: '222333444555666',
+                    numero: '+51 900 000 000',
+                    nombreVerificado: 'El Paraíso',
+                    calidad: null,
+                  },
+                ],
+              },
+            ],
+          };
+        },
+        instagram: async ({ accessToken }) =>
+          accessToken.startsWith('USUARIO')
+            ? [
+                {
+                  igUserId: IG_DE_PAGINA,
+                  usuario: '@paraisobarranca',
+                  paginaId: 'PAGINA-1',
+                  pagina: 'Paraíso Barranca',
+                  tokenDePagina: TOKEN_DE_PAGINA,
+                },
+              ]
+            : [],
+        suscribirPagina: async ({ paginaId }) => {
+          paginasSuscritas.push(paginaId);
+          return true;
+        },
       },
       verificarCredencialesInstagram: async ({ accessToken }) => {
         if (accessToken.startsWith('MALO')) {
@@ -565,3 +623,116 @@ describe('suscripción de la WABA a nuestra app', () => {
     expect(arreglado.body).toMatchObject({ id: r.body.id, webhookSuscrito: true });
   });
 });
+
+describe('conectar eligiendo, sin copiar ids (P-26, opción A)', () => {
+  it('un agente no puede descubrir cuentas', async () => {
+    await http
+      .post('/v1/canales/whatsapp/descubrir')
+      .set(auth(tokenAgente))
+      .send({ accessToken: CRED.accessToken })
+      .expect(403);
+  });
+
+  it('con solo el token lista los números, marca los ya conectados y no devuelve el token', async () => {
+    // CRED.phoneNumberId se conectó y se desconectó arriba; se reconecta para
+    // que cuente como conectado aquí.
+    await http
+      .patch(`/v1/canales/${(await cuentaPorNumero(CRED.phoneNumberId))!}/credenciales`)
+      .set(auth(tokenOwner))
+      .send({ accessToken: CRED.accessToken, appSecret: CRED.appSecret })
+      .expect(200);
+
+    const r = await http
+      .post('/v1/canales/whatsapp/descubrir')
+      .set(auth(tokenOwner))
+      .send({ accessToken: CRED.accessToken })
+      .expect(200);
+    expect(r.body.necesitaWaba).toBe(false);
+    expect(r.body.caducaEn).toBe('2026-09-15T12:00:00.000Z');
+    expect(
+      r.body.cuentas[0].numeros.map((n: { phoneNumberId: string; yaConectado: boolean }) => [
+        n.phoneNumberId,
+        n.yaConectado,
+      ]),
+    ).toEqual([
+      [CRED.phoneNumberId, true],
+      ['222333444555666', false],
+    ]);
+    expect(JSON.stringify(r.body)).not.toContain(CRED.accessToken);
+  });
+
+  it('si Meta no deja listar, lo dice; con el id de WABA sí lista', async () => {
+    const sin = await http
+      .post('/v1/canales/whatsapp/descubrir')
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'SINLISTA-token-suficientemente-largo' })
+      .expect(200);
+    expect(sin.body).toEqual({ cuentas: [], necesitaWaba: true, caducaEn: null });
+
+    const con = await http
+      .post('/v1/canales/whatsapp/descubrir')
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'SINLISTA-token-suficientemente-largo', wabaId: '123456789' })
+      .expect(200);
+    expect(con.body.cuentas[0].wabaId).toBe('123456789');
+  });
+
+  it('un token rechazado es 422', async () => {
+    await http
+      .post('/v1/canales/whatsapp/descubrir')
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'MALO-token-suficientemente-largo' })
+      .expect(422);
+  });
+
+  it('Instagram: lista las cuentas SIN el token de página', async () => {
+    const r = await http
+      .post('/v1/canales/instagram/descubrir')
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'USUARIO-token-suficientemente-largo' })
+      .expect(200);
+    expect(r.body).toEqual([
+      {
+        igUserId: IG_DE_PAGINA,
+        usuario: '@paraisobarranca',
+        paginaId: 'PAGINA-1',
+        pagina: 'Paraíso Barranca',
+        yaConectado: false,
+      },
+    ]);
+    expect(JSON.stringify(r.body)).not.toContain(TOKEN_DE_PAGINA);
+  });
+
+  it('Instagram con token de usuario: guarda el de PÁGINA y suscribe la página', async () => {
+    paginasSuscritas = [];
+    const r = await http
+      .post('/v1/canales/instagram')
+      .set(auth(tokenOwner))
+      .send({
+        igUserId: IG_DE_PAGINA,
+        accessToken: 'USUARIO-token-suficientemente-largo',
+        appSecret: CRED_IG.appSecret,
+      })
+      .expect(201);
+    expect(r.body).toMatchObject({
+      canal: 'instagram',
+      providerAccountId: 'PAGINA-1',
+      displayName: '@paraisobarranca',
+      webhookSuscrito: true,
+    });
+    expect(paginasSuscritas).toEqual(['PAGINA-1']);
+
+    // Lo que usará el adaptador para enviar es el token de página.
+    const canales = app.get<CanalesService>(TOKEN_CANALES);
+    const cred = await canales.resolverCredencialesInstagram(r.body.id);
+    expect(cred).toEqual({ igUserId: IG_DE_PAGINA, accessToken: TOKEN_DE_PAGINA });
+  });
+});
+
+async function cuentaPorNumero(externalId: string): Promise<string | undefined> {
+  const { rows } = await admin.query<{ id: string }>(
+    `SELECT id FROM channel_accounts WHERE tenant_id = $1 AND external_id = $2`,
+    [tenantId, externalId],
+  );
+  return rows[0]?.id;
+}

@@ -18,6 +18,24 @@ import {
 } from '@crmapp/db';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
+import {
+  descubridorGraph,
+  type CuentaDeInstagramDescubierta,
+  type DescubridorDeMeta,
+  type NumeroDescubierto,
+  type WabaDescubierta,
+} from './descubrimiento.js';
+
+/** Lo que ve la web al descubrir: nunca tokens, y qué está ya conectado aquí. */
+export interface DescubrimientoWhatsappVisible {
+  cuentas: (Omit<WabaDescubierta, 'numeros'> & {
+    numeros: (NumeroDescubierto & { yaConectado: boolean })[];
+  })[];
+  necesitaWaba: boolean;
+  caducaEn: Date | null;
+}
+
+export type CuentaDeInstagramVisible = CuentaDeInstagramDescubierta & { yaConectado: boolean };
 
 export interface CredencialesDeAlta {
   phoneNumberId: string;
@@ -177,6 +195,15 @@ export interface OpcionesDeCanales {
   verificar: VerificadorDeCredenciales;
   verificarInstagram?: VerificadorDeInstagram;
   suscribir?: SuscriptorDeWebhook;
+  descubridor?: DescubridorDeMeta;
+}
+
+/** Cómo queda una cuenta de Instagram tras resolver el token que pegó el cliente. */
+interface InstagramResuelto {
+  tokenAGuardar: string;
+  paginaId: string | null;
+  nombre: string;
+  suscrito: boolean | null;
 }
 
 export class CanalesService {
@@ -185,6 +212,7 @@ export class CanalesService {
   readonly #verificar: VerificadorDeCredenciales;
   readonly #verificarInstagram: VerificadorDeInstagram;
   readonly #suscribir: SuscriptorDeWebhook;
+  readonly #descubridor: DescubridorDeMeta;
 
   constructor(o: OpcionesDeCanales) {
     this.#db = o.db;
@@ -192,6 +220,7 @@ export class CanalesService {
     this.#verificar = o.verificar;
     this.#verificarInstagram = o.verificarInstagram ?? verificadorGraphInstagram();
     this.#suscribir = o.suscribir ?? suscriptorGraph();
+    this.#descubridor = o.descubridor ?? descubridorGraph();
     this.resolverCuenta = crearResolverDeCuenta(o.db.poolAuth, o.cifrador);
     this.resolverCredencialesWhatsapp = crearResolverDeCredencialesWhatsapp(
       o.db.poolAuth,
@@ -203,19 +232,58 @@ export class CanalesService {
     );
   }
 
-  /** Conexión BYO de Instagram: mismo camino que WhatsApp, sin WABA. */
+  /**
+   * Qué números ve este token, para elegir en vez de copiar ids. No guarda
+   * nada: el alta sigue siendo `conectarWhatsapp`, que verifica otra vez.
+   */
+  async descubrirWhatsapp(p: {
+    accessToken: string;
+    wabaId?: string | undefined;
+  }): Promise<DescubrimientoWhatsappVisible> {
+    this.#exigirAdmin();
+    const d = await this.#descubridor.whatsapp(p);
+    const conectados = await this.#conectadosAqui('whatsapp');
+    return {
+      ...d,
+      cuentas: d.cuentas.map((w) => ({
+        ...w,
+        numeros: w.numeros.map((n) => ({ ...n, yaConectado: conectados.has(n.phoneNumberId) })),
+      })),
+    };
+  }
+
+  /** Cuentas de Instagram que ve el token. Los tokens de página no salen de aquí. */
+  async descubrirInstagram(p: { accessToken: string }): Promise<CuentaDeInstagramVisible[]> {
+    this.#exigirAdmin();
+    const paginas = await this.#descubridor.instagram(p);
+    const conectados = await this.#conectadosAqui('instagram');
+    return paginas.map(({ tokenDePagina: _t, ...visible }) => ({
+      ...visible,
+      yaConectado: conectados.has(visible.igUserId),
+    }));
+  }
+
+  /**
+   * Conexión BYO de Instagram: mismo camino que WhatsApp, sin WABA.
+   *
+   * Si el token es de USUARIO y ve la página vinculada a esa cuenta, se guarda
+   * el token de PÁGINA —el que exige la API de mensajes— y se suscribe la
+   * página a `messages` y `comments`. Si no (ya era de página y Meta no deja
+   * listar, o es de otro tipo), se verifica y se guarda tal cual, como antes.
+   */
   async conectarInstagram(cred: CredencialesDeAltaInstagram): Promise<CuentaDeCanal> {
     const ctx = this.#exigirAdmin();
-    const identidad = await this.#verificarInstagram(cred);
+    const r = await this.#resolverInstagram(cred.igUserId, cred.accessToken);
 
     return this.#db.enTransaccion(async (c) => {
       const id = await this.#db.nuevoId(c);
       try {
         await c.query(
           `INSERT INTO channel_accounts
-             (id, tenant_id, channel, external_id, display_name, status, last_synced_at)
-           VALUES ($1, $2, 'instagram', $3, $4, 'connected', now())`,
-          [id, ctx.tenantId, cred.igUserId, cred.displayName ?? identidad.nombreDeUsuario],
+             (id, tenant_id, channel, external_id, provider_account_id, display_name, status,
+              last_synced_at, webhook_subscribed)
+           VALUES ($1, $2, 'instagram', $3, $4, $5, 'connected', now(), $6)`,
+          [id, ctx.tenantId, cred.igUserId, r.paginaId, cred.displayName ?? r.nombre, r.suscrito],
         );
       } catch (error) {
         if ((error as { code?: string }).code === '23505') {
@@ -231,7 +299,7 @@ export class CanalesService {
         tenantId: ctx.tenantId,
         channelAccountId: id,
         kind: 'access_token',
-        valor: cred.accessToken,
+        valor: r.tokenAGuardar,
       });
       await guardarSecretoDeCanal(c, this.#cifrador, {
         tenantId: ctx.tenantId,
@@ -246,7 +314,12 @@ export class CanalesService {
           ctx.tenantId,
           ctx.userId,
           id,
-          JSON.stringify({ canal: 'instagram', cuenta: identidad.nombreDeUsuario }),
+          JSON.stringify({
+            canal: 'instagram',
+            cuenta: r.nombre,
+            tokenDePagina: r.paginaId !== null,
+            webhookSuscrito: r.suscrito,
+          }),
         ],
       );
       return (await this.#leer(c, id))!;
@@ -367,6 +440,8 @@ export class CanalesService {
 
     // Fuera de la transacción: es una llamada de red.
     let suscrito: boolean | null = cuenta.webhookSuscrito;
+    let tokenAGuardar = datos.accessToken;
+    let paginaId = cuenta.providerAccountId;
     if (cuenta.canal === 'whatsapp') {
       await this.#verificar({ phoneNumberId: cuenta.externalId, accessToken: datos.accessToken });
       // Renovar es la ocasión de arreglar una suscripción que faltaba: el
@@ -378,10 +453,14 @@ export class CanalesService {
         });
       }
     } else if (cuenta.canal === 'instagram') {
-      await this.#verificarInstagram({
-        igUserId: cuenta.externalId,
-        accessToken: datos.accessToken,
-      });
+      // Mismo camino que al conectar: un token de usuario se cambia por el de
+      // la página, y renovar es la ocasión de suscribir lo que faltaba.
+      const r = await this.#resolverInstagram(cuenta.externalId, datos.accessToken);
+      tokenAGuardar = r.tokenAGuardar;
+      if (r.paginaId) {
+        paginaId = r.paginaId;
+        suscrito = r.suscrito;
+      }
     } else {
       throw new ErrorDeNegocio(
         'canal_no_soportado',
@@ -395,7 +474,7 @@ export class CanalesService {
         tenantId: ctx.tenantId,
         channelAccountId: id,
         kind: 'access_token',
-        valor: datos.accessToken,
+        valor: tokenAGuardar,
       });
       if (datos.appSecret) {
         await guardarSecretoDeCanal(c, this.#cifrador, {
@@ -408,9 +487,9 @@ export class CanalesService {
       await c.query(
         `UPDATE channel_accounts
             SET status = 'connected', last_synced_at = now(), updated_at = now(),
-                webhook_subscribed = $2
+                webhook_subscribed = $2, provider_account_id = $3
           WHERE id = $1`,
-        [id, suscrito],
+        [id, suscrito, paginaId],
       );
       await c.query(
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
@@ -454,6 +533,48 @@ export class CanalesService {
   readonly resolverCredencialesInstagram: ReturnType<typeof crearResolverDeCredencialesInstagram>;
 
   // -------------------------------------------------------------------------
+
+  async #resolverInstagram(igUserId: string, accessToken: string): Promise<InstagramResuelto> {
+    let paginas: Awaited<ReturnType<DescubridorDeMeta['instagram']>> = [];
+    try {
+      paginas = await this.#descubridor.instagram({ accessToken });
+    } catch (error) {
+      // Un token que no sirve para listar páginas puede servir para la cuenta
+      // (token de Instagram, o de página sin permiso de lectura): lo decide el
+      // verificador de abajo, que es el que ya se usaba.
+      if (!(error instanceof ErrorDeNegocio) || error.codigo !== 'credenciales_rechazadas') {
+        throw error;
+      }
+    }
+    const pagina = paginas.find((p) => p.igUserId === igUserId);
+    if (pagina) {
+      const suscrito = await this.#descubridor.suscribirPagina(pagina);
+      return {
+        tokenAGuardar: pagina.tokenDePagina,
+        paginaId: pagina.paginaId,
+        nombre: pagina.usuario ?? pagina.pagina,
+        suscrito,
+      };
+    }
+    const identidad = await this.#verificarInstagram({ igUserId, accessToken });
+    return {
+      tokenAGuardar: accessToken,
+      paginaId: null,
+      nombre: identidad.nombreDeUsuario,
+      suscrito: null,
+    };
+  }
+
+  /** Ids externos ya conectados en ESTA cuenta (RLS): de otras no se sabe ni se dice. */
+  async #conectadosAqui(canal: string): Promise<Set<string>> {
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{ external_id: string }>(
+        `SELECT external_id FROM channel_accounts WHERE channel = $1 AND status <> 'disconnected'`,
+        [canal],
+      );
+      return new Set(rows.map((r) => r.external_id));
+    });
+  }
 
   async #leer(c: PoolClient, id: string): Promise<CuentaDeCanal | null> {
     const { rows } = await c.query<FilaCuenta>(

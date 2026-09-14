@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { CuentaDeCanal } from '../../api/tipos.ts';
 import { irA } from '../../estado/ruta.ts';
+import { ConectarCanal } from './ConectarCanal.tsx';
 import estilos from './ajustes.module.css';
 
 interface Props {
@@ -24,7 +25,7 @@ const ESTADO: Record<string, { texto: string; tono: 'ok' | 'warn' | 'danger' | '
 export function Canales({ api, gestor }: Props) {
   const [cuentas, setCuentas] = useState<CuentaDeCanal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [conectando, setConectando] = useState(false);
+  const [conectando, setConectando] = useState<'whatsapp' | 'instagram' | null>(null);
   const [renovando, setRenovando] = useState<CuentaDeCanal | null>(null);
 
   const cargar = useCallback(async () => {
@@ -62,9 +63,14 @@ export function Canales({ api, gestor }: Props) {
           </p>
         </div>
         {gestor && !conectando && (
-          <button className={estilos.primario} onClick={() => setConectando(true)}>
-            Conectar WhatsApp
-          </button>
+          <div className={estilos.acciones}>
+            <button className={estilos.secundario} onClick={() => setConectando('instagram')}>
+              Conectar Instagram
+            </button>
+            <button className={estilos.primario} onClick={() => setConectando('whatsapp')}>
+              Conectar WhatsApp
+            </button>
+          </div>
         )}
       </header>
 
@@ -87,11 +93,13 @@ export function Canales({ api, gestor }: Props) {
       )}
 
       {conectando && (
-        <FormularioWhatsapp
+        <ConectarCanal
+          key={conectando}
           api={api}
-          alCancelar={() => setConectando(false)}
+          canal={conectando}
+          alCancelar={() => setConectando(null)}
           alConectar={async () => {
-            setConectando(false);
+            setConectando(null);
             await cargar();
           }}
         />
@@ -101,7 +109,7 @@ export function Canales({ api, gestor }: Props) {
         <p className={estilos.vacio}>
           Todavía no hay canales.{' '}
           {gestor
-            ? 'Conecta tu número de WhatsApp para empezar.'
+            ? 'Conecta tu número de WhatsApp o tu cuenta de Instagram para empezar.'
             : 'Pide a un administrador que conecte uno.'}
         </p>
       )}
@@ -128,7 +136,7 @@ export function Canales({ api, gestor }: Props) {
                 {c.webhookSuscrito === false && (
                   <span
                     className={`${estilos.estado} ${estilos.estado_danger}`}
-                    title="Meta no envía los mensajes de esta cuenta a esta aplicación. Renueva el token con permiso de gestión para arreglarlo."
+                    title="Meta no envía los mensajes de esta cuenta a esta aplicación. Renueva el token con los permisos de gestión para arreglarlo."
                   >
                     No recibe mensajes
                   </span>
@@ -160,103 +168,6 @@ export function Canales({ api, gestor }: Props) {
         })}
       </div>
     </section>
-  );
-}
-
-function FormularioWhatsapp({
-  api,
-  alCancelar,
-  alConectar,
-}: {
-  api: Api;
-  alCancelar: () => void;
-  alConectar: () => Promise<void>;
-}) {
-  const [datos, setDatos] = useState({
-    phoneNumberId: '',
-    wabaId: '',
-    accessToken: '',
-    appSecret: '',
-    displayName: '',
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const campo = (k: keyof typeof datos) => ({
-    value: datos[k],
-    onChange: (e: { target: { value: string } }) => setDatos({ ...datos, [k]: e.target.value }),
-  });
-
-  async function enviar(e: FormEvent) {
-    e.preventDefault();
-    setEnviando(true);
-    setError(null);
-    try {
-      await api.conectarWhatsapp({
-        phoneNumberId: datos.phoneNumberId.trim(),
-        wabaId: datos.wabaId.trim(),
-        accessToken: datos.accessToken.trim(),
-        appSecret: datos.appSecret.trim(),
-        ...(datos.displayName.trim() ? { displayName: datos.displayName.trim() } : {}),
-      });
-      await alConectar();
-    } catch (err) {
-      setError(
-        err instanceof ErrorDeApi ? err.message : 'No se pudo conectar. Revisa tu conexión.',
-      );
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  return (
-    <form className={estilos.formulario} onSubmit={enviar}>
-      <p className={estilos.descripcion}>
-        Los cuatro datos están en el panel de Meta para desarrolladores. Se verifican contra Meta
-        antes de guardarse.
-      </p>
-      <div className={estilos.campos}>
-        <label className={estilos.campo}>
-          <span>Phone number ID</span>
-          <input required inputMode="numeric" autoComplete="off" {...campo('phoneNumberId')} />
-          <span className={estilos.ayuda}>WhatsApp → Configuración de la API</span>
-        </label>
-        <label className={estilos.campo}>
-          <span>ID de la cuenta de WhatsApp Business (WABA)</span>
-          <input required inputMode="numeric" autoComplete="off" {...campo('wabaId')} />
-        </label>
-        <label className={estilos.campo}>
-          <span>Token de acceso</span>
-          <input required type="password" autoComplete="off" {...campo('accessToken')} />
-          <span className={estilos.ayuda}>
-            El temporal caduca en 24 h; el permanente sale de un usuario del sistema.
-          </span>
-        </label>
-        <label className={estilos.campo}>
-          <span>Clave secreta de la app</span>
-          <input required type="password" autoComplete="off" {...campo('appSecret')} />
-          <span className={estilos.ayuda}>
-            Configuración de la app → Básica. Verifica la firma de cada webhook.
-          </span>
-        </label>
-        <label className={estilos.campo}>
-          <span>Nombre para mostrar (opcional)</span>
-          <input maxLength={80} {...campo('displayName')} />
-        </label>
-      </div>
-      {error && (
-        <p className={`${estilos.aviso} ${estilos.aviso_error}`} role="alert">
-          {error}
-        </p>
-      )}
-      <div className={estilos.formularioAcciones}>
-        <button type="button" className={estilos.secundario} onClick={alCancelar}>
-          Cancelar
-        </button>
-        <button type="submit" className={estilos.primario} disabled={enviando}>
-          {enviando ? 'Verificando con Meta…' : 'Conectar'}
-        </button>
-      </div>
-    </form>
   );
 }
 

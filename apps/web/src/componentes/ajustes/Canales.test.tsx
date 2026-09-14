@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ErrorDeApi, type Api } from '../../api/cliente.ts';
+import type { Api } from '../../api/cliente.ts';
 import { Canales } from './Canales.tsx';
 
 afterEach(cleanup);
@@ -29,30 +29,15 @@ describe('Canales', () => {
     expect(screen.queryByRole('button', { name: 'Desconectar' })).toBeNull();
   });
 
-  it('el formulario envía las cuatro credenciales y muestra el motivo si Meta las rechaza', async () => {
-    const conectar = vi
-      .fn()
-      .mockRejectedValueOnce(
-        new ErrorDeApi(422, 'credenciales_rechazadas', 'Meta rechazó el token.'),
-      )
-      .mockResolvedValueOnce({});
-    const api = {
-      canales: vi.fn().mockResolvedValue([]),
-      conectarWhatsapp: conectar,
-    } as unknown as Api;
+  it('un gestor puede conectar WhatsApp o Instagram, cada uno con su asistente', async () => {
+    const api = { canales: vi.fn().mockResolvedValue([]) } as unknown as Api;
     render(<Canales api={api} gestor={true} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Conectar WhatsApp' }));
-    await userEvent.type(screen.getByLabelText(/Phone number ID/), '1397');
-    await userEvent.type(screen.getByLabelText(/WABA/), '1574');
-    await userEvent.type(screen.getByLabelText(/Token de acceso/), 'EAAX-token-largo');
-    await userEvent.type(screen.getByLabelText(/Clave secreta/), 'secreto-largo-16');
-    await userEvent.click(screen.getByRole('button', { name: 'Conectar' }));
-    expect(conectar).toHaveBeenCalledWith({
-      phoneNumberId: '1397',
-      wabaId: '1574',
-      accessToken: 'EAAX-token-largo',
-      appSecret: 'secreto-largo-16',
-    });
-    expect((await screen.findByRole('alert')).textContent).toContain('Meta rechazó el token.');
+    await userEvent.click(await screen.findByRole('button', { name: 'Conectar Instagram' }));
+    expect(screen.getByRole('heading', { name: 'Conectar Instagram' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Conectar WhatsApp' }));
+    expect(screen.getByRole('heading', { name: 'Conectar WhatsApp' })).toBeTruthy();
+    // Ya no se piden identificadores copiados del panel de Meta.
+    expect(screen.queryByLabelText(/Phone number ID/)).toBeNull();
   });
 });

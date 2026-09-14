@@ -98,6 +98,32 @@ export interface CuentaDeCanal {
   createdAt: string;
 }
 
+/** Números que ve un token de WhatsApp, para elegir en vez de copiar ids. */
+export interface DescubrimientoWhatsapp {
+  cuentas: {
+    wabaId: string;
+    nombre: string | null;
+    numeros: {
+      phoneNumberId: string;
+      numero: string;
+      nombreVerificado: string;
+      calidad: string | null;
+      yaConectado: boolean;
+    }[];
+  }[];
+  /** Meta no deja listar las cuentas con este token: hace falta el id de WABA. */
+  necesitaWaba: boolean;
+  caducaEn: string | null;
+}
+
+export interface CuentaDeInstagramDescubierta {
+  igUserId: string;
+  usuario: string | null;
+  paginaId: string;
+  pagina: string;
+  yaConectado: boolean;
+}
+
 export interface PlantillaDeWhatsapp {
   id: string;
   nombre: string;

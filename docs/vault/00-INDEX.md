@@ -70,6 +70,8 @@ Previstos: bandeja, plantillas, salesbots, ia, usuarios, facturacion, panel, int
 Lo que salió mal y por qué. Una nota por incidente.
 
 - [[2026-09-09-entorno-postgres-18]] — punto de montaje de PostgreSQL 18, colisión en el 5432 y bloqueo de builds de pnpm.
+- [[2026-09-11-repos-de-referencia]] — qué se aprovecha de wacrm, vocero-crm e idurar, y qué no.
+- [[2026-09-14-embedded-signup]] — el botón tipo Kommo: requisitos de Meta, orden y qué reutiliza de PR-39.
 
 ## Sesiones
 

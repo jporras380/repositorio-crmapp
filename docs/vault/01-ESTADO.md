@@ -1,11 +1,11 @@
 ---
 estado: vivo
-fecha: 2026-09-11
+fecha: 2026-09-14
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 11 de septiembre de 2026
+# Estado — 14 de septiembre de 2026
 
 **El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
 
@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-39, conectar eligiendo — P-26 decidida (opción C)** ([[whatsapp]] §Conectar eligiendo, [[instagram]] §Revisión): WhatsApp e Instagram se conectan pegando token y clave secreta y **eligiendo** número o cuenta de una lista que trae Meta, sin copiar identificadores. Solo endpoints documentados (`debug_token`, `/{waba}/phone_numbers`, `/me/accounts`); si Meta no deja listar, se pide un único dato. **De la revisión de Instagram salieron dos fallos silenciosos**: la web no tenía botón para conectarlo, y la página nunca se suscribía a los webhooks, así que **los comentarios no habrían llegado**. Ahora se guarda el token de página y se suscribe a `messages` y `comments`. El botón tipo Kommo (Embedded Signup, opción B) queda planificado en [[2026-09-14-embedded-signup]], a la espera de requisitos de Meta que dependen del usuario. 22 tests nuevos (10 de descubrimiento, 6 e2e de API, 6 de web; 693 en total). Token de prueba del `.env` **caducado**: la lista con Meta real queda pendiente de un token nuevo.
 - **PR-38, informe del periodo** ([[panel]]): conversaciones nuevas por canal, primera respuesta con **mediana y p90** (no media, y aviso si hay pocas medidas), estado de atención con la misma regla que la bandeja, tabla por agente, clientes nuevos, reservas generadas/confirmadas/canceladas **por su evento**, importes por moneda y **conversión sobre la cohorte** del periodo. Ventanas móviles de 24 h, 7 y 30 días. 15 tests nuevos, con escenario de fechas exactas y reloj fijo.
 - **PR-37, reservas — criterio de éxito 10 cumplido** ([[reservas]]): la reserva se crea **desde la conversación**, con el cotizador como formulario; el servidor pone y **copia** el precio (la API rechaza un total mandado por la pantalla); ciclo de vida validado en `core`; **confirmar gana el lead** del embudo; pagos con Yape, Plin y efectivo; aviso de solape en la misma habitación y de **entrada en el pasado** —encontrado al probar con datos reales—. Migración 0022. 35 tests nuevos. Recorrido completo verificado sobre la base de desarrollo.
 - **PR-36, el hotel** ([[hotel]]): tipos de habitación, habitaciones con estado, **tarifas por fechas y días de la semana**, servicios adicionales y un **cotizador** siempre a la vista. El precio se calcula en `core` noche a noche —gana la tarifa de rango más corto, nunca se inventa una noche a cero— para que cotizador y reserva den lo mismo. Ningún precio en el código: el catálogo empieza vacío. Migración 0021. 28 tests nuevos.
@@ -95,6 +96,7 @@ Nada.
 
 ## Qué sigue
 
+0. **Probar PR-39 con Meta real** en cuanto haya token de usuario del sistema válido (el del `.env` caducó el 2026-09-14), y conectar Instagram de verdad para ver entrar un comentario.
 1. **Alinear «Sin responder» del panel** con el estado de atención de la bandeja (deuda descubierta en PR-38: hoy dan números distintos para lo mismo).
 2. **PR-39 · Facebook Messenger** (depende de App Review de Meta) y **PR-40 · IA asistida** con clave del cliente.
 3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas).

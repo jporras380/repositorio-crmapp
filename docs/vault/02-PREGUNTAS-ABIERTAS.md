@@ -17,7 +17,10 @@ Quedan tres. P-01 y P-02 se resolvieron el 2026-09-07 con [[ADR-004-modelo-whats
 
 ### P-26 · ¿Embedded Signup para conectar WhatsApp? *(lista de parada, nueva 2026-09-09)*
 El usuario vio en Kommo el boton «Conectar nuevo numero» que lleva a Facebook y detecta los numeros solos: es **Embedded Signup** de Meta, y exige App Review de `whatsapp_business_management` mas Facebook Login for Business. [[ADR-004-modelo-whatsapp]] lo descarto para el MVP justo por eso: bloquearia el desarrollo hasta que Meta apruebe. Cambiarlo es cambiar el modelo de conexion.
-*Sin decidir. Mientras tanto se puede dar el 80 % sin App Review: pedir solo el token y descubrir WABAs y numeros por Graph (`GET /me/businesses` -> `owned_whatsapp_business_accounts` -> `phone_numbers`).*
+**Decidido 2026-09-14: opción C — las dos, por fases.** El usuario eligió la recomendación:
+- **A, hecho (PR-39):** pegar token + clave secreta y **elegir** número o cuenta de una lista que trae Meta. Descubrimiento por `debug_token` → `granular_scopes`, no por `/me/businesses` como se anotó aquí antes: `/me/businesses` exige `business_management` y un token de usuario del sistema no siempre lo tiene. Si Meta no deja listar, se pide **un solo** dato (id de WABA). Ver [[whatsapp]] §Conectar eligiendo.
+- **B, en espera de Meta:** Embedded Signup como Kommo. Requisitos que NO son código y dependen del usuario: cuenta de Meta Business verificada de la empresa que vende el CRM, alta como Tech Provider, dominio público con política de privacidad y App Review de `whatsapp_business_management` y `whatsapp_business_messaging` con vídeo del flujo. Plan en [[2026-09-14-embedded-signup]]. **Cambia [[ADR-004-modelo-whatsapp]]**: se escribirá un ADR nuevo cuando se empiece, no antes.
+- **Descartado:** conexión por QR (whatsapp-web.js, Baileys). Contra los términos de Meta, riesgo de bloqueo del número y fuera del encargo («solo capacidades permitidas oficialmente»).
 
 ### P-04 · Región de datos y marco legal
 UE, EEUU o LatAm. GDPR, LFPDPPP, u otro. Decide dónde vive PostgreSQL y si hacen falta DPA con subencargados. Cambiarlo después es una migración de datos personales, no un cambio de configuración.

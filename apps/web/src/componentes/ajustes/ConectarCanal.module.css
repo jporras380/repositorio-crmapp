@@ -1,0 +1,110 @@
+/* Asistente de conexión: pegar token → elegir número o cuenta. */
+@layer components {
+  .paso {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .paso + .paso {
+    padding-block-start: var(--space-3);
+    border-block-start: 1px solid var(--hairline);
+  }
+  .pasoTitulo {
+    margin: 0;
+    padding: 0;
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  .guia {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .guia summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 600;
+    inline-size: fit-content;
+  }
+  .guia ol {
+    margin: var(--space-2) 0 0;
+    padding-inline-start: 1.25rem;
+    display: grid;
+    gap: var(--space-1);
+    line-height: var(--leading);
+  }
+  .guia code {
+    font-size: 0.85em;
+    padding: 0 0.25rem;
+    border-radius: var(--radius-sm);
+    background: var(--hairline);
+    color: var(--fg);
+    overflow-wrap: anywhere;
+  }
+
+  .opciones {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-inline-size: 0;
+  }
+  .opciones legend {
+    margin-block-end: var(--space-2);
+  }
+  .opcion {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    cursor: pointer;
+  }
+  .opcion:has(input:disabled) {
+    cursor: default;
+    opacity: 0.6;
+  }
+  .opcion:has(input:focus-visible) {
+    box-shadow: var(--ring);
+  }
+  /* La elegida se marca con borde Y con el radio marcado: nunca solo color. */
+  .opcionElegida {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .opcion input {
+    accent-color: var(--accent);
+    inline-size: 1rem;
+    block-size: 1rem;
+  }
+  .opcionTexto {
+    display: grid;
+    gap: 0.1rem;
+    min-inline-size: 0;
+  }
+  .opcionTitulo {
+    font-weight: 600;
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
+  }
+  .opcionDetalle {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    overflow-wrap: anywhere;
+  }
+  .yaConectado {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+
+  .avisoCaduca {
+    background: var(--warn-soft);
+    color: var(--fg);
+  }
+}

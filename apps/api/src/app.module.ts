@@ -46,6 +46,7 @@ import {
   type VerificadorDeInstagram,
 } from './canales/canales.service.js';
 import { CanalesController } from './canales/canales.controller.js';
+import type { DescubridorDeMeta } from './canales/descubrimiento.js';
 import { MediosService } from './medios/medios.service.js';
 import { MediosController } from './medios/medios.controller.js';
 import { PlantillasService } from './plantillas/plantillas.service.js';
@@ -88,6 +89,8 @@ export interface OpcionesDeApp {
   verificarCredencialesInstagram?: VerificadorDeInstagram;
   /** Suscribe la WABA a nuestra app al conectar. Se inyecta en tests. */
   suscribir?: SuscriptorDeWebhook;
+  /** Descubre cuentas con un solo token y suscribe páginas de Instagram. Se inyecta en tests. */
+  descubridor?: DescubridorDeMeta;
   /**
    * Sandbox en vez de canal real. Solo para tests y demos sin Meta. En
    * producción el valor por defecto es el adaptador real de WhatsApp.
@@ -175,6 +178,7 @@ export class AppModule {
                 ? { verificarInstagram: opciones.verificarCredencialesInstagram }
                 : {}),
               ...(opciones.suscribir ? { suscribir: opciones.suscribir } : {}),
+              ...(opciones.descubridor ? { descubridor: opciones.descubridor } : {}),
             }),
         },
         {

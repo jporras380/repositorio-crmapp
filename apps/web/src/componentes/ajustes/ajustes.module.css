@@ -148,6 +148,8 @@
   .campos {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    /* Sin esto, un campo sin ayuda estira su input hasta la altura del vecino. */
+    align-items: start;
     gap: var(--space-3);
   }
   .campo {

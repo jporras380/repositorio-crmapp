@@ -41,6 +41,25 @@ El usuario mostró su Kommo real (Nippon Autoparts), con Facebook Messenger, Com
 
 **Decisión que sale de aquí (PR-22):** en el compositor de un hilo de comentarios, `modo` es **`privada` por defecto** —también en la API, `z.enum([...]).default('privada')`— y «En público» es un botón aparte, porque la ve cualquiera. Cuando el privado se rechaza, la web **no lo trata como avería**: explica en tono normal que esa persona no acepta mensajes privados o que ya se le envió uno, y ofrece responder en el comentario.
 
+## Revisión de conexión y comentarios (PR-39, 2026-09-14)
+
+El usuario pidió «de pasada» revisar comentarios e Instagram. Salieron dos fallos que no daban ningún error:
+
+1. **La web no tenía cómo conectar Instagram.** La API existía desde PR-19, pero Ajustes → Canales solo ofrecía «Conectar WhatsApp». Ahora hay asistente propio: token de usuario → lista de cuentas de Instagram vinculadas a páginas → elegir.
+2. **Instagram se conectaba sordo, igual que le pasó a WhatsApp en PR-21.** Nada suscribía la página a los webhooks, y **sin la suscripción a `comments` los comentarios no llegan nunca**, por mucho que la ingesta los sepa leer. Ahora, al conectar con un token de usuario:
+   - `GET /me/accounts` con `instagram_business_account{id,username}` encuentra la página de esa cuenta;
+   - se guarda el **token de PÁGINA** (el que exige la API de mensajes), no el de usuario;
+   - `POST /{page-id}/subscribed_apps?subscribed_fields=messages,comments` suscribe la página, y el resultado queda en `webhook_subscribed`, con el mismo aviso rojo «No recibe mensajes» que WhatsApp;
+   - el id de la página se guarda en `provider_account_id`.
+
+   Si el token ya era de página, `/me` es la página y se usa tal cual. Si no ve ninguna página (token de otro tipo), se hace lo de antes: verificar y guardar. Renovar el token repite el camino y suscribe lo que faltara.
+
+**Permisos que hay que pedir** (según la referencia de webhooks de Instagram con inicio de sesión de Facebook): `instagram_basic`, `instagram_manage_messages`, `instagram_manage_comments`, `pages_show_list`, `pages_manage_metadata`, `pages_read_engagement`. **Los webhooks de comentarios exigen Acceso Avanzado**: con acceso estándar solo llegan los de cuentas con rol en la app. Eso es App Review, igual que Messenger.
+
+Los tokens de página nunca llegan a la web: `POST /v1/canales/instagram/descubrir` los quita antes de responder, y el alta los vuelve a pedir a Meta en el servidor.
+
+**Comentarios de Facebook** (lo que Kommo llama «Comentarios») no existen todavía: llegan con el canal Messenger, que es el siguiente PR de canales.
+
 ## Aprendizajes verificados
 
 Ninguno con tráfico real todavía: el adaptador está probado sin red (17 tests) y por HTTP con el sandbox y con un payload real firmado.

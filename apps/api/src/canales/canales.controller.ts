@@ -32,6 +32,19 @@ const AltaInstagram = z.object({
   displayName: z.string().min(1).max(80).optional(),
 });
 
+/** Solo el token: la clave secreta no hace falta para preguntar a Meta. */
+const DescubrirWhatsapp = z.object({
+  accessToken: z.string().min(20),
+  wabaId: z
+    .string()
+    .regex(/^\d{5,25}$/, 'id de WABA numérico')
+    .optional(),
+});
+
+const DescubrirInstagram = z.object({
+  accessToken: z.string().min(20),
+});
+
 const RenovarCredenciales = z.object({
   accessToken: z.string().min(20),
   /** Opcional: normalmente solo caduca el token, no la clave secreta de la app. */
@@ -59,6 +72,29 @@ export class CanalesController {
   @Get()
   listar(@Req() req: Req) {
     return conContextoDePeticion(req, () => this.canales.listar());
+  }
+
+  /**
+   * Qué números ve un token, para elegir en vez de copiar ids. POST y no GET:
+   * el token no puede viajar en la URL (acaba en logs y en el historial).
+   */
+  @Post('whatsapp/descubrir')
+  @HttpCode(200)
+  descubrirWhatsapp(@Req() req: Req, @Body() body: unknown) {
+    const d = validar(DescubrirWhatsapp, body);
+    return conContextoDePeticion(req, () =>
+      this.canales.descubrirWhatsapp({
+        accessToken: d.accessToken,
+        ...(d.wabaId ? { wabaId: d.wabaId } : {}),
+      }),
+    );
+  }
+
+  @Post('instagram/descubrir')
+  @HttpCode(200)
+  descubrirInstagram(@Req() req: Req, @Body() body: unknown) {
+    const d = validar(DescubrirInstagram, body);
+    return conContextoDePeticion(req, () => this.canales.descubrirInstagram(d));
   }
 
   /**

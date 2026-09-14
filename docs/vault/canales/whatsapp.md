@@ -88,6 +88,20 @@ Tomados de la documentación y codificados en `AdaptadorWhatsapp`. Lo importante
 
 Para `POST /v1/canales/whatsapp` hacen falta cuatro datos, todos en *WhatsApp → Configuración de la API* de la app en developers.facebook.com: **phone_number_id**, **id de la WABA**, **token** (el temporal caduca a las 24 h; para uno estable, *system user* en Business Manager) y el **app secret** (en *Configuración → Básica*). El webhook se registra con la URL pública `/webhooks/whatsapp` y el `verify_token` que elijamos.
 
+### Conectar eligiendo (PR-39, 2026-09-14)
+
+Desde PR-39 la web **ya no pide los identificadores**: el cliente pega token y app secret, y el CRM le enseña los números para elegir ([[02-PREGUNTAS-ABIERTAS]] §P-26, opción A). La API de alta no cambió; lo nuevo es `POST /v1/canales/whatsapp/descubrir`, que no guarda nada.
+
+![[2026-09-14-conectar-eligiendo.png]]
+
+- **De dónde salen las WABA:** `GET /debug_token` → `granular_scopes` con `scope = whatsapp_business_management` → `target_ids`. Es lo que la propia documentación de Embedded Signup manda hacer, así que la opción B lo reutilizará.
+- **Quién puede llamar a `debug_token`:** según Meta, un token de app o de *desarrollador de la app*. Un usuario del sistema asignado a la app lo es; un token de otro tipo puede no serlo. **En ese caso no hay forma documentada de listar las WABA**: se pide solo el id de la cuenta y se listan sus números con `GET /{waba}/phone_numbers`. Se descartó `GET /app` para obtener el id de la app y firmar con `app_id|app_secret`: no aparece en la referencia de Meta.
+- **Código 190 no es «falta la WABA»:** es token inválido o caducado, y se dice así. Comprobado con Meta real el 2026-09-14 con el token temporal del `.env`, caducado ese mismo día (190/463).
+- **`expires_at` se enseña:** un token temporal avisa de cuándo caduca. Es el fallo que más veces nos ha dejado sin mensajes.
+- **«Ya conectado» solo mira la cuenta propia (RLS).** Si el número está en otra cuenta, el alta devuelve 409 sin decir en cuál.
+
+**Pendiente de verificar con tráfico real:** la lista con un token de usuario del sistema válido. El token de prueba caducó antes de poder probarlo; los tests usan respuestas con la forma documentada.
+
 **Para desarrollar no hace falta comprar número:** Meta da un número de prueba gratuito que envía a hasta 5 destinatarios verificados. El móvil personal del usuario sirve como destinatario. **El número de producción de Nippon no se toca hasta el final**: está en uso en Kommo.
 
 ## Aprendizajes propios verificados
