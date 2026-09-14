@@ -119,6 +119,34 @@ export interface ResumenDeUso {
   limites: Record<string, { limite: number | null; usado: number | null }>;
 }
 
+export type ClaveDePeriodo = '24h' | '7d' | '30d';
+
+/** Cómo fue el periodo (§15). Ventanas móviles; mediana y p90, no media. */
+export interface InformeDelPeriodo {
+  periodo: { clave: ClaveDePeriodo; desde: string; hasta: string };
+  conversaciones: {
+    nuevas: number;
+    porCanal: { canal: string; nuevas: number }[];
+    atencionAhora: Record<EstadoDeAtencion, number>;
+  };
+  respuesta: { medianaSegundos: number | null; p90Segundos: number | null; medidas: number };
+  agentes: {
+    id: string;
+    nombre: string;
+    asignadasAbiertas: number;
+    porResponder: number;
+    respuestasEnviadas: number;
+  }[];
+  clientesNuevos: number;
+  reservas: {
+    generadas: number;
+    confirmadas: number;
+    canceladas: number;
+    porMoneda: { moneda: string; confirmado: number; cobrado: number }[];
+  };
+  embudo: { consultas: number; conReserva: number; perdidas: number };
+}
+
 export interface ResumenDelPanel {
   atencion: { sinResponder: number; ventanasPorCerrar: number; sinAsignar: number };
   conversaciones: { abiertas: number; pendientes: number; cerradasHoy: number };

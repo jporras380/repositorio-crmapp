@@ -11,6 +11,8 @@ import type {
   CuentaDeCanal,
   AccionDeReserva,
   CatalogoDeHotel,
+  ClaveDePeriodo,
+  InformeDelPeriodo,
   DetalleDeReserva,
   MetodoDePago,
   PeticionDeReserva,
@@ -123,6 +125,8 @@ export function crearApi(token: string | null) {
       }),
     yo: () => peticion<Yo>('/v1/yo', t),
     panel: () => peticion<ResumenDelPanel>('/v1/panel', t),
+    informe: (periodo: ClaveDePeriodo) =>
+      peticion<InformeDelPeriodo>(`/v1/panel/informe?periodo=${periodo}`, t),
     etiquetas: () => peticion<Etiqueta[]>('/v1/etiquetas', t),
     conversaciones: (f: FiltrosDeBandeja) =>
       peticion<Pagina<ResumenDeConversacion>>(`/v1/conversaciones${consulta({ ...f })}`, t),

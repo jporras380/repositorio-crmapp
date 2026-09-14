@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-38, informe del periodo** ([[panel]]): conversaciones nuevas por canal, primera respuesta con **mediana y p90** (no media, y aviso si hay pocas medidas), estado de atención con la misma regla que la bandeja, tabla por agente, clientes nuevos, reservas generadas/confirmadas/canceladas **por su evento**, importes por moneda y **conversión sobre la cohorte** del periodo. Ventanas móviles de 24 h, 7 y 30 días. 15 tests nuevos, con escenario de fechas exactas y reloj fijo.
 - **PR-37, reservas — criterio de éxito 10 cumplido** ([[reservas]]): la reserva se crea **desde la conversación**, con el cotizador como formulario; el servidor pone y **copia** el precio (la API rechaza un total mandado por la pantalla); ciclo de vida validado en `core`; **confirmar gana el lead** del embudo; pagos con Yape, Plin y efectivo; aviso de solape en la misma habitación y de **entrada en el pasado** —encontrado al probar con datos reales—. Migración 0022. 35 tests nuevos. Recorrido completo verificado sobre la base de desarrollo.
 - **PR-36, el hotel** ([[hotel]]): tipos de habitación, habitaciones con estado, **tarifas por fechas y días de la semana**, servicios adicionales y un **cotizador** siempre a la vista. El precio se calcula en `core` noche a noche —gana la tarifa de rango más corto, nunca se inventa una noche a cero— para que cotizador y reserva den lo mismo. Ningún precio en el código: el catálogo empieza vacío. Migración 0021. 28 tests nuevos.
 - **PR-35, la bandeja se puede filtrar** ([[bandeja]]): búsqueda, panel de filtros compuestos (atención, responsable, **etapa del embudo**, fechas), **vistas guardadas** por agente, **aplazar** conversaciones y **notas internas** —que tenían tabla desde la fase 0 sin usar—. El estado de atención **se deduce**, no se guarda: solo el aplazamiento necesita columna. Migración 0020. 15 tests nuevos.
@@ -94,9 +95,9 @@ Nada.
 
 ## Qué sigue
 
-1. **PR-38 · Dashboard de atención** (§15): conversaciones nuevas, pendientes y sin responder, por canal y por agente, tiempo medio de respuesta, reservas generadas y confirmadas, clientes nuevos y consultas perdidas — sobre datos reales; el panel actual trae la mitad.
-2. **PR-39 · Facebook Messenger** (depende de App Review de Meta); **PR-40 · IA asistida** con clave del cliente.
-3. Del estudio de los repos de referencia ([[2026-09-11-repos-de-referencia]]): `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas).
+1. **Alinear «Sin responder» del panel** con el estado de atención de la bandeja (deuda descubierta en PR-38: hoy dan números distintos para lo mismo).
+2. **PR-39 · Facebook Messenger** (depende de App Review de Meta) y **PR-40 · IA asistida** con clave del cliente.
+3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas).
 
 Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, etiquetas editables, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
 

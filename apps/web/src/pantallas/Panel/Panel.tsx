@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { crearApi } from '../../api/cliente.ts';
 import type { ResumenDelPanel, Sesion, Yo } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
+import { Informe } from '../../componentes/panel/Informe.tsx';
 import { irA } from '../../estado/ruta.ts';
 import estilos from './Panel.module.css';
 
@@ -194,6 +195,10 @@ export function Panel({ sesion, alSalir }: Props) {
             </button>
           </section>
         </div>
+
+        {/* Lo de arriba es AHORA; esto es el periodo. Van separados porque
+            responden preguntas distintas y mezclarlos obligaba a elegir. */}
+        <Informe api={api} />
       </main>
     </div>
   );

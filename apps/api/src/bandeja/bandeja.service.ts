@@ -104,7 +104,7 @@ export type EstadoDeAtencion =
  * `human_reply_at` lo pone la puerta de envío cuando escribe una PERSONA: que
  * el bot haya contestado no convierte la conversación en atendida.
  */
-const ESTADO_DE_ATENCION = `CASE
+export const ESTADO_DE_ATENCION = `CASE
   WHEN c.status = 'closed' THEN 'cerrada'
   WHEN c.snoozed_until > now() THEN 'seguimiento'
   WHEN c.human_reply_at IS NULL THEN 'nueva'
