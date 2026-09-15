@@ -115,6 +115,10 @@ Entrante y saliente volvieron a funcionar a las 21:07 UTC («prueba 02» → res
 
 Primera comprobación ante «no llega»: la fecha del último `inbound_events`. Si es vieja, el problema está antes de nuestra API.
 
+### Botones y listas que pulsa el cliente (PR-45, 2026-09-15)
+
+**Se perdían.** Pulsar un botón de respuesta rápida de una plantilla llega como `type: 'button'` (`button.text` y `button.payload`, con `context.id` de la plantilla), y elegir de un mensaje interactivo como `type: 'interactive'` con `button_reply` o `list_reply` (`id`, `title`). La ingesta solo aceptaba texto y medios: el mensaje se descartaba y el cliente que pulsaba «Reservar» no aparecía en la bandeja. Ahora entran como texto con lo que el cliente ve escrito (el `title` o el `text`), así que también disparan los bots por palabra clave. Otros `interactive` (formularios, pagos) se siguen ignorando sin fallar. Formatos según la referencia de webhooks de Meta.
+
 ### Nombres de usuario y BSUID (PR-41, 2026-09-15)
 
 Fuente: documentación de Meta «Business-scoped user IDs». **Cambia qué identifica a una persona.**

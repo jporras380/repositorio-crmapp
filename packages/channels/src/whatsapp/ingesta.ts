@@ -152,18 +152,27 @@ function mensaje(
   const perfil =
     (bsuid ? perfiles.get(bsuid) : undefined) ?? (from ? perfiles.get(from) : undefined);
 
-  const tipo = TIPO[tipoMeta];
-  // Tipos que no manejamos todavía (reaction, interactive, button, order,
-  // system, unsupported...): se ignoran, no se falla.
+  // Respuestas a botones y listas: son lo que el cliente ELIGIÓ y se tratan
+  // como texto con lo que ve escrito. Antes se descartaban: quien pulsaba
+  // «Reservar» en una plantilla no aparecía en la bandeja.
+  // - `button`: botón de respuesta rápida de una plantilla ({text, payload}).
+  // - `interactive`: `button_reply` o `list_reply` ({id, title[, description]}).
+  const eleccion = textoDeEleccion(tipoMeta, m);
+
+  const tipo = eleccion !== undefined ? 'text' : TIPO[tipoMeta];
+  // Tipos que no manejamos todavía (reaction, order, system, unsupported...):
+  // se ignoran, no se falla.
   if (!tipo) return null;
 
   const contenido = obj(m[tipoMeta]);
   const texto =
-    tipo === 'text'
-      ? str(contenido['body'])
-      : tipo === 'location'
-        ? `${contenido['latitude']},${contenido['longitude']}`
-        : str(contenido['caption']);
+    eleccion !== undefined
+      ? eleccion
+      : tipo === 'text'
+        ? str(contenido['body'])
+        : tipo === 'location'
+          ? `${contenido['latitude']},${contenido['longitude']}`
+          : str(contenido['caption']);
 
   // `referral` aparece cuando el contacto llegó desde un anuncio
   // Click-to-WhatsApp: abre la ventana gratuita de 72 h.
@@ -190,6 +199,23 @@ function mensaje(
     entradaGratuita,
     respondeA: str(obj(m['context'])['id']),
   };
+}
+
+/** Texto de lo que el cliente eligió en un botón o una lista, o `undefined` si no es eso. */
+function textoDeEleccion(tipoMeta: string, m: Obj): string | undefined {
+  if (tipoMeta === 'button') {
+    const b = obj(m['button']);
+    return str(b['text']) ?? str(b['payload']);
+  }
+  if (tipoMeta === 'interactive') {
+    const i = obj(m['interactive']);
+    const r = obj(i[str(i['type']) ?? '']);
+    // Solo las dos respuestas documentadas; otros tipos (formularios, pagos)
+    // no son una elección con texto y se ignoran.
+    if (i['type'] !== 'button_reply' && i['type'] !== 'list_reply') return undefined;
+    return str(r['title']) ?? str(r['id']);
+  }
+  return undefined;
 }
 
 function estado(s: Obj, phoneNumberId: string): EventoDeEstado | null {

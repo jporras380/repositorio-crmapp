@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-45, botones y listas de WhatsApp ya no se pierden** ([[whatsapp]] §Botones y listas): pulsar un botón de plantilla o elegir de una lista llegaba como `button`/`interactive` y se descartaba. Ahora entra como texto con lo elegido, y dispara bots.
 - **PR-44, administrar etiquetas** ([[bandeja]] §Administrar etiquetas): Ajustes → Etiquetas para crear, renombrar, recolorear y borrar, con dónde se usa cada una. No se borra la que usa un bot vigente, y el worker ya no falla si un bot en vuelo apunta a una borrada. Cierra la deuda «etiquetas editables».
 - **PR-43, IA asistida con la clave del hotel** ([[ia]]): «Sugerir con IA» en el compositor redacta un borrador con los últimos 30 mensajes, el catálogo y las instrucciones del hotel; **nunca envía**. Lo envía el agente, y queda `sent_by = human` con `ai_generated = true` y marca «IA» en el hilo. Ajustes → IA: clave de Anthropic cifrada y verificada antes de guardarse, modelo (Opus 5 por defecto) e instrucciones; empieza apagada. Respeta la visibilidad entre agentes. SDK oficial de Anthropic. Migración 0025. Sin probar con una clave real.
 - **PR-42, Facebook Messenger y comentarios de página** ([[facebook]]): tercer canal dentro del contrato `ChannelAdapter`, sin tocar `core`. Mensajes de Messenger con adjuntos, comentarios del muro como hilos (respuesta privada o pública) y asistente «Conectar Facebook» que lista las páginas. La suscripción de la página **conserva los campos de Instagram** si cuelga de la misma página: Meta reemplaza la lista y se habrían perdido sus comentarios sin error. Migración 0024 (amplía la lista de canales; reversa sin borrar datos). Sin probar con una página real.
@@ -103,7 +104,7 @@ Nada.
 
 1. **Conectar Instagram de verdad** para ver entrar un comentario: hace falta un token con permisos de Instagram y páginas. El número de WhatsApp de prueba ya usa un token de usuario del sistema (caduca el 2026-11-13).
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
-3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas).
+3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **enviar** mensajes interactivos de WhatsApp (botones y listas) desde bots y compositor; recibirlos ya funciona.
 
 Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
 

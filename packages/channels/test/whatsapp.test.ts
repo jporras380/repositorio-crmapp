@@ -549,3 +549,62 @@ describe('nombres de usuario de WhatsApp (BSUID)', () => {
     expect(cuerpo).not.toHaveProperty('to');
   });
 });
+
+describe('respuestas a botones y listas', () => {
+  const ingesta = new IngestaWhatsapp();
+  const con = (mensaje: Record<string, unknown>) =>
+    ingesta.parsearEventos({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: 'WABA9',
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                metadata: { phone_number_id: 'PN123' },
+                contacts: [{ profile: { name: 'Rosa' }, wa_id: '51999888777' }],
+                messages: [
+                  { from: '51999888777', id: 'wamid.X', timestamp: '1757440000', ...mensaje },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+  it('botón de respuesta rápida de una plantilla: entra como texto, citando la plantilla', () => {
+    const [e] = con({
+      type: 'button',
+      button: { payload: 'Reservar', text: 'Reservar' },
+      context: { from: '15550783881', id: 'wamid.PLANTILLA' },
+    });
+    expect(e).toMatchObject({ tipo: 'text', texto: 'Reservar', respondeA: 'wamid.PLANTILLA' });
+  });
+
+  it('interactive button_reply: el título del botón', () => {
+    const [e] = con({
+      type: 'interactive',
+      interactive: { type: 'button_reply', button_reply: { id: 'si', title: 'Sí, confirmo' } },
+    });
+    expect(e).toMatchObject({ tipo: 'text', texto: 'Sí, confirmo' });
+  });
+
+  it('interactive list_reply: el título de la opción elegida', () => {
+    const [e] = con({
+      type: 'interactive',
+      interactive: {
+        type: 'list_reply',
+        list_reply: { id: 'bungalow', title: 'Bungalow Matrimonial', description: '2 personas' },
+      },
+    });
+    expect(e).toMatchObject({ tipo: 'text', texto: 'Bungalow Matrimonial' });
+  });
+
+  it('un interactive de otro tipo se ignora sin fallar', () => {
+    expect(con({ type: 'interactive', interactive: { type: 'nfm_reply', nfm_reply: {} } })).toEqual(
+      [],
+    );
+  });
+});
