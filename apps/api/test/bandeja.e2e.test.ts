@@ -34,7 +34,14 @@ let ahora = new Date();
 /** Crea contacto+identidad+conversación con un entrante hace `haceHoras`. */
 async function conversacion(
   nombre: string,
-  opts: { haceHoras?: number; respondida?: boolean; canal?: string } = {},
+  opts: {
+    haceHoras?: number;
+    /** Contestó una persona del equipo. */
+    respondida?: boolean;
+    /** Contestó solo el bot: hay saliente, pero ninguna persona escribió. */
+    soloBot?: boolean;
+    canal?: string;
+  } = {},
 ) {
   const canal = opts.canal ?? 'whatsapp';
   const ca =
@@ -58,12 +65,12 @@ async function conversacion(
     [tenantId, c.rows[0]!.id, canal, ca, `u-${nombre}-${canal}`, nombre],
   );
   const entrante = new Date(Date.now() - (opts.haceHoras ?? 1) * 3_600_000);
-  const saliente = opts.respondida ? new Date(entrante.getTime() + 60_000) : null;
+  const saliente = opts.respondida || opts.soloBot ? new Date(entrante.getTime() + 60_000) : null;
   const conv = await admin.query<{ id: string }>(
     `INSERT INTO conversations
        (tenant_id, contact_identity_id, contact_id, channel_account_id, status,
-        last_inbound_at, last_outbound_at, session_expires_at, unread_count)
-     VALUES ($1, $2, $3, $4, 'open', $5, $6, $7, 1) RETURNING id`,
+        last_inbound_at, last_outbound_at, session_expires_at, unread_count, human_reply_at)
+     VALUES ($1, $2, $3, $4, 'open', $5, $6, $7, 1, $8) RETURNING id`,
     [
       tenantId,
       ci.rows[0]!.id,
@@ -72,6 +79,7 @@ async function conversacion(
       entrante,
       saliente,
       new Date(entrante.getTime() + 24 * 3_600_000),
+      opts.respondida ? saliente : null,
     ],
   );
   await admin.query(
@@ -237,6 +245,20 @@ describe('listado y filtros', () => {
     const ids = r.body.items.map((i: { id: string }) => i.id);
     expect(ids).toContain(sinResponder);
     expect(ids).not.toContain(respondida);
+  });
+
+  it('"sin respuesta" es la cifra del panel: lo contestado solo por el bot sigue esperando', async () => {
+    const soloBot = await conversacion('Dora', { haceHoras: 4, soloBot: true });
+    const lista = await http
+      .get('/v1/conversaciones')
+      .query({ sinRespuesta: 'true', limite: 100 })
+      .set(auth())
+      .expect(200);
+    const ids = lista.body.items.map((i: { id: string }) => i.id);
+    expect(ids).toContain(soloBot);
+
+    const panel = await http.get('/v1/panel').set(auth()).expect(200);
+    expect(panel.body.atencion.sinResponder).toBe(ids.length);
   });
 
   it('filtra por canal', async () => {

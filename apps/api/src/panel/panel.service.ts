@@ -15,7 +15,11 @@
 import { leerUsoDelPeriodo, type MetricaDeUso } from '@crmapp/db';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
-import { ESTADO_DE_ATENCION, type EstadoDeAtencion } from '../bandeja/bandeja.service.js';
+import {
+  ESTADO_DE_ATENCION,
+  SIN_RESPONDER,
+  type EstadoDeAtencion,
+} from '../bandeja/bandeja.service.js';
 
 export type ClaveDePeriodo = '24h' | '7d' | '30d';
 
@@ -289,11 +293,9 @@ export class PanelService {
         cerradas_hoy: string;
       }>(
         `SELECT
-           count(*) FILTER (
-             WHERE status IN ('open', 'pending')
-               AND last_inbound_at IS NOT NULL
-               AND (last_outbound_at IS NULL OR last_outbound_at < last_inbound_at)
-           ) AS sin_responder,
+           -- La misma regla que el filtro «Sin respuesta» de la bandeja, que
+           -- es adonde lleva la tarjeta (SIN_RESPONDER).
+           count(*) FILTER (WHERE ${SIN_RESPONDER}) AS sin_responder,
            -- La ventana que se cierra pronto: si nadie responde, para hablar
            -- con esa persona hará falta una plantilla aprobada.
            count(*) FILTER (
@@ -307,7 +309,7 @@ export class PanelService {
            count(*) FILTER (WHERE status = 'pending') AS pendientes,
            count(*) FILTER (WHERE status = 'closed' AND closed_at >= date_trunc('day', $1::timestamptz))
              AS cerradas_hoy
-         FROM conversations`,
+         FROM conversations c`,
         [ahora],
       );
 

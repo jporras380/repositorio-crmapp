@@ -78,7 +78,7 @@ export function Panel({ sesion, alSalir }: Props) {
           <Urgente
             valor={d?.atencion.sinResponder}
             titulo="Sin responder"
-            detalle="El contacto escribió y nadie ha contestado"
+            detalle="Esperan a una persona del equipo, aunque haya contestado el bot"
             tono={d && d.atencion.sinResponder > 0 ? 'warn' : 'ok'}
             alPulsar={() =>
               irA({ pantalla: 'bandeja', conversacionId: null, vista: 'sinRespuesta' })

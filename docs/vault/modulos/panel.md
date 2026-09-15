@@ -30,6 +30,8 @@ Dos preguntas distintas, dos bloques:
 
 **El estado de atención usa la MISMA expresión SQL que la bandeja** (`ESTADO_DE_ATENCION`, exportada desde `bandeja.service.ts`). Si el informe contara «por responder» de otra forma, sus números no cuadrarían con la lista que tiene delante el agente. Hay test que compara el informe con la bandeja filtrada.
 
+**«Sin responder» de arriba es la lista que abre** (PR-40, 2026-09-15). Antes la tarjeta contaba «el último mensaje es del cliente» y el filtro de la bandeja lo mismo, mientras que el informe usaba el estado de atención: en la base de desarrollo daban 5 frente a 6. La diferencia era **lo que solo había contestado el bot**, que la regla vieja daba por atendido. Ahora tarjeta y filtro usan `SIN_RESPONDER` (en `bandeja.service.ts`): estado `nueva` o `por_responder`, **y que el contacto haya escrito**; una conversación que abrió el bot con plantilla y nadie contestó es `nueva`, pero no espera respuesta de nadie. Hay test que compara la cifra del panel con la lista filtrada.
+
 **«Respuestas» por agente son mensajes escritos por esa persona** (`sent_by = 'human'`); los del bot no cuentan.
 
 ## Forma
@@ -42,6 +44,5 @@ Casi todo son cifras sueltas, no gráficos: un número con su etiqueta se lee en
 
 ## Deuda conocida
 
-- **«Sin responder» de arriba y «Nuevas + Por responder» de abajo no usan la misma regla.** La tarjeta de PR-23 cuenta conversaciones cuyo último mensaje es del cliente; el informe usa el estado de atención de la bandeja, que además separa lo que nunca atendió una persona. En la base de desarrollo dan 5 frente a 5 + 1. Hay que alinear la tarjeta de arriba con `ESTADO_DE_ATENCION` y cambiar su test a sabiendas.
 - Tendencias (comparar con el periodo anterior) y exportar el informe.
 - Tiempo de primera respuesta por agente: `first_response_at` no guarda quién respondió.

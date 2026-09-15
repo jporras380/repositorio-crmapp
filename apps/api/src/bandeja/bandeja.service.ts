@@ -50,7 +50,7 @@ export interface FiltrosDeBandeja {
   estado?: string | undefined;
   agenteId?: string | undefined;
   etiquetaId?: string | undefined;
-  /** Último mensaje es del contacto y nadie ha respondido. */
+  /** Espera a una persona del equipo: estado de atención `nueva` o `por_responder`. */
   sinRespuesta?: boolean | undefined;
   cursor?: string | undefined;
   limite?: number | undefined;
@@ -112,6 +112,18 @@ export const ESTADO_DE_ATENCION = `CASE
     THEN 'por_responder'
   ELSE 'esperando_cliente'
 END`;
+
+/**
+ * «Sin responder» = lo que todavía espera a una PERSONA: `nueva` (nadie del
+ * equipo ha escrito nunca, aunque haya contestado el bot) o `por_responder`.
+ * Lo usan el filtro de la bandeja y la tarjeta del panel, para que la cifra
+ * que se pulsa sea la lista que se abre.
+ *
+ * Exige que el contacto haya escrito: una conversación que abrió el bot con
+ * una plantilla y nadie contestó es `nueva`, pero no espera respuesta de nadie.
+ */
+export const SIN_RESPONDER = `(c.last_inbound_at IS NOT NULL
+  AND (${ESTADO_DE_ATENCION}) IN ('nueva', 'por_responder'))`;
 
 export interface VistaDeBandeja {
   id: string;
@@ -202,10 +214,10 @@ export class BandejaService {
     if (filtros.sinRespuesta) {
       // "Sin respuesta" se DERIVA, no se guarda: una columna booleana habría
       // que mantenerla en cada entrante y cada saliente, y el día que un
-      // camino se olvide, el filtro miente sin que nadie lo note.
-      condiciones.push(
-        `c.last_inbound_at > COALESCE(c.last_outbound_at, '-infinity'::timestamptz)`,
-      );
+      // camino se olvide, el filtro miente sin que nadie lo note. Y se deriva
+      // del estado de atención: antes contaba la respuesta del bot como
+      // atendida y daba otra cifra que el panel.
+      condiciones.push(SIN_RESPONDER);
     }
     if (filtros.cursor) {
       const cur = decodificarCursor(filtros.cursor);

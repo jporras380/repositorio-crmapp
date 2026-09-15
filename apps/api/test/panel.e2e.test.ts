@@ -47,7 +47,10 @@ async function alta(slug: string) {
 async function conversacion(o: {
   nombre: string;
   ventanaEnHoras?: number | null;
+  /** Contestó una persona del equipo. */
   respondida?: boolean;
+  /** Contestó solo el bot: hay saliente, pero ninguna persona escribió. */
+  soloBot?: boolean;
   asignada?: boolean;
   estado?: string;
 }) {
@@ -71,8 +74,8 @@ async function conversacion(o: {
       `INSERT INTO conversations
          (tenant_id, contact_identity_id, contact_id, channel_account_id, status,
           last_inbound_at, last_outbound_at, session_expires_at, assignee_user_id,
-          first_response_at, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$6) RETURNING id`,
+          first_response_at, created_at, human_reply_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$6,$11) RETURNING id`,
       [
         tenantId,
         ci,
@@ -80,11 +83,12 @@ async function conversacion(o: {
         ca,
         o.estado ?? 'open',
         entrante,
-        o.respondida ? new Date(entrante.getTime() + 120_000) : null,
+        o.respondida || o.soloBot ? new Date(entrante.getTime() + 120_000) : null,
         o.ventanaEnHoras === null || o.ventanaEnHoras === undefined
           ? null
           : new Date(ahora.getTime() + o.ventanaEnHoras * 3_600_000),
         o.asignada ? usuario : null,
+        o.respondida ? new Date(entrante.getTime() + 120_000) : null,
         o.respondida ? new Date(entrante.getTime() + 120_000) : null,
       ],
     )
@@ -182,6 +186,13 @@ describe('GET /v1/panel', () => {
     expect(r.body.conversaciones).toMatchObject({ abiertas: 3, pendientes: 0 });
     // Dos conversaciones respondidas en dos minutos: la mediana es 120 s.
     expect(r.body.respuesta).toMatchObject({ medianaSegundos: 120, conversacionesMedidas: 2 });
+  });
+
+  it('lo contestado solo por el bot sigue sin responder: espera a una persona', async () => {
+    const antes = (await http.get('/v1/panel').set(auth()).expect(200)).body.atencion.sinResponder;
+    await conversacion({ nombre: 'SoloBot', ventanaEnHoras: 20, soloBot: true, asignada: true });
+    const r = await http.get('/v1/panel').set(auth()).expect(200);
+    expect(r.body.atencion.sinResponder).toBe(antes + 1);
   });
 
   it('la actividad de hoy va por canal y dirección', async () => {

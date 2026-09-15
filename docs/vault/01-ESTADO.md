@@ -1,11 +1,11 @@
 ---
 estado: vivo
-fecha: 2026-09-14
+fecha: 2026-09-15
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 14 de septiembre de 2026
+# Estado — 15 de septiembre de 2026
 
 **El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
 
@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-40, «Sin responder» dice lo mismo en todas partes** ([[panel]]): la tarjeta del panel y el filtro de la bandeja usan la regla del estado de atención (`SIN_RESPONDER`). Lo contestado **solo por el bot** vuelve a contar como pendiente: la regla vieja lo daba por atendido y el panel y el informe no cuadraban. 2 tests nuevos, uno compara la cifra del panel con la lista; 696 en total.
 - **PR-39, conectar eligiendo — P-26 decidida (opción C)** ([[whatsapp]] §Conectar eligiendo, [[instagram]] §Revisión): WhatsApp e Instagram se conectan pegando token y clave secreta y **eligiendo** número o cuenta de una lista que trae Meta, sin copiar identificadores. Solo endpoints documentados (`debug_token`, `/{waba}/phone_numbers`, `/me/accounts`); si Meta no deja listar, se pide un único dato. **De la revisión de Instagram salieron dos fallos silenciosos**: la web no tenía botón para conectarlo, y la página nunca se suscribía a los webhooks, así que **los comentarios no habrían llegado**. Ahora se guarda el token de página y se suscribe a `messages` y `comments`. El botón tipo Kommo (Embedded Signup, opción B) queda planificado en [[2026-09-14-embedded-signup]], a la espera de requisitos de Meta que dependen del usuario. 22 tests nuevos (10 de descubrimiento, 6 e2e de API, 6 de web; 693 en total). Verificado después con Meta real: descubrimiento de la WABA, entrante «prueba 02» y respuesta del CRM leída (2026-09-14 21:07 UTC).
 - **PR-38, informe del periodo** ([[panel]]): conversaciones nuevas por canal, primera respuesta con **mediana y p90** (no media, y aviso si hay pocas medidas), estado de atención con la misma regla que la bandeja, tabla por agente, clientes nuevos, reservas generadas/confirmadas/canceladas **por su evento**, importes por moneda y **conversión sobre la cohorte** del periodo. Ventanas móviles de 24 h, 7 y 30 días. 15 tests nuevos, con escenario de fechas exactas y reloj fijo.
 - **PR-37, reservas — criterio de éxito 10 cumplido** ([[reservas]]): la reserva se crea **desde la conversación**, con el cotizador como formulario; el servidor pone y **copia** el precio (la API rechaza un total mandado por la pantalla); ciclo de vida validado en `core`; **confirmar gana el lead** del embudo; pagos con Yape, Plin y efectivo; aviso de solape en la misma habitación y de **entrada en el pasado** —encontrado al probar con datos reales—. Migración 0022. 35 tests nuevos. Recorrido completo verificado sobre la base de desarrollo.
@@ -96,9 +97,8 @@ Nada.
 
 ## Qué sigue
 
-0. **Token de usuario del sistema** para el número de prueba (el actual caduca el 2026-09-14 a las 22:00 UTC) y **conectar Instagram de verdad** para ver entrar un comentario.
-1. **Alinear «Sin responder» del panel** con el estado de atención de la bandeja (deuda descubierta en PR-38: hoy dan números distintos para lo mismo).
-2. **PR-39 · Facebook Messenger** (depende de App Review de Meta) y **PR-40 · IA asistida** con clave del cliente.
+1. **Conectar Instagram de verdad** para ver entrar un comentario: hace falta un token con permisos de Instagram y páginas. El número de WhatsApp de prueba ya usa un token de usuario del sistema (caduca el 2026-11-13).
+2. **Facebook Messenger** con comentarios de página (depende de App Review de Meta) e **IA asistida** con clave del cliente.
 3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas).
 
 Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, etiquetas editables, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
