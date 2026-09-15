@@ -82,3 +82,13 @@ Pedido del usuario desde el principio: etiquetas editables y un apartado donde a
 - **Antes de borrar se dice cuánto se pierde** («12 conversaciones · 3 clientes · 1 lead»). Borrar la quita de todo (FK en CASCADE).
 - **No se deja borrar la que usa un bot** en su versión vigente (409 con los nombres de los bots): su paso «etiquetar» quedaría apuntando a nada. Aun así, el worker **solo pone la etiqueta si todavía existe**, porque una ejecución en vuelo de una versión anterior podría apuntar a una ya borrada; sin eso, la FK tumbaría la ejecución entera.
 - Editar y borrar exige supervisor o superior; crear sigue abierto a cualquier agente, como en la bandeja.
+
+## Reparto automático (PR-46, 2026-09-15)
+
+Ajustes → Reparto. **Apagado por defecto**: encenderlo cambia quién ve qué cuando la visibilidad es «solo las suyas» ([[ADR-008-visibilidad-entre-agentes]]), y no se cambia el día a un equipo sin que lo decida alguien.
+
+- **Al menos ocupado, no por turnos.** Por turnos se reparten llegadas, no trabajo: quien cierra rápido seguiría recibiendo lo mismo que quien tiene veinte abiertas. Se asigna a quien tiene menos conversaciones abiertas; con empate, al azar.
+- **Quien vuelve a escribir sigue con quien lo atendió**, si esa persona sigue activa y en el reparto. Solo se reasigna si ya no está.
+- Se aplica en el worker, en la misma transacción del entrante que abre o reabre la conversación, y **el lead abierto va con ella** si nadie lo lleva.
+- Por defecto entran todos los miembros activos, también la dueña en un hotel pequeño; se desmarca a quien no deba recibir. Si está encendido y nadie está marcado, la pantalla lo avisa: las conversaciones quedarían sin asignar.
+- Migración 0026: `tenants.auto_assignment` y `memberships.accepts_assignments`.

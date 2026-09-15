@@ -921,3 +921,42 @@ describe('administrar etiquetas', () => {
     await http.delete(`/v1/etiquetas/${tagId}`).set(auth()).expect(404);
   });
 });
+
+describe('reparto automático: configuración (0026)', () => {
+  it('por defecto apagado, con los miembros y sus conversaciones abiertas', async () => {
+    const r = await http.get('/v1/cuenta/reparto').set(auth()).expect(200);
+    expect(r.body.modo).toBe('off');
+    const yo = r.body.miembros.find((m: { userId: string }) => m.userId === userId);
+    expect(yo).toMatchObject({ recibe: true, rol: 'owner' });
+    expect(typeof yo.abiertas).toBe('number');
+  });
+
+  it('el propietario lo enciende y saca a alguien del reparto', async () => {
+    const r = await http
+      .put('/v1/cuenta/reparto')
+      .set(auth())
+      .send({ modo: 'least_busy', miembros: [{ userId, recibe: false }] })
+      .expect(200);
+    expect(r.body.modo).toBe('least_busy');
+    expect(r.body.miembros.find((m: { userId: string }) => m.userId === userId).recibe).toBe(false);
+  });
+
+  it('un agente no puede cambiarlo', async () => {
+    const inv = await http
+      .post('/v1/invitaciones')
+      .set(auth())
+      .send({ email: 'agente-reparto@nippon.test', rol: 'agent' })
+      .expect(201);
+    const agente = (
+      await http
+        .post('/v1/invitaciones/aceptar')
+        .send({ token: inv.body.token, contrasena: 'contrasena-de-agente', nombreCompleto: 'Ag' })
+        .expect(200)
+    ).body.token;
+    await http
+      .put('/v1/cuenta/reparto')
+      .set({ Authorization: `Bearer ${agente}` })
+      .send({ modo: 'off' })
+      .expect(403);
+  });
+});

@@ -1,0 +1,54 @@
+@layer components {
+  .lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+  }
+  .miembro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+  }
+  .marca {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-inline-size: 0;
+    cursor: pointer;
+  }
+  .marca input {
+    inline-size: 1.1rem;
+    block-size: 1.1rem;
+    accent-color: var(--accent);
+    flex: none;
+  }
+  .marca:has(input:disabled) {
+    cursor: default;
+  }
+  .quien {
+    display: grid;
+    gap: 0.1rem;
+    min-inline-size: 0;
+  }
+  .nombre {
+    font-weight: 600;
+  }
+  .detalle {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    overflow-wrap: anywhere;
+  }
+  .abiertas {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+}

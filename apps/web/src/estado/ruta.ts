@@ -10,7 +10,15 @@ export type Ruta =
     }
   | {
       pantalla: 'ajustes';
-      seccion: 'canales' | 'etiquetas' | 'plantillas' | 'respuestas' | 'ia' | 'uso' | 'suscripcion';
+      seccion:
+        | 'canales'
+        | 'etiquetas'
+        | 'reparto'
+        | 'plantillas'
+        | 'respuestas'
+        | 'ia'
+        | 'uso'
+        | 'suscripcion';
     }
   /** Constructor de Salesbots. Sin flujo elegido, la lista. */
   | { pantalla: 'flujos'; flujoId: string | null }
@@ -26,6 +34,7 @@ export type Ruta =
 const SECCIONES = new Set([
   'canales',
   'etiquetas',
+  'reparto',
   'plantillas',
   'respuestas',
   'ia',

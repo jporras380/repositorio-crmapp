@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-46, reparto automático** ([[bandeja]] §Reparto automático): las conversaciones nuevas se asignan solas al miembro con menos abiertas, entre quienes están marcados; quien vuelve sigue con su responsable, y el lead va con la conversación. Apagado por defecto. Migración 0026.
 - **PR-45, botones y listas de WhatsApp ya no se pierden** ([[whatsapp]] §Botones y listas): pulsar un botón de plantilla o elegir de una lista llegaba como `button`/`interactive` y se descartaba. Ahora entra como texto con lo elegido, y dispara bots.
 - **PR-44, administrar etiquetas** ([[bandeja]] §Administrar etiquetas): Ajustes → Etiquetas para crear, renombrar, recolorear y borrar, con dónde se usa cada una. No se borra la que usa un bot vigente, y el worker ya no falla si un bot en vuelo apunta a una borrada. Cierra la deuda «etiquetas editables».
 - **PR-43, IA asistida con la clave del hotel** ([[ia]]): «Sugerir con IA» en el compositor redacta un borrador con los últimos 30 mensajes, el catálogo y las instrucciones del hotel; **nunca envía**. Lo envía el agente, y queda `sent_by = human` con `ai_generated = true` y marca «IA» en el hilo. Ajustes → IA: clave de Anthropic cifrada y verificada antes de guardarse, modelo (Opus 5 por defecto) e instrucciones; empieza apagada. Respeta la visibilidad entre agentes. SDK oficial de Anthropic. Migración 0025. Sin probar con una clave real.
@@ -106,7 +107,7 @@ Nada.
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
 3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **enviar** mensajes interactivos de WhatsApp (botones y listas) desde bots y compositor; recibirlos ya funciona.
 
-Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
+Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM. TikTok sigue bloqueado por falta de API pública de mensajería.
 
 ## Cambio propuesto al plan de fases
 

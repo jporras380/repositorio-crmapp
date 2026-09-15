@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -87,6 +88,14 @@ const Asignacion = z.object({ agenteId: z.string().uuid().nullable() });
 const Visibilidad = z.object({ modo: z.enum(['all', 'team', 'assigned']) });
 const Estado = z.object({ estado: z.enum(['open', 'pending', 'snoozed', 'closed']) });
 const Etiquetado = z.object({ tagId: z.string().uuid(), poner: z.boolean().default(true) });
+const Reparto = z.object({
+  modo: z.enum(['off', 'least_busy']).optional(),
+  miembros: z
+    .array(z.object({ userId: z.string().uuid(), recibe: z.boolean() }))
+    .max(200)
+    .optional(),
+});
+
 const NuevaEtiqueta = z.object({
   nombre: z.string().min(1).max(40),
   // Color como en Zenvia: es el filtro visual de primer nivel.
@@ -211,6 +220,17 @@ export class BandejaController {
   async etiquetar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
     const { tagId, poner } = validar(Etiquetado, body);
     await conContextoDePeticion(req, () => this.bandeja.etiquetar(id, tagId, poner));
+  }
+
+  @Get('cuenta/reparto')
+  reparto(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.bandeja.reparto());
+  }
+
+  @Put('cuenta/reparto')
+  guardarReparto(@Req() req: Req, @Body() body: unknown) {
+    const d = validar(Reparto, body);
+    return conContextoDePeticion(req, () => this.bandeja.guardarReparto(d));
   }
 
   /** Política de visibilidad entre agentes (ADR-008). Solo owner/admin. */

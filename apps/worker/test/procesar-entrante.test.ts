@@ -659,3 +659,133 @@ describe('fallos', () => {
     expect(rows[0]!.error).toBeTruthy();
   });
 });
+
+describe('reparto automático (0026)', () => {
+  let ana: string;
+  let beto: string;
+
+  const usuario = async (email: string) => {
+    const u = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO users (email, password_hash, full_name) VALUES ($1::text, 'x', $1::text)
+         ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name RETURNING id`,
+        [email],
+      )
+    ).rows[0]!.id;
+    await admin.query(
+      `INSERT INTO memberships (tenant_id, user_id, role) VALUES ($1, $2, 'agent')
+       ON CONFLICT (tenant_id, user_id) DO UPDATE SET status = 'active', accepts_assignments = true`,
+      [tenantId, u],
+    );
+    return u;
+  };
+  const asignadoDe = async (externalMessageId: string) =>
+    (
+      await admin.query<{ assignee_user_id: string | null }>(
+        `SELECT c.assignee_user_id FROM messages m JOIN conversations c ON c.id = m.conversation_id
+          WHERE m.external_message_id = $1`,
+        [externalMessageId],
+      )
+    ).rows[0]!.assignee_user_id;
+  /** Conversación abierta ya asignada, para cargar a alguien de trabajo. */
+  const cargar = async (userId: string, n: number) => {
+    for (let i = 0; i < n; i++) {
+      await procesarEventoEntrante(
+        deps(),
+        tenantId,
+        await webhook([
+          mensaje(`wamid.carga-${userId}-${i}`, { externalUserId: `carga-${userId}-${i}` }),
+        ]),
+      );
+      await admin.query(
+        `UPDATE conversations SET assignee_user_id = $1
+          WHERE id = (SELECT conversation_id FROM messages WHERE external_message_id = $2)`,
+        [userId, `wamid.carga-${userId}-${i}`],
+      );
+    }
+  };
+
+  beforeAll(async () => {
+    ana = await usuario('ana-reparto@test.test');
+    beto = await usuario('beto-reparto@test.test');
+  });
+  afterAll(async () => {
+    await admin.query(`UPDATE tenants SET auto_assignment = 'off' WHERE id = $1`, [tenantId]);
+    await admin.query(`DELETE FROM memberships WHERE tenant_id = $1 AND user_id IN ($2, $3)`, [
+      tenantId,
+      ana,
+      beto,
+    ]);
+  });
+
+  it('apagado (por defecto): la conversación nueva queda sin asignar', async () => {
+    await admin.query(`UPDATE tenants SET auto_assignment = 'off' WHERE id = $1`, [tenantId]);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.r0')]));
+    expect(await asignadoDe('wamid.r0')).toBeNull();
+  });
+
+  it('encendido: va a quien tiene menos conversaciones abiertas, y el lead con ella', async () => {
+    await admin.query(`UPDATE tenants SET auto_assignment = 'least_busy' WHERE id = $1`, [
+      tenantId,
+    ]);
+    await admin.query(
+      `UPDATE memberships SET accepts_assignments = false WHERE tenant_id = $1 AND user_id NOT IN ($2, $3)`,
+      [tenantId, ana, beto],
+    );
+    await cargar(ana, 2);
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.r1', { externalUserId: 'nuevo-1' })]),
+    );
+    expect(await asignadoDe('wamid.r1')).toBe(beto);
+    const lead = await admin.query<{ assignee_user_id: string | null }>(
+      `SELECT l.assignee_user_id FROM leads l JOIN messages m ON m.conversation_id = l.conversation_id
+        WHERE m.external_message_id = 'wamid.r1'`,
+    );
+    expect(lead.rows[0]?.assignee_user_id).toBe(beto);
+  });
+
+  it('quien no acepta asignaciones no recibe, aunque esté libre', async () => {
+    await admin.query(`UPDATE tenants SET auto_assignment = 'least_busy' WHERE id = $1`, [
+      tenantId,
+    ]);
+    await admin.query(
+      `UPDATE memberships SET accepts_assignments = false WHERE tenant_id = $1 AND user_id <> $2`,
+      [tenantId, ana],
+    );
+    await cargar(ana, 3);
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.r2', { externalUserId: 'nuevo-2' })]),
+    );
+    expect(await asignadoDe('wamid.r2')).toBe(ana);
+  });
+
+  it('al reabrirse, conserva a su responsable si sigue en el reparto', async () => {
+    await admin.query(`UPDATE tenants SET auto_assignment = 'least_busy' WHERE id = $1`, [
+      tenantId,
+    ]);
+    await admin.query(`UPDATE memberships SET accepts_assignments = true WHERE tenant_id = $1`, [
+      tenantId,
+    ]);
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.r3', { externalUserId: 'vuelve' })]),
+    );
+    await admin.query(
+      `UPDATE conversations SET assignee_user_id = $1, status = 'closed'
+        WHERE id = (SELECT conversation_id FROM messages WHERE external_message_id = 'wamid.r3')`,
+      [ana],
+    );
+    await cargar(ana, 4); // Ana es la más ocupada, pero ya conocía a esta persona.
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.r4', { externalUserId: 'vuelve' })]),
+    );
+    expect(await asignadoDe('wamid.r4')).toBe(ana);
+  });
+});

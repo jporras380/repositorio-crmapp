@@ -13,6 +13,7 @@ import type {
   PaginaDeFacebookDescubierta,
   AjustesDeIa,
   EtiquetaConUso,
+  ConfiguracionDeReparto,
   DescubrimientoWhatsapp,
   AccionDeReserva,
   CatalogoDeHotel,
@@ -169,6 +170,12 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { nombre, color },
       }),
+    reparto: () => peticion<ConfiguracionDeReparto>('/v1/cuenta/reparto', t),
+    guardarReparto: (d: {
+      modo?: 'off' | 'least_busy';
+      miembros?: { userId: string; recibe: boolean }[];
+    }) =>
+      peticion<ConfiguracionDeReparto>('/v1/cuenta/reparto', { ...t, metodo: 'PUT', cuerpo: d }),
     etiquetasConUso: () => peticion<EtiquetaConUso[]>('/v1/etiquetas/uso', t),
     editarEtiqueta: (id: string, cambios: { nombre?: string; color?: string | null }) =>
       peticion<void>(`/v1/etiquetas/${id}`, { ...t, metodo: 'PATCH', cuerpo: cambios }),

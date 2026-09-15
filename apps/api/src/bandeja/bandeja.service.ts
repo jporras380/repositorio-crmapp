@@ -768,6 +768,79 @@ export class BandejaService {
     return { modo, equipos };
   }
 
+  /**
+   * Reparto automático (0026): el modo de la cuenta y quién entra. Lo pueden
+   * leer todos (un agente ve si recibe); cambiarlo, propietario o administrador.
+   */
+  async reparto(): Promise<ConfiguracionDeReparto> {
+    this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const t = await c.query<{ auto_assignment: 'off' | 'least_busy' }>(
+        `SELECT auto_assignment FROM tenants WHERE id = app.current_tenant_id()`,
+      );
+      const { rows } = await c.query<{
+        user_id: string;
+        full_name: string;
+        email: string;
+        role: string;
+        accepts_assignments: boolean;
+        abiertas: string;
+      }>(
+        `SELECT m.user_id, u.full_name, u.email, m.role, m.accepts_assignments,
+                (SELECT count(*) FROM conversations cv
+                  WHERE cv.assignee_user_id = m.user_id AND cv.status <> 'closed') AS abiertas
+           FROM memberships m JOIN users u ON u.id = m.user_id
+          WHERE m.status = 'active'
+          ORDER BY u.full_name`,
+      );
+      return {
+        modo: t.rows[0]?.auto_assignment ?? 'off',
+        miembros: rows.map((r) => ({
+          userId: r.user_id,
+          nombre: r.full_name,
+          email: r.email,
+          rol: r.role,
+          recibe: r.accepts_assignments,
+          abiertas: Number(r.abiertas),
+        })),
+      };
+    });
+  }
+
+  async guardarReparto(cambios: {
+    modo?: 'off' | 'least_busy' | undefined;
+    miembros?: { userId: string; recibe: boolean }[] | undefined;
+  }): Promise<ConfiguracionDeReparto> {
+    const ctx = this.#exigirContexto();
+    if (ctx.rol !== 'owner' && ctx.rol !== 'admin') {
+      throw new ErrorDeNegocio(
+        'sin_permiso',
+        'Solo propietario o administrador pueden cambiar el reparto.',
+        403,
+      );
+    }
+    await this.#db.enTransaccion(async (c) => {
+      if (cambios.modo) {
+        await c.query(`UPDATE tenants SET auto_assignment = $2, updated_at = now() WHERE id = $1`, [
+          ctx.tenantId,
+          cambios.modo,
+        ]);
+      }
+      for (const m of cambios.miembros ?? []) {
+        await c.query(
+          `UPDATE memberships SET accepts_assignments = $2, updated_at = now() WHERE user_id = $1`,
+          [m.userId, m.recibe],
+        );
+      }
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'cuenta.reparto', 'tenant', $1, $3)`,
+        [ctx.tenantId, ctx.userId, JSON.stringify(cambios)],
+      );
+    });
+    return this.reparto();
+  }
+
   /** Solo propietario o administrador cambian la política de la cuenta. */
   async cambiarVisibilidad(modo: 'all' | 'team' | 'assigned'): Promise<void> {
     const ctx = this.#exigirContexto();
@@ -968,4 +1041,18 @@ async function botsQueUsanEtiquetas(c: PoolClient): Promise<Map<string, string[]
   const mapa = new Map<string, string[]>();
   for (const r of rows) mapa.set(r.tag_id, [...(mapa.get(r.tag_id) ?? []), r.name]);
   return mapa;
+}
+
+export interface ConfiguracionDeReparto {
+  modo: 'off' | 'least_busy';
+  miembros: {
+    userId: string;
+    nombre: string;
+    email: string;
+    rol: string;
+    /** Entra en el reparto automático. */
+    recibe: boolean;
+    /** Conversaciones abiertas asignadas ahora: lo que decide a quién le toca. */
+    abiertas: number;
+  }[];
 }

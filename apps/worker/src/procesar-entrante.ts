@@ -14,6 +14,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { registrarUso, withTenant } from '@crmapp/db';
 import { asegurarLead } from './leads.js';
+import { repartirSiToca } from './reparto.js';
 import {
   capacidades,
   expiracionTrasMensaje,
@@ -303,6 +304,9 @@ async function procesarMensaje(
       texto: evento.texto ?? null,
       nombreDelContacto: quien[0]?.display_name ?? null,
     });
+    // Reparto automático (0026), en la misma transacción. Apagado por
+    // defecto: si la cuenta no lo usa, no hace nada.
+    await repartirSiToca(c, conversacion.id);
   }
 
   if (mediaAssetId) {

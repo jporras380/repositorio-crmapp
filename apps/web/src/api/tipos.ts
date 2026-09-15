@@ -26,6 +26,19 @@ export interface EtiquetaConUso {
   bots: string[];
 }
 
+/** Reparto automático de conversaciones: modo de la cuenta y quién entra. */
+export interface ConfiguracionDeReparto {
+  modo: 'off' | 'least_busy';
+  miembros: {
+    userId: string;
+    nombre: string;
+    email: string;
+    rol: string;
+    recibe: boolean;
+    abiertas: number;
+  }[];
+}
+
 export interface Etiqueta {
   id: string;
   nombre: string;

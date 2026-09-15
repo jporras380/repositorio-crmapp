@@ -52,6 +52,8 @@ export const tenants = pgTable('tenants', {
   status: text('status').notNull().default('active'),
   /** Politica de visibilidad entre agentes (ADR-008): all | team | assigned. */
   conversationVisibility: text('conversation_visibility').notNull().default('all'),
+  /** Reparto automático de conversaciones nuevas (0026). */
+  autoAssignment: text('auto_assignment').notNull().default('off'),
   createdAt: creado,
   updatedAt: actualizado,
 });
@@ -76,6 +78,7 @@ export const memberships = pgTable(
     userId: uuid('user_id').notNull(),
     role: text('role').notNull(),
     status: text('status').notNull().default('active'),
+    acceptsAssignments: boolean('accepts_assignments').notNull().default(true),
     createdAt: creado,
     updatedAt: actualizado,
   },
