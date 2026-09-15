@@ -19,7 +19,7 @@ import { ErrorDeNegocio } from '../auth/auth.service.js';
 import type { BandejaService, PeticionDeEnvio } from './bandeja.service.js';
 
 const Filtros = z.object({
-  canal: z.enum(['whatsapp', 'instagram', 'tiktok']).optional(),
+  canal: z.enum(['whatsapp', 'instagram', 'facebook', 'tiktok']).optional(),
   tipo: z.enum(['dm', 'comment_thread']).optional(),
   estado: z.enum(['open', 'pending', 'snoozed', 'closed']).optional(),
   agenteId: z.string().uuid().optional(),

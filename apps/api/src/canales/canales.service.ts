@@ -11,6 +11,7 @@ import type { PoolClient } from 'pg';
 import type { Cifrador } from '@crmapp/crypto';
 import {
   borrarSecretosDeCanal,
+  crearResolverDeCredencialesFacebook,
   crearResolverDeCredencialesInstagram,
   crearResolverDeCredencialesWhatsapp,
   crearResolverDeCuenta,
@@ -19,6 +20,7 @@ import {
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import {
+  CAMPOS_DE_WEBHOOK,
   descubridorGraph,
   type CuentaDeInstagramDescubierta,
   type DescubridorDeMeta,
@@ -37,6 +39,12 @@ export interface DescubrimientoWhatsappVisible {
 
 export type CuentaDeInstagramVisible = CuentaDeInstagramDescubierta & { yaConectado: boolean };
 
+export interface PaginaDeFacebookVisible {
+  paginaId: string;
+  pagina: string;
+  yaConectado: boolean;
+}
+
 export interface CredencialesDeAlta {
   phoneNumberId: string;
   wabaId: string;
@@ -48,6 +56,15 @@ export interface CredencialesDeAlta {
 export interface CredencialesDeAltaInstagram {
   /** Id de la cuenta profesional de Instagram (IG User). */
   igUserId: string;
+  accessToken: string;
+  appSecret: string;
+  displayName?: string | undefined;
+}
+
+export interface CredencialesDeAltaFacebook {
+  /** Id de la página, elegida de la lista que trae Meta. */
+  paginaId: string;
+  /** Token de usuario (se cambia por el de página) o ya de página. */
   accessToken: string;
   appSecret: string;
   displayName?: string | undefined;
@@ -230,6 +247,10 @@ export class CanalesService {
       o.db.poolAuth,
       o.cifrador,
     );
+    this.resolverCredencialesFacebook = crearResolverDeCredencialesFacebook(
+      o.db.poolAuth,
+      o.cifrador,
+    );
   }
 
   /**
@@ -261,6 +282,72 @@ export class CanalesService {
       ...visible,
       yaConectado: conectados.has(visible.igUserId),
     }));
+  }
+
+  /** Páginas de Facebook que ve el token, sin tokens de página. */
+  async descubrirFacebook(p: { accessToken: string }): Promise<PaginaDeFacebookVisible[]> {
+    this.#exigirAdmin();
+    const paginas = await this.#descubridor.paginas(p);
+    const conectadas = await this.#conectadosAqui('facebook');
+    return paginas.map((pg) => ({
+      paginaId: pg.paginaId,
+      pagina: pg.pagina,
+      yaConectado: conectadas.has(pg.paginaId),
+    }));
+  }
+
+  /**
+   * Conexión de una página de Facebook: Messenger y comentarios. Se guarda el
+   * token de PÁGINA y se suscribe la página a `messages` y `feed`.
+   */
+  async conectarFacebook(cred: CredencialesDeAltaFacebook): Promise<CuentaDeCanal> {
+    const ctx = this.#exigirAdmin();
+    const r = await this.#resolverFacebook(cred.paginaId, cred.accessToken);
+
+    return this.#db.enTransaccion(async (c) => {
+      const id = await this.#db.nuevoId(c);
+      try {
+        await c.query(
+          `INSERT INTO channel_accounts
+             (id, tenant_id, channel, external_id, display_name, status, last_synced_at,
+              webhook_subscribed)
+           VALUES ($1, $2, 'facebook', $3, $4, 'connected', now(), $5)`,
+          [id, ctx.tenantId, cred.paginaId, cred.displayName ?? r.nombre, r.suscrito],
+        );
+      } catch (error) {
+        if ((error as { code?: string }).code === '23505') {
+          throw new ErrorDeNegocio(
+            'numero_ya_conectado',
+            'Esa página de Facebook ya está conectada a una cuenta.',
+            409,
+          );
+        }
+        throw error;
+      }
+      await guardarSecretoDeCanal(c, this.#cifrador, {
+        tenantId: ctx.tenantId,
+        channelAccountId: id,
+        kind: 'access_token',
+        valor: r.tokenAGuardar,
+      });
+      await guardarSecretoDeCanal(c, this.#cifrador, {
+        tenantId: ctx.tenantId,
+        channelAccountId: id,
+        kind: 'app_secret',
+        valor: cred.appSecret,
+      });
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'canal.conectado', 'channel_account', $3, $4)`,
+        [
+          ctx.tenantId,
+          ctx.userId,
+          id,
+          JSON.stringify({ canal: 'facebook', pagina: r.nombre, webhookSuscrito: r.suscrito }),
+        ],
+      );
+      return (await this.#leer(c, id))!;
+    });
   }
 
   /**
@@ -461,6 +548,10 @@ export class CanalesService {
         paginaId = r.paginaId;
         suscrito = r.suscrito;
       }
+    } else if (cuenta.canal === 'facebook') {
+      const r = await this.#resolverFacebook(cuenta.externalId, datos.accessToken);
+      tokenAGuardar = r.tokenAGuardar;
+      suscrito = r.suscrito;
     } else {
       throw new ErrorDeNegocio(
         'canal_no_soportado',
@@ -531,6 +622,7 @@ export class CanalesService {
   readonly resolverCuenta: ReturnType<typeof crearResolverDeCuenta>;
   readonly resolverCredencialesWhatsapp: ReturnType<typeof crearResolverDeCredencialesWhatsapp>;
   readonly resolverCredencialesInstagram: ReturnType<typeof crearResolverDeCredencialesInstagram>;
+  readonly resolverCredencialesFacebook: ReturnType<typeof crearResolverDeCredencialesFacebook>;
 
   // -------------------------------------------------------------------------
 
@@ -548,7 +640,10 @@ export class CanalesService {
     }
     const pagina = paginas.find((p) => p.igUserId === igUserId);
     if (pagina) {
-      const suscrito = await this.#descubridor.suscribirPagina(pagina);
+      const suscrito = await this.#descubridor.suscribirPagina({
+        ...pagina,
+        campos: await this.#camposDePagina(pagina.paginaId, 'instagram'),
+      });
       return {
         tokenAGuardar: pagina.tokenDePagina,
         paginaId: pagina.paginaId,
@@ -563,6 +658,51 @@ export class CanalesService {
       nombre: identidad.nombreDeUsuario,
       suscrito: null,
     };
+  }
+
+  /**
+   * Página de Facebook que ve el token. Con token de usuario se cambia por el
+   * de la página; si ya era de página, `/me` es la página y vale tal cual.
+   * A diferencia de Instagram no hay verificador de repuesto: si el token no
+   * ve la página, no hay con qué enviar.
+   */
+  async #resolverFacebook(paginaId: string, accessToken: string) {
+    const pagina = (await this.#descubridor.paginas({ accessToken })).find(
+      (p) => p.paginaId === paginaId,
+    );
+    if (!pagina) {
+      throw new ErrorDeNegocio(
+        'credenciales_rechazadas',
+        'Ese token no ve la página elegida. Revisa que tu usuario la administre y que el token tenga pages_messaging.',
+        422,
+      );
+    }
+    const suscrito = await this.#descubridor.suscribirPagina({
+      ...pagina,
+      campos: await this.#camposDePagina(pagina.paginaId, 'facebook'),
+    });
+    return { tokenAGuardar: pagina.tokenDePagina, nombre: pagina.pagina, suscrito };
+  }
+
+  /**
+   * Campos de webhook que necesita la página: los del canal que se conecta MÁS
+   * los de cualquier otro canal de esta cuenta que ya cuelgue de ella. Meta
+   * reemplaza la lista en cada suscripción; conectar Facebook después de
+   * Instagram con solo `messages,feed` dejaría de recibir los comentarios de
+   * Instagram sin ningún error.
+   */
+  async #camposDePagina(paginaId: string, canal: 'instagram' | 'facebook'): Promise<string[]> {
+    const otros = await this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{ channel: 'instagram' | 'facebook' }>(
+        `SELECT DISTINCT channel FROM channel_accounts
+          WHERE status <> 'disconnected'
+            AND ((channel = 'instagram' AND provider_account_id = $1)
+              OR (channel = 'facebook' AND external_id = $1))`,
+        [paginaId],
+      );
+      return rows.map((r) => r.channel);
+    });
+    return [...new Set([canal, ...otros].flatMap((k) => [...CAMPOS_DE_WEBHOOK[k]]))];
   }
 
   /** Ids externos ya conectados en ESTA cuenta (RLS): de otras no se sabe ni se dice. */

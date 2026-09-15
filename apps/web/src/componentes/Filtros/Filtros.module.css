@@ -76,6 +76,9 @@
   .instagram::after {
     background: var(--channel-instagram);
   }
+  .facebook::after {
+    background: var(--channel-facebook);
+  }
   .canal:hover,
   .canalActivo {
     opacity: 1;

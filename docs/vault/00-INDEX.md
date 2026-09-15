@@ -44,6 +44,7 @@ Lo más valioso del vault. Aquí van las restricciones externas que costaron tie
 
 - [[whatsapp]] — canal del MVP.
 - [[instagram]] — fase 2.
+- [[facebook]] — Messenger y comentarios de página.
 - [[tiktok]] — fase 7, acceso restringido.
 
 ## Módulos

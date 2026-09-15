@@ -45,6 +45,15 @@ const DescubrirInstagram = z.object({
   accessToken: z.string().min(20),
 });
 
+const DescubrirFacebook = z.object({ accessToken: z.string().min(20) });
+
+const AltaFacebook = z.object({
+  paginaId: z.string().regex(/^\d{5,25}$/, 'id de página numérico'),
+  accessToken: z.string().min(20),
+  appSecret: z.string().min(16),
+  displayName: z.string().min(1).max(80).optional(),
+});
+
 const RenovarCredenciales = z.object({
   accessToken: z.string().min(20),
   /** Opcional: normalmente solo caduca el token, no la clave secreta de la app. */
@@ -95,6 +104,21 @@ export class CanalesController {
   descubrirInstagram(@Req() req: Req, @Body() body: unknown) {
     const d = validar(DescubrirInstagram, body);
     return conContextoDePeticion(req, () => this.canales.descubrirInstagram(d));
+  }
+
+  @Post('facebook/descubrir')
+  @HttpCode(200)
+  descubrirFacebook(@Req() req: Req, @Body() body: unknown) {
+    const d = validar(DescubrirFacebook, body);
+    return conContextoDePeticion(req, () => this.canales.descubrirFacebook(d));
+  }
+
+  /** Página de Facebook: Messenger y comentarios. */
+  @Post('facebook')
+  @HttpCode(201)
+  conectarFacebook(@Req() req: Req, @Body() body: unknown) {
+    const cred = validar(AltaFacebook, body);
+    return conContextoDePeticion(req, () => this.canales.conectarFacebook(cred));
   }
 
   /**

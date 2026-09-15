@@ -77,6 +77,7 @@
     /* --- Canales (identidad del proveedor, no nuestra) ------------------ */
     --channel-whatsapp: oklch(66% 0.19 150);
     --channel-instagram: oklch(62% 0.23 350);
+    --channel-facebook: oklch(56% 0.18 262);
     --channel-tiktok: light-dark(oklch(18% 0 0), oklch(92% 0 0));
 
     /* --- Tipografía ----------------------------------------------------- */

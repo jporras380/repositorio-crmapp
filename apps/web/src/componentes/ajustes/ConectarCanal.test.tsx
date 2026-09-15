@@ -46,7 +46,10 @@ async function pegarCredenciales() {
   await userEvent.type(screen.getByLabelText(/Clave secreta de la app/), 'secreto-largo-16');
 }
 
-function pintar(api: Record<string, unknown>, canal: 'whatsapp' | 'instagram' = 'whatsapp') {
+function pintar(
+  api: Record<string, unknown>,
+  canal: 'whatsapp' | 'instagram' | 'facebook' = 'whatsapp',
+) {
   const alConectar = vi.fn().mockResolvedValue(undefined);
   render(
     <ConectarCanal
@@ -178,5 +181,34 @@ describe('ConectarCanal · Instagram', () => {
     await pegarCredenciales();
     await userEvent.click(screen.getByRole('button', { name: 'Buscar mis cuentas' }));
     expect(await screen.findByText(/no ve ninguna cuenta de Instagram/)).toBeTruthy();
+  });
+});
+
+describe('ConectarCanal · Facebook', () => {
+  it('lista las páginas; con una sola libre queda elegida y se conecta por su id', async () => {
+    const conectarFacebook = vi.fn().mockResolvedValue({});
+    pintar(
+      {
+        descubrirFacebook: vi.fn().mockResolvedValue([
+          { paginaId: '111', pagina: 'Apart Hotel El Paraíso', yaConectado: false },
+          { paginaId: '222', pagina: 'Otra página', yaConectado: true },
+        ]),
+        conectarFacebook,
+      },
+      'facebook',
+    );
+    expect(screen.getByRole('heading', { name: 'Conectar Facebook' })).toBeTruthy();
+    await pegarCredenciales();
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar mis páginas' }));
+    const libre = (await screen.findByRole('radio', {
+      name: /Apart Hotel El Paraíso/,
+    })) as HTMLInputElement;
+    expect(libre.checked).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Conectar esta página' }));
+    expect(conectarFacebook).toHaveBeenCalledWith({
+      paginaId: '111',
+      accessToken: 'EAAG-token-largo-de-prueba',
+      appSecret: 'secreto-largo-16',
+    });
   });
 });

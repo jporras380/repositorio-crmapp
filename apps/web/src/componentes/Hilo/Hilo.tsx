@@ -22,6 +22,7 @@ const CADA_MS = 5_000;
 const CANAL: Record<string, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
+  facebook: 'Facebook',
   tiktok: 'TikTok',
 };
 const ESTADO_MENSAJE: Record<string, string> = {

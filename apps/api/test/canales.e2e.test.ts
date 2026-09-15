@@ -45,6 +45,8 @@ const CRED_IG = {
 const IG_DE_PAGINA = '17841400000000099';
 const TOKEN_DE_PAGINA = 'EAAP-token-de-pagina-devuelto-por-me-accounts';
 let paginasSuscritas: string[] = [];
+let camposSuscritos: string[] = [];
+const PAGINA_FB = '1122334455667788';
 
 let app: INestApplication;
 let admin: Pool;
@@ -144,8 +146,21 @@ beforeAll(async () => {
                 },
               ]
             : [],
-        suscribirPagina: async ({ paginaId }) => {
+        paginas: async ({ accessToken }) =>
+          accessToken.startsWith('USUARIO')
+            ? [
+                {
+                  paginaId: PAGINA_FB,
+                  pagina: 'Apart Hotel El Paraíso',
+                  tokenDePagina: TOKEN_DE_PAGINA,
+                  igUserId: null,
+                  usuario: null,
+                },
+              ]
+            : [],
+        suscribirPagina: async ({ paginaId, campos }) => {
           paginasSuscritas.push(paginaId);
+          camposSuscritos.push([...campos].sort().join(','));
           return true;
         },
       },
@@ -736,3 +751,125 @@ async function cuentaPorNumero(externalId: string): Promise<string | undefined> 
   );
   return rows[0]?.id;
 }
+
+describe('conectar Facebook (Messenger y comentarios de página)', () => {
+  it('un agente no puede; el token de usuario lista las páginas SIN su token', async () => {
+    await http
+      .post('/v1/canales/facebook/descubrir')
+      .set(auth(tokenAgente))
+      .send({ accessToken: 'USUARIO-token-suficientemente-largo' })
+      .expect(403);
+    const r = await http
+      .post('/v1/canales/facebook/descubrir')
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'USUARIO-token-suficientemente-largo' })
+      .expect(200);
+    expect(r.body).toEqual([
+      { paginaId: PAGINA_FB, pagina: 'Apart Hotel El Paraíso', yaConectado: false },
+    ]);
+    expect(JSON.stringify(r.body)).not.toContain(TOKEN_DE_PAGINA);
+  });
+
+  it('conectar guarda el token de PÁGINA y suscribe messages y feed', async () => {
+    paginasSuscritas = [];
+    camposSuscritos = [];
+    const r = await http
+      .post('/v1/canales/facebook')
+      .set(auth(tokenOwner))
+      .send({
+        paginaId: PAGINA_FB,
+        accessToken: 'USUARIO-token-suficientemente-largo',
+        appSecret: CRED_IG.appSecret,
+      })
+      .expect(201);
+    expect(r.body).toMatchObject({
+      canal: 'facebook',
+      externalId: PAGINA_FB,
+      displayName: 'Apart Hotel El Paraíso',
+      webhookSuscrito: true,
+    });
+    expect(paginasSuscritas).toEqual([PAGINA_FB]);
+    expect(camposSuscritos).toEqual(['feed,messages']);
+
+    const canales = app.get<CanalesService>(TOKEN_CANALES);
+    expect(await canales.resolverCredencialesFacebook(r.body.id)).toEqual({
+      pageId: PAGINA_FB,
+      accessToken: TOKEN_DE_PAGINA,
+    });
+
+    const lista = await http
+      .post('/v1/canales/facebook/descubrir')
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'USUARIO-token-suficientemente-largo' })
+      .expect(200);
+    expect(lista.body[0].yaConectado).toBe(true);
+  });
+
+  it('si Instagram ya cuelga de esa página, la suscripción conserva sus comentarios', async () => {
+    // Meta reemplaza la lista de campos: suscribir solo messages,feed dejaría
+    // de mandar los comentarios de Instagram de la misma página.
+    await admin.query(
+      `UPDATE channel_accounts SET provider_account_id = $1, status = 'connected'
+        WHERE tenant_id = $2 AND channel = 'instagram'`,
+      [PAGINA_FB, tenantId],
+    );
+    camposSuscritos = [];
+    const fb = await admin.query<{ id: string }>(
+      `SELECT id FROM channel_accounts WHERE channel = 'facebook' AND external_id = $1`,
+      [PAGINA_FB],
+    );
+    await http
+      .patch(`/v1/canales/${fb.rows[0]!.id}/credenciales`)
+      .set(auth(tokenOwner))
+      .send({ accessToken: 'USUARIO-token-renovado-suficientemente-largo' })
+      .expect(200);
+    expect(camposSuscritos).toEqual(['comments,feed,messages']);
+  });
+
+  it('un token que no ve la página: 422 y no se guarda nada', async () => {
+    await http
+      .post('/v1/canales/facebook')
+      .set(auth(tokenOwner))
+      .send({
+        paginaId: '9999999999',
+        accessToken: 'OTRO-token-suficientemente-largo',
+        appSecret: CRED_IG.appSecret,
+      })
+      .expect(422);
+    const { rows } = await admin.query(
+      `SELECT 1 FROM channel_accounts WHERE channel = 'facebook' AND external_id = '9999999999'`,
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('un mensaje de Messenger firmado con SU app secret entra con el inquilino', async () => {
+    const cuerpo = JSON.stringify({
+      object: 'page',
+      entry: [
+        {
+          id: PAGINA_FB,
+          time: 1757440000000,
+          messaging: [
+            {
+              sender: { id: 'PSID-rosa' },
+              recipient: { id: PAGINA_FB },
+              timestamp: 1757440000123,
+              message: { mid: 'm_FB1', text: 'Hola, tienen habitación?' },
+            },
+          ],
+        },
+      ],
+    });
+    const r = await http
+      .post('/webhooks/facebook')
+      .set('content-type', 'application/json')
+      .set('x-hub-signature-256', firmar(cuerpo, CRED_IG.appSecret))
+      .send(cuerpo)
+      .expect(200);
+    expect(r.body).toEqual({ recibido: true, eventos: 1 });
+    const { rows } = await admin.query<{ tenant_id: string; channel: string }>(
+      `SELECT tenant_id, channel FROM inbound_events ORDER BY created_at DESC LIMIT 1`,
+    );
+    expect(rows[0]).toEqual({ tenant_id: tenantId, channel: 'facebook' });
+  });
+});

@@ -6,3 +6,5 @@ export * from './whatsapp/adaptador.js';
 export * from './whatsapp/ingesta.js';
 export * from './instagram/adaptador.js';
 export * from './instagram/ingesta.js';
+export * from './facebook/adaptador.js';
+export * from './facebook/ingesta.js';

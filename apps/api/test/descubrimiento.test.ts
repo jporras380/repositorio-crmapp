@@ -211,6 +211,7 @@ describe('Instagram', () => {
     const ok = await descubridorGraph({ fetch: f }).suscribirPagina({
       paginaId: 'P1',
       tokenDePagina: 'TOKEN-DE-PAGINA',
+      campos: ['messages', 'comments'],
     });
     expect(ok).toBe(true);
     expect(llamadas).toEqual([
@@ -227,7 +228,11 @@ describe('Instagram', () => {
       '/P1/subscribed_apps': { status: 403, json: { error: { code: 200 } } },
     });
     expect(
-      await descubridorGraph({ fetch: f }).suscribirPagina({ paginaId: 'P1', tokenDePagina: 'T' }),
+      await descubridorGraph({ fetch: f }).suscribirPagina({
+        paginaId: 'P1',
+        tokenDePagina: 'T',
+        campos: ['messages'],
+      }),
     ).toBe(false);
   });
 });

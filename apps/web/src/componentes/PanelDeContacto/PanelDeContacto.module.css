@@ -66,6 +66,9 @@
   .canal_instagram {
     background: var(--channel-instagram);
   }
+  .canal_facebook {
+    background: var(--channel-facebook);
+  }
   .canal_tiktok {
     background: var(--channel-tiktok);
   }

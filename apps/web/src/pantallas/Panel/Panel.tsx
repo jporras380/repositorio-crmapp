@@ -14,6 +14,7 @@ interface Props {
 const CANAL: Record<string, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
+  facebook: 'Facebook',
   tiktok: 'TikTok',
 };
 

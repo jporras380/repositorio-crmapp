@@ -10,6 +10,7 @@ import type {
   ColumnaDelTablero,
   CuentaDeCanal,
   CuentaDeInstagramDescubierta,
+  PaginaDeFacebookDescubierta,
   DescubrimientoWhatsapp,
   AccionDeReserva,
   CatalogoDeHotel,
@@ -199,6 +200,18 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: d,
       }),
+    descubrirFacebook: (d: { accessToken: string }) =>
+      peticion<PaginaDeFacebookDescubierta[]>('/v1/canales/facebook/descubrir', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: d,
+      }),
+    conectarFacebook: (cred: {
+      paginaId: string;
+      accessToken: string;
+      appSecret: string;
+      displayName?: string;
+    }) => peticion<CuentaDeCanal>('/v1/canales/facebook', { ...t, metodo: 'POST', cuerpo: cred }),
     conectarInstagram: (cred: {
       igUserId: string;
       accessToken: string;

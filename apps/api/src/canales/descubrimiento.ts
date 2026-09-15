@@ -58,18 +58,35 @@ export interface PaginaConToken extends CuentaDeInstagramDescubierta {
   tokenDePagina: string;
 }
 
+/** Una página de Facebook que ve el token, con su Instagram si lo tiene. */
+export interface PaginaDescubierta {
+  paginaId: string;
+  pagina: string;
+  tokenDePagina: string;
+  igUserId: string | null;
+  usuario: string | null;
+}
+
 export interface DescubridorDeMeta {
   whatsapp(p: {
     accessToken: string;
     wabaId?: string | undefined;
   }): Promise<DescubrimientoWhatsapp>;
+  /** Todas las páginas de Facebook que ve el token, con su token de página. */
+  paginas(p: { accessToken: string }): Promise<PaginaDescubierta[]>;
   /** Páginas con cuenta profesional de Instagram vinculada, con su token de página. */
   instagram(p: { accessToken: string }): Promise<PaginaConToken[]>;
   /**
-   * Suscribe la página a los webhooks de Instagram (`messages` y `comments`).
-   * Sin esto la cuenta queda conectada y sorda, igual que la WABA (PR-21).
+   * Suscribe la página a los campos de webhook dados. Sin esto la cuenta
+   * queda conectada y sorda, igual que la WABA (PR-21). Meta REEMPLAZA la
+   * lista de campos de la app en cada llamada: quien llama pasa todos los que
+   * necesita esa página, no solo los del canal que conecta.
    */
-  suscribirPagina(p: { paginaId: string; tokenDePagina: string }): Promise<boolean>;
+  suscribirPagina(p: {
+    paginaId: string;
+    tokenDePagina: string;
+    campos: readonly string[];
+  }): Promise<boolean>;
 }
 
 type Obj = Record<string, unknown>;
@@ -80,8 +97,23 @@ const str = (v: unknown): string | undefined =>
 
 /** Campos que se piden a Meta al listar números. */
 const CAMPOS_DE_NUMERO = 'id,display_phone_number,verified_name,quality_rating';
-/** Campos de webhook de Instagram que el CRM consume. */
-export const CAMPOS_DE_WEBHOOK_INSTAGRAM = 'messages,comments';
+/** Campos de webhook que cada canal necesita de la página (documentación de Meta). */
+export const CAMPOS_DE_WEBHOOK = {
+  instagram: ['messages', 'comments'],
+  facebook: ['messages', 'feed'],
+} as const;
+
+function aPagina(pagina: Obj, paginaId: string, tokenDePagina: string): PaginaDescubierta {
+  const ig = obj(pagina['instagram_business_account']);
+  const username = str(ig['username']);
+  return {
+    paginaId,
+    pagina: str(pagina['name']) ?? paginaId,
+    tokenDePagina,
+    igUserId: str(ig['id']) ?? null,
+    usuario: username ? `@${username}` : null,
+  };
+}
 
 export function descubridorGraph(
   opciones: { fetch?: typeof fetch; apiVersion?: string } = {},
@@ -194,26 +226,16 @@ export function descubridorGraph(
       return { cuentas, necesitaWaba: false, caducaEn };
     },
 
-    async instagram({ accessToken }) {
+    async paginas({ accessToken }) {
       const campos = 'id,name,access_token,instagram_business_account{id,username}';
       const r = await pedir(`/me/accounts?fields=${encodeURIComponent(campos)}`, accessToken);
       if (r.ok) {
         return arr(r.json['data']).flatMap((p) => {
           const pagina = obj(p);
-          const ig = obj(pagina['instagram_business_account']);
-          const igUserId = str(ig['id']);
           const paginaId = str(pagina['id']);
           const tokenDePagina = str(pagina['access_token']);
-          if (!igUserId || !paginaId || !tokenDePagina) return [];
-          return [
-            {
-              igUserId,
-              usuario: str(ig['username']) ? `@${str(ig['username'])}` : null,
-              paginaId,
-              pagina: str(pagina['name']) ?? paginaId,
-              tokenDePagina,
-            },
-          ];
+          if (!paginaId || !tokenDePagina) return [];
+          return [aPagina(pagina, paginaId, tokenDePagina)];
         });
       }
       if (r.status === 401 || obj(r.json['error'])['code'] === 190) {
@@ -221,31 +243,37 @@ export function descubridorGraph(
       }
 
       // `/me/accounts` solo existe para tokens de USUARIO. Si el cliente pegó
-      // ya un token de página, `/me` ES la página: se lee su Instagram.
+      // ya un token de página, `/me` ES la página.
       const yo = await pedir(
         `/me?fields=${encodeURIComponent('id,name,instagram_business_account{id,username}')}`,
         accessToken,
       );
       if (!yo.ok) throw rechazado(yo.status, 'leer la cuenta del token');
-      const ig = obj(yo.json['instagram_business_account']);
-      const igUserId = str(ig['id']);
       const paginaId = str(yo.json['id']);
-      if (!igUserId || !paginaId) return [];
-      return [
-        {
-          igUserId,
-          usuario: str(ig['username']) ? `@${str(ig['username'])}` : null,
-          paginaId,
-          pagina: str(yo.json['name']) ?? paginaId,
-          tokenDePagina: accessToken,
-        },
-      ];
+      if (!paginaId) return [];
+      return [aPagina(yo.json, paginaId, accessToken)];
     },
 
-    async suscribirPagina({ paginaId, tokenDePagina }) {
+    async instagram({ accessToken }) {
+      return (await this.paginas({ accessToken })).flatMap((p) =>
+        p.igUserId
+          ? [
+              {
+                igUserId: p.igUserId,
+                usuario: p.usuario,
+                paginaId: p.paginaId,
+                pagina: p.pagina,
+                tokenDePagina: p.tokenDePagina,
+              },
+            ]
+          : [],
+      );
+    },
+
+    async suscribirPagina({ paginaId, tokenDePagina, campos }) {
       try {
         const r = await pedir(
-          `/${encodeURIComponent(paginaId)}/subscribed_apps?subscribed_fields=${CAMPOS_DE_WEBHOOK_INSTAGRAM}`,
+          `/${encodeURIComponent(paginaId)}/subscribed_apps?subscribed_fields=${campos.join(',')}`,
           tokenDePagina,
           'POST',
         );

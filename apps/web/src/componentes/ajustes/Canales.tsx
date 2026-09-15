@@ -13,6 +13,7 @@ interface Props {
 const NOMBRE: Record<string, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
+  facebook: 'Facebook',
   tiktok: 'TikTok',
 };
 const ESTADO: Record<string, { texto: string; tono: 'ok' | 'warn' | 'danger' | '' }> = {
@@ -25,7 +26,7 @@ const ESTADO: Record<string, { texto: string; tono: 'ok' | 'warn' | 'danger' | '
 export function Canales({ api, gestor }: Props) {
   const [cuentas, setCuentas] = useState<CuentaDeCanal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [conectando, setConectando] = useState<'whatsapp' | 'instagram' | null>(null);
+  const [conectando, setConectando] = useState<'whatsapp' | 'instagram' | 'facebook' | null>(null);
   const [renovando, setRenovando] = useState<CuentaDeCanal | null>(null);
 
   const cargar = useCallback(async () => {
@@ -64,6 +65,9 @@ export function Canales({ api, gestor }: Props) {
         </div>
         {gestor && !conectando && (
           <div className={estilos.acciones}>
+            <button className={estilos.secundario} onClick={() => setConectando('facebook')}>
+              Conectar Facebook
+            </button>
             <button className={estilos.secundario} onClick={() => setConectando('instagram')}>
               Conectar Instagram
             </button>
@@ -109,7 +113,7 @@ export function Canales({ api, gestor }: Props) {
         <p className={estilos.vacio}>
           Todavía no hay canales.{' '}
           {gestor
-            ? 'Conecta tu número de WhatsApp o tu cuenta de Instagram para empezar.'
+            ? 'Conecta tu número de WhatsApp, tu página de Facebook o tu Instagram para empezar.'
             : 'Pide a un administrador que conecte uno.'}
         </p>
       )}

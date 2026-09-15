@@ -9,8 +9,10 @@ import { DelayedError, Queue, Worker } from 'bullmq';
 import { cargarConfig, configParaLog } from '@crmapp/config';
 import { crearLogger } from '@crmapp/observability';
 import {
+  AdaptadorFacebook,
   AdaptadorInstagram,
   AdaptadorWhatsapp,
+  IngestaFacebook,
   IngestaInstagram,
   IngestaWhatsapp,
   type AdaptadorDeIngesta,
@@ -18,6 +20,7 @@ import {
 } from '@crmapp/channels';
 import { Cifrador, parsearClaveMaestra } from '@crmapp/crypto';
 import {
+  crearResolverDeCredencialesFacebook,
   crearResolverDeCredencialesInstagram,
   crearResolverDeCredencialesWhatsapp,
 } from '@crmapp/db';
@@ -93,6 +96,7 @@ if (!almacen) log.warn('S3 sin configurar: los medios entrantes no se descargar√
 const ingesta = new Map<string, AdaptadorDeIngesta>([
   ['whatsapp', new IngestaWhatsapp()],
   ['instagram', new IngestaInstagram()],
+  ['facebook', new IngestaFacebook()],
 ]);
 const canales = new Map<string, ChannelAdapter>([
   [
@@ -105,6 +109,12 @@ const canales = new Map<string, ChannelAdapter>([
     'instagram',
     new AdaptadorInstagram({
       resolverCredenciales: crearResolverDeCredencialesInstagram(poolAuth, cifrador),
+    }),
+  ],
+  [
+    'facebook',
+    new AdaptadorFacebook({
+      resolverCredenciales: crearResolverDeCredencialesFacebook(poolAuth, cifrador),
     }),
   ],
 ]);

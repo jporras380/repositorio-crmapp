@@ -94,6 +94,14 @@ export function Filtros({
           >
             <span className="visually-hidden">Instagram</span>
           </button>
+          <button
+            className={`${estilos.canal} ${estilos.facebook} ${filtros.canal === 'facebook' ? estilos.canalActivo : ''}`}
+            aria-pressed={filtros.canal === 'facebook'}
+            onClick={() => verCanal('facebook')}
+            title="Solo Facebook"
+          >
+            <span className="visually-hidden">Facebook</span>
+          </button>
         </div>
       </div>
 

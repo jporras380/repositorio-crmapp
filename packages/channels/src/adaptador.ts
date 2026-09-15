@@ -14,7 +14,7 @@
  */
 import type { PoliticaDeVentana } from '@crmapp/core';
 
-export type Canal = 'whatsapp' | 'instagram' | 'tiktok';
+export type Canal = 'whatsapp' | 'instagram' | 'facebook' | 'tiktok';
 
 export type TipoDeMensaje =
   'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'location' | 'template';

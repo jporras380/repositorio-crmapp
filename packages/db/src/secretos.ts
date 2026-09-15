@@ -144,6 +144,30 @@ export interface CredencialesDeInstagramResueltas {
   accessToken: string;
 }
 
+export interface CredencialesDeFacebookResueltas {
+  pageId: string;
+  accessToken: string;
+}
+
+/** Facebook: `external_id` es el id de la página y el token (de página) va cifrado. */
+export function crearResolverDeCredencialesFacebook(poolAuth: Pool, cifrador: Cifrador) {
+  return async (channelAccountId: string): Promise<CredencialesDeFacebookResueltas> => {
+    return withSystemTransaction(poolAuth, async (c) => {
+      const { rows } = await c.query<{ external_id: string; status: string }>(
+        `SELECT external_id, status FROM channel_accounts WHERE id = $1 AND channel = 'facebook'`,
+        [channelAccountId],
+      );
+      const ca = rows[0];
+      if (!ca) throw new CanalNoConectado(channelAccountId, 'no existe');
+      if (ca.status === 'disconnected')
+        throw new CanalNoConectado(channelAccountId, 'desconectada');
+      const token = await leerSecretoDeCanal(c, cifrador, channelAccountId, 'access_token');
+      if (!token) throw new CanalNoConectado(channelAccountId, 'sin token guardado');
+      return { pageId: ca.external_id, accessToken: token };
+    });
+  };
+}
+
 /** Igual que el de WhatsApp: `external_id` es el IG User y el token va cifrado en `channel_secrets`. */
 export function crearResolverDeCredencialesInstagram(poolAuth: Pool, cifrador: Cifrador) {
   return async (channelAccountId: string): Promise<CredencialesDeInstagramResueltas> => {

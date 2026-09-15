@@ -76,6 +76,9 @@
   .canal_instagram {
     background: var(--channel-instagram);
   }
+  .canal_facebook {
+    background: var(--channel-facebook);
+  }
   .tarjetaTitulo {
     font-weight: 600;
     font-size: var(--text-md);

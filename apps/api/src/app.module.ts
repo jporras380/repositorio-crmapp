@@ -2,9 +2,11 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { Pool } from 'pg';
 import { Cifrador, parsearClaveMaestra } from '@crmapp/crypto';
 import {
+  AdaptadorFacebook,
   AdaptadorInstagram,
   AdaptadorSandbox,
   AdaptadorWhatsapp,
+  IngestaFacebook,
   IngestaInstagram,
   IngestaSandbox,
   IngestaWhatsapp,
@@ -193,10 +195,12 @@ export class AppModule {
                   ? new Map<string, AdaptadorDeIngesta>([
                       ['whatsapp', new IngestaSandbox('whatsapp')],
                       ['instagram', new IngestaSandbox('instagram')],
+                      ['facebook', new IngestaSandbox('facebook')],
                     ])
                   : new Map<string, AdaptadorDeIngesta>([
                       ['whatsapp', new IngestaWhatsapp()],
                       ['instagram', new IngestaInstagram()],
+                      ['facebook', new IngestaFacebook()],
                     ])),
               // Por defecto, la resolución real: cuenta y app secret desde la
               // base, descifrados con la clave maestra.
@@ -215,6 +219,7 @@ export class AppModule {
               ? new Map<string, ChannelAdapter>([
                   ['whatsapp', new AdaptadorSandbox({ canal: 'whatsapp' })],
                   ['instagram', new AdaptadorSandbox({ canal: 'instagram' })],
+                  ['facebook', new AdaptadorSandbox({ canal: 'facebook' })],
                 ])
               : new Map<string, ChannelAdapter>([
                   [
@@ -227,6 +232,12 @@ export class AppModule {
                     'instagram',
                     new AdaptadorInstagram({
                       resolverCredenciales: canales.resolverCredencialesInstagram,
+                    }),
+                  ],
+                  [
+                    'facebook',
+                    new AdaptadorFacebook({
+                      resolverCredenciales: canales.resolverCredencialesFacebook,
                     }),
                   ],
                 ])),

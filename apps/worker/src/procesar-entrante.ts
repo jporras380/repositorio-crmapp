@@ -499,6 +499,9 @@ function handleDe(evento: EventoDeMensaje): string | null {
     if (evento.telefonoE164 && usuario) return `${evento.telefonoE164} · ${usuario}`;
     return evento.telefonoE164 ?? usuario ?? 'Usuario de WhatsApp';
   }
+  // Messenger no manda el nombre en el webhook, solo el PSID, que no le dice
+  // nada a nadie. El agente puede ponerle nombre desde la ficha.
+  if (evento.canal === 'facebook') return evento.nombreDeContacto ?? 'Usuario de Messenger';
   return evento.nombreDeContacto ?? evento.externalUserId;
 }
 
@@ -574,7 +577,7 @@ async function resolverIdentidad(
     evento.nombreDeContacto ??
       (evento.nombreDeUsuario ? `@${evento.nombreDeUsuario}` : null) ??
       evento.telefonoE164 ??
-      evento.externalUserId,
+      (evento.canal === 'facebook' ? null : evento.externalUserId),
   ]);
 
   const identityId = await nuevoId(c);

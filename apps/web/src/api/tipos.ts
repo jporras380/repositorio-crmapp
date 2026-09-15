@@ -25,7 +25,7 @@ export interface Etiqueta {
 
 export interface ResumenDeConversacion {
   id: string;
-  canal: 'whatsapp' | 'instagram' | 'tiktok' | string;
+  canal: 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | string;
   estado: 'open' | 'pending' | 'snoozed' | 'closed' | string;
   /** `dm` o `comment_thread`: se responden distinto. */
   tipo: 'dm' | 'comment_thread' | string;
@@ -114,6 +114,13 @@ export interface DescubrimientoWhatsapp {
   /** Meta no deja listar las cuentas con este token: hace falta el id de WABA. */
   necesitaWaba: boolean;
   caducaEn: string | null;
+}
+
+/** Página de Facebook que ve un token (sin su token de página). */
+export interface PaginaDeFacebookDescubierta {
+  paginaId: string;
+  pagina: string;
+  yaConectado: boolean;
 }
 
 export interface CuentaDeInstagramDescubierta {

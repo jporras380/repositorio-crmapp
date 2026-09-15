@@ -69,17 +69,20 @@ export class AdaptadorSandbox implements ChannelAdapter {
   }
 
   capacidades(): CapacidadesDeCanal {
+    // Instagram y Facebook comparten forma: sin plantillas, con comentarios y
+    // medios salientes por URL.
+    const deMeta = this.canal === 'instagram' || this.canal === 'facebook';
     return {
       canal: this.canal,
       tiposSoportados: (
         ['text', 'image', 'video', 'audio', 'document', 'sticker', 'location', 'template'] as const
-      ).filter((t) => this.canal !== 'instagram' || t !== 'template'),
+      ).filter((t) => !deMeta || t !== 'template'),
       // Imita lo que cada canal real declara, para que los tests de API y
       // worker ejerciten el mismo camino que en producción.
-      soportaPlantillas: this.canal !== 'instagram',
-      soportaComentarios: this.canal === 'instagram',
-      respuestasPrivadasPorComentario: this.canal === 'instagram' ? 1 : null,
-      requiereUrlPublicaParaMedios: this.canal === 'instagram',
+      soportaPlantillas: !deMeta,
+      soportaComentarios: deMeta,
+      respuestasPrivadasPorComentario: deMeta ? 1 : null,
+      requiereUrlPublicaParaMedios: deMeta,
       limitesDeMedios: {
         image: 5 * MB,
         video: 16 * MB,
