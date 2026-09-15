@@ -127,7 +127,7 @@ export class AdaptadorWhatsapp implements ChannelAdapter {
     this.#validar({ tipo: 'text', longitudTexto: envio.texto.length });
     const cred = await this.#resolver(envio.channelAccountId);
     return this.#enviarMensaje(cred, {
-      to: envio.externalUserId,
+      ...destinatario(envio.externalUserId),
       type: 'text',
       text: { body: envio.texto, preview_url: false },
       ...(envio.respondeA ? { context: { message_id: envio.respondeA } } : {}),
@@ -157,7 +157,7 @@ export class AdaptadorWhatsapp implements ChannelAdapter {
     };
 
     return this.#enviarMensaje(cred, {
-      to: envio.externalUserId,
+      ...destinatario(envio.externalUserId),
       type: envio.tipo,
       [envio.tipo]: cuerpo,
     });
@@ -184,7 +184,7 @@ export class AdaptadorWhatsapp implements ChannelAdapter {
     }
 
     return this.#enviarMensaje(cred, {
-      to: envio.externalUserId,
+      ...destinatario(envio.externalUserId),
       type: 'template',
       template: {
         name: envio.nombre,
@@ -386,3 +386,15 @@ const ESTADO_PLANTILLA: Record<string, PlantillaSincronizada['estado']> = {
   DISABLED: 'deshabilitada',
   PENDING_DELETION: 'deshabilitada',
 };
+
+/**
+ * A quién se envía. Con número, `to`; con BSUID (persona que usa nombre de
+ * usuario y de la que no tenemos número), `recipient`, que es como lo pide la
+ * documentación de Meta. El BSUID empieza por el código de país ISO y un
+ * punto (`PE.1349…`); un número no lleva letras, así que no se confunden.
+ */
+export function destinatario(externalUserId: string): { to: string } | { recipient: string } {
+  return /^[A-Z]{2}\./.test(externalUserId)
+    ? { recipient: externalUserId }
+    : { to: externalUserId };
+}

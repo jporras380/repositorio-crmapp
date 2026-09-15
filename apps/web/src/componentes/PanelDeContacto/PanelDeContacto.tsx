@@ -5,6 +5,7 @@ import { horaCorta, inicial } from '../../vista/tiempo.ts';
 import { pintar } from '../Filtros/Filtros.tsx';
 import { ReservaDeConversacion } from './ReservaDeConversacion.tsx';
 import { Notas } from './Notas.tsx';
+import { NombreDelContacto } from './NombreDelContacto.tsx';
 import estilos from './PanelDeContacto.module.css';
 
 interface Props {
@@ -72,9 +73,13 @@ export function PanelDeContacto({
           {inicial(conversacion.contacto.nombre, conversacion.contacto.handle)}
           <span className={`${estilos.canal} ${estilos[`canal_${conversacion.canal}`] ?? ''}`} />
         </span>
-        <h2 className={estilos.nombre}>
-          {conversacion.contacto.nombre ?? conversacion.contacto.handle ?? 'Sin nombre'}
-        </h2>
+        <NombreDelContacto
+          api={api}
+          contactoId={conversacion.contacto.id}
+          nombre={conversacion.contacto.nombre}
+          handle={conversacion.contacto.handle}
+          alGuardar={alCambiar}
+        />
         {conversacion.contacto.handle && (
           <p className={estilos.handle}>{conversacion.contacto.handle}</p>
         )}

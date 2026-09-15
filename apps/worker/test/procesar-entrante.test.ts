@@ -220,6 +220,82 @@ describe('mensaje nuevo', () => {
     expect(c.rows[0]!.display_name).toBe('.');
   });
 
+  it('nombres de usuario: la misma persona con número hoy y solo con BSUID mañana es UNA', async () => {
+    // Primer mensaje: número, BSUID y @usuario.
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([
+        mensaje('wamid.u1', {
+          externalUserId: '51999888777',
+          telefono: '+51999888777',
+          bsuid: 'PE.1349',
+          usuario: 'rosa.viajera',
+          nombre: 'Rosa',
+        }),
+      ]),
+    );
+    // Segundo: Meta ya no manda el número (nombre de usuario activo).
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([
+        mensaje('wamid.u2', {
+          externalUserId: 'PE.1349',
+          telefono: undefined,
+          bsuid: 'PE.1349',
+          usuario: 'rosa.viajera',
+          nombre: 'Rosa',
+        }),
+      ]),
+    );
+    expect(await contar('contacts')).toBe(1);
+    expect(await contar('conversations')).toBe(1);
+    expect(await contar('messages')).toBe(2);
+    const { rows } = await admin.query(
+      `SELECT external_user_id, phone_e164, provider_user_id, username, handle FROM contact_identities`,
+    );
+    expect(rows[0]).toEqual({
+      external_user_id: '51999888777',
+      phone_e164: '+51999888777',
+      provider_user_id: 'PE.1349',
+      username: 'rosa.viajera',
+      handle: '+51999888777 · @rosa.viajera',
+    });
+  });
+
+  it('quien llega solo con @usuario se ve como @usuario, nunca por su BSUID', async () => {
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([
+        mensaje('wamid.u3', {
+          externalUserId: 'PE.7777',
+          telefono: undefined,
+          bsuid: 'PE.7777',
+          usuario: 'carlos_bca',
+          nombre: undefined,
+        }),
+      ]),
+    );
+    const { rows } = await admin.query(
+      `SELECT ci.handle, c.display_name FROM contact_identities ci JOIN contacts c ON c.id = ci.contact_id`,
+    );
+    expect(rows[0]).toEqual({ handle: '@carlos_bca', display_name: '@carlos_bca' });
+  });
+
+  it('el nombre que puso un agente no lo pisa el siguiente mensaje', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.n1')]));
+    await admin.query(`UPDATE contacts SET display_name = 'Ana · reserva julio'`);
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.n2', { nombre: 'Ana P.' })]),
+    );
+    const c = await admin.query<{ display_name: string }>(`SELECT display_name FROM contacts`);
+    expect(c.rows[0]!.display_name).toBe('Ana · reserva julio');
+  });
+
   it('un comentario abre un hilo comment_thread por publicación; el siguiente lo continúa; el duplicado no', async () => {
     const comentario = (id: string, post: string, texto: string) => ({
       clase: 'comentario',

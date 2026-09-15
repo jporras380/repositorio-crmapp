@@ -43,6 +43,13 @@ export interface EventoDeMensaje extends EventoBase {
   /** Nombre de perfil, cuando el proveedor lo manda. */
   nombreDeContacto?: string | undefined;
   telefonoE164?: string | undefined;
+  /**
+   * Id de usuario propio del negocio (BSUID en WhatsApp). Llega aunque falte
+   * el número, y es la clave para reconocer a la persona en ese caso.
+   */
+  idDeUsuarioDelProveedor?: string | undefined;
+  /** Nombre de usuario público, sin «@». */
+  nombreDeUsuario?: string | undefined;
   tipo: TipoDeMensaje;
   texto?: string | undefined;
   /** Identificador del medio en el proveedor, a descargar antes de que caduque. */
@@ -232,6 +239,8 @@ export class IngestaSandbox implements AdaptadorDeIngesta {
           mediaId: typeof e['mediaId'] === 'string' ? e['mediaId'] : undefined,
           nombreDeContacto: typeof e['nombre'] === 'string' ? e['nombre'] : undefined,
           telefonoE164: typeof e['telefono'] === 'string' ? e['telefono'] : undefined,
+          idDeUsuarioDelProveedor: typeof e['bsuid'] === 'string' ? e['bsuid'] : undefined,
+          nombreDeUsuario: typeof e['usuario'] === 'string' ? e['usuario'] : undefined,
           entradaGratuita: e['entradaGratuita'] === true,
         });
       } else if (e['clase'] === 'estado' && typeof e['externalMessageId'] === 'string') {

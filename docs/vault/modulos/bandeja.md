@@ -61,3 +61,13 @@ No son mensajes: no pasan por la puerta de envío, no tocan la ventana de 24 h y
 - **Buscar dentro de los mensajes**, con su índice.
 - Compartir vistas entre el equipo (hoy son de cada agente).
 - Reparto automático y horario comercial: las tablas `teams` y `business_hours` siguen sin usarse.
+
+## Cambiar el nombre del contacto (PR-41, 2026-09-15)
+
+Pedido del usuario: renombrar al contacto «para recordar de qué se le atendió» y verlo en la bandeja. Un lápiz junto al nombre en la ficha, que guarda en `contacts.display_name` por el mismo `PATCH /v1/contactos/:id` de Clientes. No hizo falta API nueva.
+
+![[2026-09-15-renombrar-contacto.png]]
+
+- **Es el nombre de la persona, no el perfil de WhatsApp.** La ingesta solo pone `display_name` al crear el contacto; los mensajes siguientes refrescan la identidad (número, @usuario) y **nunca pisan el nombre**. Hay test del worker que lo fija.
+- **Vaciarlo quita el nombre propio** (`null`) y la bandeja vuelve a enseñar número o @usuario. Un nombre vacío no tiene sentido.
+- Caso real que lo motiva: un contacto cuyo perfil de WhatsApp se llama «.».

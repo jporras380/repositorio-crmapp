@@ -492,7 +492,13 @@ async function procesarComentario(
  * «.» y la bandeja no decía a quién se estaba escribiendo.
  */
 function handleDe(evento: EventoDeMensaje): string | null {
-  if (evento.canal === 'whatsapp') return evento.telefonoE164 ?? evento.externalUserId;
+  if (evento.canal === 'whatsapp') {
+    // Con nombres de usuario de WhatsApp puede haber número, @usuario o los
+    // dos. El BSUID no se enseña nunca: no le dice nada a una persona.
+    const usuario = evento.nombreDeUsuario ? `@${evento.nombreDeUsuario}` : null;
+    if (evento.telefonoE164 && usuario) return `${evento.telefonoE164} · ${usuario}`;
+    return evento.telefonoE164 ?? usuario ?? 'Usuario de WhatsApp';
+  }
   return evento.nombreDeContacto ?? evento.externalUserId;
 }
 
@@ -514,19 +520,48 @@ async function resolverIdentidad(
   fila: FilaEntrante,
   evento: EventoDeMensaje,
 ): Promise<Identidad> {
-  const existente = await c.query<{ id: string; contact_id: string }>(
-    `SELECT id, contact_id FROM contact_identities
-      WHERE channel_account_id = $1 AND external_user_id = $2`,
-    [fila.channel_account_id, evento.externalUserId],
+  // Primero por BSUID, que llega siempre; después por la clave de siempre (el
+  // número). Así la misma persona se reconoce aunque hoy escriba con número y
+  // mañana solo con su nombre de usuario, o al revés.
+  const existente = await c.query<{
+    id: string;
+    contact_id: string;
+    phone_e164: string | null;
+    username: string | null;
+  }>(
+    `SELECT id, contact_id, phone_e164, username FROM contact_identities
+      WHERE channel_account_id = $1
+        AND (($3::text IS NOT NULL AND provider_user_id = $3) OR external_user_id = $2)
+      ORDER BY (provider_user_id IS NOT DISTINCT FROM $3) DESC
+      LIMIT 1`,
+    [fila.channel_account_id, evento.externalUserId, evento.idDeUsuarioDelProveedor ?? null],
   );
   if (existente.rows[0]) {
     // Se refresca el perfil sin tocar el contacto: el nombre de WhatsApp
-    // cambia, la persona no.
-    if (evento.nombreDeContacto) {
+    // cambia, la persona no. Tampoco se toca `contacts.display_name`: si un
+    // agente renombró al contacto, su nombre manda.
+    if (evento.nombreDeContacto || evento.idDeUsuarioDelProveedor || evento.nombreDeUsuario) {
       await c.query(
-        `UPDATE contact_identities SET handle = $2, phone_e164 = COALESCE($3, phone_e164), updated_at = now()
+        `UPDATE contact_identities
+            SET handle = $2,
+                phone_e164 = COALESCE($3, phone_e164),
+                provider_user_id = COALESCE($4, provider_user_id),
+                username = COALESCE($5, username),
+                updated_at = now()
           WHERE id = $1`,
-        [existente.rows[0].id, handleDe(evento), evento.telefonoE164 ?? null],
+        [
+          existente.rows[0].id,
+          // Lo que ya se sabía no se olvida porque hoy no venga: sin esto, el
+          // número desaparecía de la bandeja al llegar un mensaje sin él.
+          handleDe({
+            ...evento,
+            telefonoE164: evento.telefonoE164 ?? existente.rows[0].phone_e164 ?? undefined,
+            nombreDeUsuario: evento.nombreDeUsuario ?? existente.rows[0].username ?? undefined,
+          }),
+          evento.telefonoE164 ?? null,
+          evento.idDeUsuarioDelProveedor ?? null,
+          evento.nombreDeUsuario ?? null,
+        ],
       );
     }
     return { identityId: existente.rows[0].id, contactId: existente.rows[0].contact_id };
@@ -536,14 +571,18 @@ async function resolverIdentidad(
   await c.query(`INSERT INTO contacts (id, tenant_id, display_name) VALUES ($1, $2, $3)`, [
     contactId,
     fila.tenant_id,
-    evento.nombreDeContacto ?? evento.telefonoE164 ?? evento.externalUserId,
+    evento.nombreDeContacto ??
+      (evento.nombreDeUsuario ? `@${evento.nombreDeUsuario}` : null) ??
+      evento.telefonoE164 ??
+      evento.externalUserId,
   ]);
 
   const identityId = await nuevoId(c);
   await c.query(
     `INSERT INTO contact_identities
-       (id, tenant_id, contact_id, channel, channel_account_id, external_user_id, handle, phone_e164)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+       (id, tenant_id, contact_id, channel, channel_account_id, external_user_id, handle, phone_e164,
+        provider_user_id, username)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       identityId,
       fila.tenant_id,
@@ -553,6 +592,8 @@ async function resolverIdentidad(
       evento.externalUserId,
       handleDe(evento),
       evento.telefonoE164 ?? null,
+      evento.idDeUsuarioDelProveedor ?? null,
+      evento.nombreDeUsuario ?? null,
     ],
   );
   return { identityId, contactId };

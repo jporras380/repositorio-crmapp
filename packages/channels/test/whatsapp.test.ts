@@ -451,3 +451,101 @@ describe('ingesta: payload con la forma real de Meta', () => {
     expect(ingesta.parsearEventos({ entry: [{ changes: [{ value: {} }] }] })).toEqual([]);
   });
 });
+
+describe('nombres de usuario de WhatsApp (BSUID)', () => {
+  /**
+   * Los dos payloads de la documentación de Meta («Business-scoped user IDs»).
+   * El segundo es el que antes se perdía: sin `from` ni `wa_id`, la identidad
+   * se buscaba por número y el mensaje se descartaba.
+   */
+  const conCambio = (value: Record<string, unknown>) => ({
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: 'WABA9',
+        changes: [
+          {
+            field: 'messages',
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: { display_phone_number: '15550001111', phone_number_id: 'PN123' },
+              ...value,
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const ingesta = new IngestaWhatsapp();
+
+  it('con número: la clave sigue siendo el número, y llegan BSUID y nombre de usuario', () => {
+    const [e] = ingesta.parsearEventos(
+      conCambio({
+        contacts: [
+          {
+            profile: { name: 'Rosa', username: 'rosa.viajera' },
+            wa_id: '51999888777',
+            user_id: 'PE.13491208655302741918',
+          },
+        ],
+        messages: [
+          {
+            from: '51999888777',
+            from_user_id: 'PE.13491208655302741918',
+            id: 'wamid.U1',
+            timestamp: '1757440000',
+            type: 'text',
+            text: { body: 'Hola' },
+          },
+        ],
+      }),
+    );
+    expect(e).toMatchObject({
+      externalUserId: '51999888777',
+      telefonoE164: '+51999888777',
+      idDeUsuarioDelProveedor: 'PE.13491208655302741918',
+      nombreDeUsuario: 'rosa.viajera',
+      nombreDeContacto: 'Rosa',
+    });
+  });
+
+  it('sin número: el mensaje NO se pierde; la clave es el BSUID', () => {
+    const [e] = ingesta.parsearEventos(
+      conCambio({
+        contacts: [
+          { profile: { name: 'Rosa', username: 'rosa.viajera' }, user_id: 'PE.1349120865530' },
+        ],
+        messages: [
+          {
+            from_user_id: 'PE.1349120865530',
+            id: 'wamid.U2',
+            timestamp: '1757440000',
+            type: 'text',
+            text: { body: '¿Tienen habitación?' },
+          },
+        ],
+      }),
+    );
+    expect(e).toMatchObject({
+      clase: 'mensaje',
+      externalUserId: 'PE.1349120865530',
+      idDeUsuarioDelProveedor: 'PE.1349120865530',
+      nombreDeUsuario: 'rosa.viajera',
+      nombreDeContacto: 'Rosa',
+      texto: '¿Tienen habitación?',
+    });
+    expect((e as { telefonoE164?: string }).telefonoE164).toBeUndefined();
+  });
+
+  it('responder a quien solo tiene BSUID usa `recipient`, no `to`', async () => {
+    respuestas.push({ status: 200, json: { messages: [{ id: 'wamid.B1' }] } });
+    await adaptador().sendText({
+      externalUserId: 'PE.1349120865530',
+      channelAccountId: 'ca-1',
+      texto: 'Sí, tenemos',
+    });
+    const cuerpo = peticiones[0]!.cuerpo as Record<string, unknown>;
+    expect(cuerpo['recipient']).toBe('PE.1349120865530');
+    expect(cuerpo).not.toHaveProperty('to');
+  });
+});

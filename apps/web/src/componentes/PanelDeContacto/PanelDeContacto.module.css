@@ -70,10 +70,6 @@
     background: var(--channel-tiktok);
   }
 
-  .nombre {
-    font-size: var(--text-lg);
-    font-weight: 600;
-  }
   .handle {
     font-size: var(--text-sm);
     color: var(--fg-muted);

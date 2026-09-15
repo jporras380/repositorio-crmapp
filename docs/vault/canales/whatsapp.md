@@ -115,6 +115,20 @@ Entrante y saliente volvieron a funcionar a las 21:07 UTC («prueba 02» → res
 
 Primera comprobación ante «no llega»: la fecha del último `inbound_events`. Si es vieja, el problema está antes de nuestra API.
 
+### Nombres de usuario y BSUID (PR-41, 2026-09-15)
+
+Fuente: documentación de Meta «Business-scoped user IDs». **Cambia qué identifica a una persona.**
+
+- **BSUID** (`PE.1349…`: código de país ISO, punto y hasta 128 alfanuméricos): id del usuario propio de cada negocio. Llega en **todos** los webhooks de mensajes desde abril de 2026, en `contacts[].user_id` y `messages[].from_user_id`.
+- **El número deja de venir** (`wa_id` y `from` ausentes) cuando se cumplen las tres: la persona activó su nombre de usuario, no escribió ni llamó al negocio en 30 días y no está en su agenda. **Antes de PR-41 ese mensaje se descartaba**, porque la ingesta exigía `from`.
+- **Nombre de usuario:** `contacts[].profile.username`. Reserva desde el 29 de junio de 2026 y despliegue gradual.
+- **Para escribir a quien solo tiene BSUID** se usa `recipient` en lugar de `to` (disponible desde julio de 2026). El adaptador lo decide por el formato: un número no lleva letras.
+- **El BSUID cambia si la persona cambia de número** (Meta avisa con un mensaje de sistema). **Sin tratar todavía**: la persona aparecería como contacto nuevo.
+
+**Decisión de identidad** ([[ADR-007-identidad-contactos]]): `external_user_id` sigue siendo el número cuando lo hay, porque así están todas las identidades anteriores, y pasa a ser el BSUID solo cuando falta el número. El BSUID se guarda además en `provider_user_id` (migración 0023) y **se busca primero por él**. Así, la misma persona que hoy escribe con número y mañana solo con @usuario sigue siendo UNA conversación. En la bandeja se ve «+51… · @usuario», solo uno de los dos, o «Usuario de WhatsApp»; el BSUID nunca, porque no le dice nada a nadie. Si un mensaje llega sin número, no se olvida el que ya se conocía.
+
+**Sin verificar con tráfico real:** hace falta que alguien con nombre de usuario activo escriba sin estar en contacto reciente.
+
 **Para desarrollar no hace falta comprar número:** Meta da un número de prueba gratuito que envía a hasta 5 destinatarios verificados. El móvil personal del usuario sirve como destinatario. **El número de producción de Nippon no se toca hasta el final**: está en uso en Kommo.
 
 ## Aprendizajes propios verificados

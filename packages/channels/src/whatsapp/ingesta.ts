@@ -94,12 +94,20 @@ export class IngestaWhatsapp implements AdaptadorDeIngesta {
         const phoneNumberId = str(obj(value['metadata'])['phone_number_id']);
         if (!phoneNumberId) continue;
 
-        // Perfiles: Meta manda los nombres aparte, indexados por wa_id.
-        const perfiles = new Map<string, string>();
+        // Perfiles: Meta manda nombre y nombre de usuario aparte, en
+        // `contacts[]`. Se indexan por BSUID (`user_id`) y por número
+        // (`wa_id`), porque el número puede faltar y el BSUID no.
+        const perfiles = new Map<string, Perfil>();
         for (const c of arr(value['contacts'])) {
+          const perfil = obj(obj(c)['profile']);
+          const p: Perfil = {
+            nombre: str(perfil['name']),
+            nombreDeUsuario: str(perfil['username']) ?? str(obj(c)['username']),
+          };
+          const userId = str(obj(c)['user_id']);
           const waId = str(obj(c)['wa_id']);
-          const nombre = str(obj(obj(c)['profile'])['name']);
-          if (waId && nombre) perfiles.set(waId, nombre);
+          if (userId) perfiles.set(userId, p);
+          if (waId) perfiles.set(waId, p);
         }
 
         for (const m of arr(value['messages'])) {
@@ -123,15 +131,26 @@ function fechaDe(timestamp: unknown): Date {
   return Number.isFinite(n) && n > 0 ? new Date(n * 1000) : new Date();
 }
 
+interface Perfil {
+  nombre: string | undefined;
+  nombreDeUsuario: string | undefined;
+}
+
 function mensaje(
   m: Obj,
   phoneNumberId: string,
-  perfiles: Map<string, string>,
+  perfiles: Map<string, Perfil>,
 ): EventoDeMensaje | null {
   const id = str(m['id']);
   const from = str(m['from']);
+  // BSUID: viene siempre (desde abril de 2026); `from` puede faltar cuando la
+  // persona usa nombre de usuario. Sin ninguno de los dos, no hay a quién.
+  const bsuid = str(m['from_user_id']);
   const tipoMeta = str(m['type']) ?? '';
-  if (!id || !from) return null;
+  const quien = from ?? bsuid;
+  if (!id || !quien) return null;
+  const perfil =
+    (bsuid ? perfiles.get(bsuid) : undefined) ?? (from ? perfiles.get(from) : undefined);
 
   const tipo = TIPO[tipoMeta];
   // Tipos que no manejamos todavía (reaction, interactive, button, order,
@@ -157,10 +176,14 @@ function mensaje(
     externalAccountId: phoneNumberId,
     ocurridoEn: fechaDe(m['timestamp']),
     externalMessageId: id,
-    externalUserId: from,
-    nombreDeContacto: perfiles.get(from),
+    // Con número, la clave sigue siendo el número: así lo guardan todas las
+    // identidades anteriores a los BSUID. Sin número, el BSUID.
+    externalUserId: quien,
+    nombreDeContacto: perfil?.nombre,
     // `from` es el número en formato internacional sin '+'.
-    telefonoE164: /^\d{6,15}$/.test(from) ? `+${from}` : undefined,
+    telefonoE164: from && /^\d{6,15}$/.test(from) ? `+${from}` : undefined,
+    idDeUsuarioDelProveedor: bsuid,
+    nombreDeUsuario: perfil?.nombreDeUsuario,
     tipo,
     texto,
     mediaId: tipo === 'text' || tipo === 'location' ? undefined : str(contenido['id']),

@@ -206,6 +206,9 @@ export const contactIdentities = pgTable(
     externalUserId: text('external_user_id').notNull(),
     handle: text('handle'),
     phoneE164: text('phone_e164'),
+    /** BSUID en WhatsApp: llega aunque falte el número (0023). */
+    providerUserId: text('provider_user_id'),
+    username: text('username'),
     profile: jsonb('profile').notNull().default({}),
     createdAt: creado,
     updatedAt: actualizado,

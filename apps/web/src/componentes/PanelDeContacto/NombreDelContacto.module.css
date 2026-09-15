@@ -1,0 +1,88 @@
+@layer components {
+  .vista {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    max-inline-size: 100%;
+  }
+  .nombre {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  /* El lápiz se ve siempre, discreto: esconderlo hasta el hover lo hace
+     inencontrable en pantalla táctil. */
+  .editar {
+    display: grid;
+    place-items: center;
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    flex: none;
+    border-radius: var(--radius-pill);
+    color: var(--fg-muted);
+  }
+  .editar:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+  .editar:focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+  }
+  .icono {
+    inline-size: 0.9rem;
+    block-size: 0.9rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+  }
+
+  .formulario {
+    display: grid;
+    gap: var(--space-2);
+    inline-size: 100%;
+  }
+  .campo {
+    inline-size: 100%;
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--accent);
+    background: var(--surface-raised);
+    color: var(--fg);
+    font-size: var(--text-md);
+    text-align: center;
+  }
+  .campo:focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+  }
+  .acciones {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+  }
+  .primario,
+  .secundario {
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  .primario {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .primario:disabled {
+    opacity: 0.5;
+  }
+  .secundario {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .error {
+    font-size: var(--text-sm);
+    color: var(--danger);
+  }
+}
