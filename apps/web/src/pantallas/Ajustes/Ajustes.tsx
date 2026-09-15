@@ -7,6 +7,7 @@ import { Plantillas } from '../../componentes/ajustes/Plantillas.tsx';
 import { RespuestasRapidas } from '../../componentes/ajustes/RespuestasRapidas.tsx';
 import { Uso } from '../../componentes/ajustes/Uso.tsx';
 import { Suscripcion } from '../../componentes/ajustes/Suscripcion.tsx';
+import { Ia } from '../../componentes/ajustes/Ia.tsx';
 import { irA, type Ruta } from '../../estado/ruta.ts';
 import estilos from './Ajustes.module.css';
 
@@ -22,6 +23,7 @@ const SECCIONES: [Seccion, string, string][] = [
   ['canales', 'Canales', 'Números y cuentas conectadas'],
   ['plantillas', 'Plantillas', 'Mensajes aprobados por Meta para escribir primero'],
   ['respuestas', 'Respuestas rápidas', 'Atajos con «/» en el compositor'],
+  ['ia', 'IA asistida', 'Borradores de respuesta con la clave del hotel'],
   ['uso', 'Uso del plan', 'Lo consumido este mes frente a tu plan'],
   ['suscripcion', 'Suscripción', 'Qué se paga y hasta cuándo está cubierta'],
 ];
@@ -62,6 +64,7 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
         {seccion === 'canales' && <Canales api={api} gestor={gestor} />}
         {seccion === 'plantillas' && <Plantillas api={api} gestor={gestor} />}
         {seccion === 'respuestas' && <RespuestasRapidas api={api} gestor={gestor} />}
+        {seccion === 'ia' && <Ia api={api} gestor={gestor} />}
         {seccion === 'uso' && <Uso api={api} />}
         {seccion === 'suscripcion' && <Suscripcion api={api} />}
       </main>

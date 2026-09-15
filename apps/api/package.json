@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
     "@crmapp/channels": "workspace:*",
     "@crmapp/config": "workspace:*",
     "@crmapp/core": "workspace:*",

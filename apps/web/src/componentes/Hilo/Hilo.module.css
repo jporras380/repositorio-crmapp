@@ -214,6 +214,14 @@
     font-size: var(--text-xs);
     opacity: 0.75;
   }
+  /* Marca de texto, no de color: se lee igual en burbuja clara y oscura. */
+  .ia {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 0 0.3rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid currentColor;
+  }
 
   .imagen {
     max-inline-size: 100%;

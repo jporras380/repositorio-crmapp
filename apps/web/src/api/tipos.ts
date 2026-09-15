@@ -79,7 +79,7 @@ export interface RespuestaRapida {
 }
 
 export type PeticionDeEnvio =
-  | { tipo: 'text'; texto: string }
+  | { tipo: 'text'; texto: string; generadoPorIa?: boolean }
   | { tipo: 'image' | 'video' | 'audio' | 'document'; mediaAssetId: string; pieDeFoto?: string }
   | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
   | { tipo: 'quick_reply'; quickReplyId: string }
@@ -129,6 +129,15 @@ export interface CuentaDeInstagramDescubierta {
   paginaId: string;
   pagina: string;
   yaConectado: boolean;
+}
+
+/** Ajustes de la IA asistida. La clave no viaja nunca de vuelta: solo si existe. */
+export interface AjustesDeIa {
+  activa: boolean;
+  modelo: string;
+  instrucciones: string;
+  tieneClave: boolean;
+  modelosDisponibles: string[];
 }
 
 export interface PlantillaDeWhatsapp {

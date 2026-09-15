@@ -13,6 +13,8 @@ const METRICA: Record<string, string> = {
   'templates.sent': 'Plantillas enviadas',
   'conversations.opened': 'Conversaciones abiertas',
   'media.stored_bytes': 'Archivos almacenados',
+  'bot.runs': 'Ejecuciones de bot',
+  'ai.suggestions': 'Sugerencias de IA (las paga el hotel con su clave)',
 };
 const LIMITE: Record<string, string> = {
   conversaciones_mes: 'Conversaciones al mes',

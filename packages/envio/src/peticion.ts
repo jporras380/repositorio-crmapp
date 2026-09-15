@@ -1,7 +1,16 @@
 /** Formas de una petición de envío y su traducción a la carga del outbox. */
 
 export type PeticionDeEnvio =
-  | { tipo: 'text'; texto: string }
+  | {
+      tipo: 'text';
+      texto: string;
+      /**
+       * El texto lo redactó la IA y una persona lo revisó y lo envió. El
+       * remitente sigue siendo esa persona (`sent_by = 'human'`); la marca
+       * queda en `messages.ai_generated` para que se sepa de dónde salió.
+       */
+      generadoPorIa?: boolean | undefined;
+    }
   | {
       tipo: 'image' | 'video' | 'audio' | 'document';
       /** URL externa, o bien un medio propio ya almacenado. Uno de los dos. */

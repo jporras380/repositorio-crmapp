@@ -10,7 +10,7 @@ export type Ruta =
     }
   | {
       pantalla: 'ajustes';
-      seccion: 'canales' | 'plantillas' | 'respuestas' | 'uso' | 'suscripcion';
+      seccion: 'canales' | 'plantillas' | 'respuestas' | 'ia' | 'uso' | 'suscripcion';
     }
   /** Constructor de Salesbots. Sin flujo elegido, la lista. */
   | { pantalla: 'flujos'; flujoId: string | null }
@@ -23,7 +23,7 @@ export type Ruta =
   /** Reservas. Con una elegida, su ficha al lado de la lista. */
   | { pantalla: 'reservas'; reservaId: string | null };
 
-const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'uso', 'suscripcion']);
+const SECCIONES = new Set(['canales', 'plantillas', 'respuestas', 'ia', 'uso', 'suscripcion']);
 
 /**
  * Enrutado por hash, a mano: `#c=<id>` abre una conversación y

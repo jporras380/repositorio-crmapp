@@ -96,6 +96,7 @@ describe('GET /v1/cuenta/uso', () => {
       'conversations.opened': 0,
       'media.stored_bytes': 0,
       'bot.runs': 0,
+      'ai.suggestions': 0,
     });
     expect(r.body.limites.conversaciones_mes).toEqual({ limite: 1000, usado: 0 });
     expect(r.body.limites.bot_runs_mes).toEqual({ limite: 500, usado: 0 });

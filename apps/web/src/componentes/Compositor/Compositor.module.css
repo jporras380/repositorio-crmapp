@@ -16,6 +16,34 @@
     background: var(--surface);
     border: 1px solid var(--hairline);
   }
+  /* Con el botón de IA la caja tiene una columna más: clip · texto · IA · enviar. */
+  .cajaConIa {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+  .borradorIa {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+  .pensando {
+    inline-size: 1rem;
+    block-size: 1rem;
+    border-radius: 50%;
+    border: 2px solid var(--accent-soft);
+    border-block-start-color: var(--accent);
+    animation: girar 0.8s linear infinite;
+  }
+  @keyframes girar {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pensando {
+      animation: none;
+      border-color: var(--accent);
+    }
+  }
   .caja:focus-within {
     border-color: var(--accent);
     box-shadow: var(--ring);

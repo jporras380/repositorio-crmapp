@@ -36,3 +36,4 @@ export const TOKEN_EMBUDO = Symbol('EmbudoService');
 export const TOKEN_CONTACTOS = Symbol('ContactosService');
 export const TOKEN_HOTEL = Symbol('HotelService');
 export const TOKEN_RESERVAS = Symbol('ReservasService');
+export const TOKEN_IA = Symbol('IaService');

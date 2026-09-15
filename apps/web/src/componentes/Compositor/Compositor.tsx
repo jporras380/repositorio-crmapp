@@ -21,8 +21,42 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
   const [sugeridas, setSugeridas] = useState<PlantillaSugerida[]>([]);
   const [rapidas, setRapidas] = useState<RespuestaRapida[] | null>(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [iaActiva, setIaActiva] = useState(false);
+  const [sugiriendo, setSugiriendo] = useState(false);
+  /**
+   * El texto del área salió de la IA. Se mantiene aunque el agente lo edite:
+   * el mensaje sigue siendo un borrador de la IA revisado por una persona.
+   * Se pierde al vaciar el área o al enviar.
+   */
+  const [deIa, setDeIa] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const archivo = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let vigente = true;
+    api
+      .iaAjustes()
+      .then((a) => vigente && setIaActiva(a.activa))
+      .catch(() => vigente && setIaActiva(false));
+    return () => {
+      vigente = false;
+    };
+  }, [api]);
+
+  async function sugerir() {
+    setSugiriendo(true);
+    setError(null);
+    try {
+      const { texto: borrador } = await api.sugerirRespuesta(conversacion.id);
+      setTexto(borrador);
+      setDeIa(true);
+      area.current?.focus();
+    } catch (e) {
+      setError(e instanceof ErrorDeApi ? e.message : 'No se pudo pedir la sugerencia.');
+    } finally {
+      setSugiriendo(false);
+    }
+  }
 
   const buscandoRapida = texto.startsWith('/');
   useEffect(() => {
@@ -44,6 +78,7 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
     try {
       await fn();
       setTexto('');
+      setDeIa(false);
       setSugeridas([]);
       alEnviado();
       area.current?.focus();
@@ -65,7 +100,13 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
   const enviarTexto = () => {
     const t = texto.trim();
     if (!t || enviando) return;
-    void intentar(() => api.enviar(conversacion.id, { tipo: 'text', texto: t }));
+    void intentar(() =>
+      api.enviar(conversacion.id, {
+        tipo: 'text',
+        texto: t,
+        ...(deIa ? { generadoPorIa: true } : {}),
+      }),
+    );
   };
   const enviarPlantilla = (p: PlantillaSugerida) =>
     void intentar(() =>
@@ -156,7 +197,13 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
         </div>
       )}
 
-      <div className={estilos.caja}>
+      {deIa && texto.trim() && (
+        <p className={estilos.borradorIa}>
+          Borrador de la IA: revísalo antes de enviar. Quedará marcado como redactado con IA.
+        </p>
+      )}
+
+      <div className={`${estilos.caja} ${iaActiva ? estilos.cajaConIa : ''}`}>
         <button
           type="button"
           className={estilos.icono}
@@ -184,10 +231,28 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
           placeholder="Escribe un mensaje. «/» para respuestas rápidas."
           value={texto}
           disabled={enviando}
-          onChange={(e) => setTexto(e.target.value)}
+          onChange={(e) => {
+            setTexto(e.target.value);
+            if (!e.target.value.trim()) setDeIa(false);
+          }}
           onKeyDown={teclas}
           aria-label="Mensaje"
         />
+        {iaActiva && (
+          <button
+            type="button"
+            className={estilos.icono}
+            title="Sugerir respuesta con IA"
+            onClick={() => void sugerir()}
+            disabled={enviando || subiendo || sugiriendo}
+            aria-busy={sugiriendo}
+          >
+            {sugiriendo ? <span className={estilos.pensando} aria-hidden="true" /> : <IconoIa />}
+            <span className="visually-hidden">
+              {sugiriendo ? 'Redactando sugerencia…' : 'Sugerir respuesta con IA'}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           className={estilos.enviar}
@@ -198,6 +263,19 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
         </button>
       </div>
     </div>
+  );
+}
+
+function IconoIa() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.4l-1.9-5.6L4.5 10.9 10.1 9 12 3.5ZM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

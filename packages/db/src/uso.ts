@@ -16,7 +16,12 @@ export type MetricaDeUso =
   | 'conversations.opened'
   | 'media.stored_bytes'
   /** Ejecuciones de Salesbot arrancadas. `bot_runs_mes` en los planes. */
-  | 'bot.runs';
+  | 'bot.runs'
+  /**
+   * Sugerencias de respuesta pedidas a la IA. Se mide aunque la pague el
+   * cliente con su clave (BYOK): sin el dato no se sabe si la función se usa.
+   */
+  | 'ai.suggestions';
 
 export const METRICAS_DE_USO: readonly MetricaDeUso[] = [
   'messages.inbound',
@@ -25,6 +30,7 @@ export const METRICAS_DE_USO: readonly MetricaDeUso[] = [
   'conversations.opened',
   'media.stored_bytes',
   'bot.runs',
+  'ai.suggestions',
 ];
 
 export interface EventoDeUso {

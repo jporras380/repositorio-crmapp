@@ -11,6 +11,7 @@ import type {
   CuentaDeCanal,
   CuentaDeInstagramDescubierta,
   PaginaDeFacebookDescubierta,
+  AjustesDeIa,
   DescubrimientoWhatsapp,
   AccionDeReserva,
   CatalogoDeHotel,
@@ -72,7 +73,7 @@ export class ErrorDeApi extends Error {
 }
 
 export interface OpcionesDePeticion {
-  metodo?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  metodo?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   cuerpo?: unknown;
   token?: string | null;
   senal?: AbortSignal;
@@ -179,6 +180,19 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { mime, bytes, nombre },
       }),
+    // --- IA asistida (BYOK) -------------------------------------------------
+    iaAjustes: () => peticion<AjustesDeIa>('/v1/ia/ajustes', t),
+    guardarIa: (d: { activa?: boolean; modelo?: string; instrucciones?: string; clave?: string }) =>
+      peticion<AjustesDeIa>('/v1/ia/ajustes', { ...t, metodo: 'PUT', cuerpo: d }),
+    borrarClaveIa: () => peticion<AjustesDeIa>('/v1/ia/clave', { ...t, metodo: 'DELETE' }),
+    sugerirRespuesta: (conversationId: string) =>
+      peticion<{ texto: string; modelo: string }>(
+        `/v1/conversaciones/${conversationId}/sugerencia`,
+        {
+          ...t,
+          metodo: 'POST',
+        },
+      ),
     // --- Ajustes -----------------------------------------------------------
     canales: () => peticion<CuentaDeCanal[]>('/v1/canales', t),
     conectarWhatsapp: (cred: {

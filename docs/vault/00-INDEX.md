@@ -63,6 +63,7 @@ Una nota por módulo, con las decisiones que le afectan enlazadas. Se crean al e
 - [[hotel]] — catálogo de habitaciones y tarifas, y cómo se calcula el precio de una estancia
 - [[reservas]] — reserva desde la conversación, ciclo de vida, pagos y por qué se copia el precio
 - [[panel]] — «Hoy» (lo accionable) e informe del periodo: mediana y p90, cohortes, eventos
+- [[ia]] — IA asistida con la clave del hotel: borradores que revisa una persona
 
 Previstos: bandeja, plantillas, salesbots, ia, usuarios, facturacion, panel, integraciones.
 

@@ -179,6 +179,11 @@ function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean
       {m.texto && <p className={estilos.texto}>{m.texto}</p>}
       <footer className={estilos.meta}>
         <time dateTime={m.creado_en}>{horaDeMensaje(m.creado_en)}</time>
+        {m.generado_por_ia && (
+          <span className={estilos.ia} title="Redactado con IA y revisado por una persona">
+            IA
+          </span>
+        )}
         {saliente && (
           <span className={estilos.estado}>
             {m.estado === 'failed' && m.error?.mensaje

@@ -24,8 +24,13 @@ const conversacion: ResumenDeConversacion = {
   aplazadaHasta: null,
 };
 
-function apiFalsa(enviar: Api['enviar']): Api {
-  return { enviar, respuestasRapidas: vi.fn().mockResolvedValue([]) } as unknown as Api;
+function apiFalsa(enviar: Api['enviar'], extra: Record<string, unknown> = {}): Api {
+  return {
+    enviar,
+    respuestasRapidas: vi.fn().mockResolvedValue([]),
+    iaAjustes: vi.fn().mockResolvedValue({ activa: false }),
+    ...extra,
+  } as unknown as Api;
 }
 
 afterEach(cleanup);
@@ -73,5 +78,60 @@ describe('Compositor', () => {
     await userEvent.type(screen.getByLabelText('Mensaje'), 'x{Enter}');
     expect(screen.getByRole('alert').textContent).toContain('Cuenta suspendida.');
     expect(screen.queryByRole('button', { name: /Enviar «/ })).toBeNull();
+  });
+
+  it('sin IA activada no aparece el botón de sugerir', async () => {
+    render(<Compositor api={apiFalsa(vi.fn())} conversacion={conversacion} alEnviado={vi.fn()} />);
+    await Promise.resolve();
+    expect(screen.queryByRole('button', { name: 'Sugerir respuesta con IA' })).toBeNull();
+  });
+
+  it('con IA: el borrador llena el área SIN enviarse, y al enviarlo va marcado como IA', async () => {
+    const enviar = vi.fn().mockResolvedValue({ id: 'm3', createdAt: '', estado: 'queued' });
+    const sugerirRespuesta = vi
+      .fn()
+      .mockResolvedValue({ texto: 'Hola Ana, sí tenemos.', modelo: 'claude-opus-5' });
+    render(
+      <Compositor
+        api={apiFalsa(enviar, {
+          iaAjustes: vi.fn().mockResolvedValue({ activa: true }),
+          sugerirRespuesta,
+        })}
+        conversacion={conversacion}
+        alEnviado={vi.fn()}
+      />,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Sugerir respuesta con IA' }));
+    const area = screen.getByLabelText('Mensaje') as HTMLTextAreaElement;
+    expect(area.value).toBe('Hola Ana, sí tenemos.');
+    expect(enviar).not.toHaveBeenCalled();
+    expect(screen.getByText(/Borrador de la IA: revísalo antes de enviar/)).toBeTruthy();
+
+    // El agente lo corrige y lo envía: sigue siendo un borrador de la IA.
+    await userEvent.type(area, ' ¿Fechas?{Enter}');
+    expect(enviar).toHaveBeenCalledWith('c1', {
+      tipo: 'text',
+      texto: 'Hola Ana, sí tenemos. ¿Fechas?',
+      generadoPorIa: true,
+    });
+  });
+
+  it('si la IA falla, lo dice y no toca lo que había escrito', async () => {
+    render(
+      <Compositor
+        api={apiFalsa(vi.fn(), {
+          iaAjustes: vi.fn().mockResolvedValue({ activa: true }),
+          sugerirRespuesta: vi
+            .fn()
+            .mockRejectedValue(new ErrorDeApi(429, 'ia_limite', 'La cuenta alcanzó su límite.')),
+        })}
+        conversacion={conversacion}
+        alEnviado={vi.fn()}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText('Mensaje'), 'mi texto');
+    await userEvent.click(await screen.findByRole('button', { name: 'Sugerir respuesta con IA' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('alcanzó su límite');
+    expect((screen.getByLabelText('Mensaje') as HTMLTextAreaElement).value).toBe('mi texto');
   });
 });

@@ -290,8 +290,8 @@ export async function enviarPorConversacion(
     `INSERT INTO messages
        (id, tenant_id, conversation_id, channel_account_id, direction, type, body, payload,
         status, sent_by, sent_by_user_id, created_at, media_asset_id,
-        quick_reply_version_id, wa_template_version_id)
-     VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, 'queued', $8, $9, $10, $11, $12, $13)`,
+        quick_reply_version_id, wa_template_version_id, ai_generated)
+     VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, 'queued', $8, $9, $10, $11, $12, $13, $14)`,
     [
       messageId,
       remitente.tenantId,
@@ -306,6 +306,7 @@ export async function enviarPorConversacion(
       mediaAssetId,
       quickReplyVersionId,
       waTemplateVersionId,
+      remitente.origen === 'ai' || (peticion.tipo === 'text' && peticion.generadoPorIa === true),
     ],
   );
 

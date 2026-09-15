@@ -32,6 +32,7 @@ import {
   TOKEN_CONTACTOS,
   TOKEN_HOTEL,
   TOKEN_RESERVAS,
+  TOKEN_IA,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -70,6 +71,9 @@ import { HotelService } from './hotel/hotel.service.js';
 import { HotelController } from './hotel/hotel.controller.js';
 import { ReservasService } from './reservas/reservas.service.js';
 import { ReservasController } from './reservas/reservas.controller.js';
+import { IaService } from './ia/ia.service.js';
+import { IaController } from './ia/ia.controller.js';
+import { clienteAnthropic, type ClienteDeIa } from './ia/cliente-de-ia.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -93,6 +97,8 @@ export interface OpcionesDeApp {
   suscribir?: SuscriptorDeWebhook;
   /** Descubre cuentas con un solo token y suscribe páginas de Instagram. Se inyecta en tests. */
   descubridor?: DescubridorDeMeta;
+  /** Proveedor de IA (Anthropic con la clave del hotel). Se inyecta en tests. */
+  clienteDeIa?: ClienteDeIa;
   /**
    * Sandbox en vez de canal real. Solo para tests y demos sin Meta. En
    * producción el valor por defecto es el adaptador real de WhatsApp.
@@ -136,6 +142,7 @@ export class AppModule {
         ContactosController,
         HotelController,
         ReservasController,
+        IaController,
       ],
       providers: [
         {
@@ -303,6 +310,17 @@ export class AppModule {
           provide: TOKEN_RESERVAS,
           inject: [TOKEN_DB, TOKEN_HOTEL],
           useFactory: (db: BaseDeDatos, hotel: HotelService) => new ReservasService({ db, hotel }),
+        },
+        {
+          provide: TOKEN_IA,
+          inject: [TOKEN_DB, TOKEN_CIFRADOR, TOKEN_BANDEJA],
+          useFactory: (db: BaseDeDatos, cifrador: Cifrador, bandeja: BandejaService) =>
+            new IaService({
+              db,
+              cifrador,
+              bandeja,
+              cliente: opciones.clienteDeIa ?? clienteAnthropic(),
+            }),
         },
         {
           provide: TOKEN_USO,

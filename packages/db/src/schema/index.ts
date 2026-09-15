@@ -813,3 +813,28 @@ export const reservationEvents = pgTable('reservation_events', {
   meta: jsonb('meta'),
   at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// IA asistida (0025): ajustes por cuenta y clave del cliente, cifrada.
+// ---------------------------------------------------------------------------
+
+export const aiSettings = pgTable('ai_settings', {
+  tenantId: uuid('tenant_id').primaryKey(),
+  enabled: boolean('enabled').notNull().default(false),
+  model: text('model').notNull().default('claude-opus-5'),
+  instructions: text('instructions').notNull().default(''),
+  updatedBy: uuid('updated_by'),
+  createdAt: creado,
+  updatedAt: actualizado,
+});
+
+export const tenantSecrets = pgTable('tenant_secrets', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  kind: text('kind').notNull(),
+  ciphertext: bytea('ciphertext').notNull(),
+  dekWrapped: bytea('dek_wrapped').notNull(),
+  keyVersion: integer('key_version').notNull(),
+  rotatedAt: timestamp('rotated_at', { withTimezone: true }),
+  createdAt: creado,
+});

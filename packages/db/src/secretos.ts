@@ -211,3 +211,55 @@ export function crearResolverDeCredencialesWhatsapp(poolAuth: Pool, cifrador: Ci
     });
   };
 }
+
+// ---------------------------------------------------------------------------
+// Secretos del INQUILINO (0025): hoy, la clave de IA del cliente (BYOK).
+// Mismo cifrado que los de canal; tabla aparte porque no cuelgan de ninguna
+// cuenta de canal. Se leen y escriben con el inquilino puesto (RLS).
+// ---------------------------------------------------------------------------
+
+export type TipoDeSecretoDeInquilino = 'anthropic_api_key';
+
+export async function guardarSecretoDeInquilino(
+  c: PoolClient,
+  cifrador: Cifrador,
+  s: { tenantId: string; kind: TipoDeSecretoDeInquilino; valor: string },
+): Promise<void> {
+  const { ciphertext, dekWrapped, keyVersion } = cifrador.cifrar(s.valor);
+  await c.query(
+    `INSERT INTO tenant_secrets (tenant_id, kind, ciphertext, dek_wrapped, key_version)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (tenant_id, kind) DO UPDATE
+        SET ciphertext = EXCLUDED.ciphertext,
+            dek_wrapped = EXCLUDED.dek_wrapped,
+            key_version = EXCLUDED.key_version,
+            rotated_at = now()`,
+    [s.tenantId, s.kind, ciphertext, dekWrapped, keyVersion],
+  );
+}
+
+/** Valor en claro, o `null` si el inquilino no ha guardado ese secreto. */
+export async function leerSecretoDeInquilino(
+  c: PoolClient,
+  cifrador: Cifrador,
+  kind: TipoDeSecretoDeInquilino,
+): Promise<string | null> {
+  const { rows } = await c.query<{ ciphertext: Buffer; dek_wrapped: Buffer; key_version: number }>(
+    `SELECT ciphertext, dek_wrapped, key_version FROM tenant_secrets WHERE kind = $1`,
+    [kind],
+  );
+  const f = rows[0];
+  if (!f) return null;
+  return cifrador.descifrarTexto({
+    ciphertext: f.ciphertext,
+    dekWrapped: f.dek_wrapped,
+    keyVersion: f.key_version,
+  });
+}
+
+export async function borrarSecretoDeInquilino(
+  c: PoolClient,
+  kind: TipoDeSecretoDeInquilino,
+): Promise<void> {
+  await c.query(`DELETE FROM tenant_secrets WHERE kind = $1`, [kind]);
+}
