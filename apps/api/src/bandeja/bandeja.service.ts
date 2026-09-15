@@ -615,6 +615,122 @@ export class BandejaService {
     });
   }
 
+  /**
+   * Etiquetas con cuánto se usan, para el apartado donde se administran.
+   * Dice dónde está puesta cada una ANTES de renombrarla o borrarla: borrar
+   * «VIP» sin saber que la llevan 40 huéspedes es perder información.
+   */
+  async etiquetasConUso(): Promise<EtiquetaConUso[]> {
+    this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{
+        id: string;
+        nombre: string;
+        color: string | null;
+        conversaciones: string;
+        clientes: string;
+        leads: string;
+      }>(
+        `SELECT t.id, t.name AS nombre, t.color,
+                (SELECT count(*) FROM conversation_tags x WHERE x.tag_id = t.id) AS conversaciones,
+                (SELECT count(*) FROM contact_tags x WHERE x.tag_id = t.id) AS clientes,
+                (SELECT count(*) FROM lead_tags x WHERE x.tag_id = t.id) AS leads
+           FROM tags t ORDER BY lower(t.name)`,
+      );
+      const bots = await botsQueUsanEtiquetas(c);
+      return rows.map((r) => ({
+        id: r.id,
+        nombre: r.nombre,
+        color: r.color,
+        usos: {
+          conversaciones: Number(r.conversaciones),
+          clientes: Number(r.clientes),
+          leads: Number(r.leads),
+        },
+        bots: bots.get(r.id) ?? [],
+      }));
+    });
+  }
+
+  /** Renombrar o recolorear: la etiqueta es la misma, así que la ven igual conversaciones, clientes y leads. */
+  async editarEtiqueta(
+    id: string,
+    cambios: { nombre?: string | undefined; color?: string | null | undefined },
+  ): Promise<void> {
+    const ctx = this.#exigirGestor();
+    await this.#db.enTransaccion(async (c) => {
+      try {
+        const r = await c.query(
+          `UPDATE tags
+              SET name = COALESCE($2, name),
+                  color = CASE WHEN $3::boolean THEN $4 ELSE color END
+            WHERE id = $1`,
+          [id, cambios.nombre ?? null, cambios.color !== undefined, cambios.color ?? null],
+        );
+        if (r.rowCount === 0) {
+          throw new ErrorDeNegocio('etiqueta_no_encontrada', 'La etiqueta no existe.', 404);
+        }
+      } catch (error) {
+        if ((error as { code?: string }).code === '23505') {
+          throw new ErrorDeNegocio(
+            'etiqueta_repetida',
+            'Ya existe una etiqueta con ese nombre.',
+            409,
+          );
+        }
+        throw error;
+      }
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'etiqueta.editada', 'tag', $3, $4)`,
+        [ctx.tenantId, ctx.userId, id, JSON.stringify(cambios)],
+      );
+    });
+  }
+
+  /**
+   * Borrar quita la etiqueta de todo lo que la lleva (las FK son CASCADE).
+   * NO se deja borrar la que usa un bot en su versión vigente: el paso
+   * «etiquetar» quedaría apuntando a nada. Se dice qué bots, para arreglarlo.
+   */
+  async borrarEtiqueta(id: string): Promise<void> {
+    const ctx = this.#exigirGestor();
+    await this.#db.enTransaccion(async (c) => {
+      const bots = (await botsQueUsanEtiquetas(c)).get(id) ?? [];
+      if (bots.length > 0) {
+        throw new ErrorDeNegocio(
+          'etiqueta_en_uso_por_bot',
+          `La usa ${bots.length === 1 ? 'el bot' : 'los bots'} ${bots.map((b) => `«${b}»`).join(', ')}. Quítala de ${bots.length === 1 ? 'ese bot' : 'esos bots'} antes de borrarla.`,
+          409,
+          { bots },
+        );
+      }
+      const r = await c.query<{ name: string }>(`DELETE FROM tags WHERE id = $1 RETURNING name`, [
+        id,
+      ]);
+      if (r.rowCount === 0) {
+        throw new ErrorDeNegocio('etiqueta_no_encontrada', 'La etiqueta no existe.', 404);
+      }
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'etiqueta.borrada', 'tag', $3, $4)`,
+        [ctx.tenantId, ctx.userId, id, JSON.stringify({ nombre: r.rows[0]!.name })],
+      );
+    });
+  }
+
+  #exigirGestor() {
+    const ctx = this.#exigirContexto();
+    if (!['owner', 'admin', 'supervisor'].includes(ctx.rol)) {
+      throw new ErrorDeNegocio(
+        'sin_permiso',
+        'Solo un supervisor o administrador puede editar o borrar etiquetas.',
+        403,
+      );
+    }
+    return ctx;
+  }
+
   #exigirContexto() {
     const ctx = contextoActual();
     if (!ctx) throw new ErrorDeNegocio('sin_sesion', 'Se requiere sesión.', 401);
@@ -830,3 +946,26 @@ function decodificarCursor(cursor: string): { t: string; id: string } {
 // `estadoEfectivo` se reexporta para que el controlador informe del estado en
 // la respuesta de la bandeja sin duplicar la lectura.
 export { estadoEfectivo };
+
+export interface EtiquetaConUso {
+  id: string;
+  nombre: string;
+  color: string | null;
+  usos: { conversaciones: number; clientes: number; leads: number };
+  /** Bots cuya versión vigente tiene un paso «etiquetar» con esta etiqueta. */
+  bots: string[];
+}
+
+/** Etiqueta → nombres de los bots que la usan en su versión vigente. */
+async function botsQueUsanEtiquetas(c: PoolClient): Promise<Map<string, string[]>> {
+  const { rows } = await c.query<{ tag_id: string; name: string }>(
+    `SELECT DISTINCT n ->> 'etiquetaId' AS tag_id, f.name
+       FROM flows f
+       JOIN flow_versions v ON v.id = f.current_version_id
+       CROSS JOIN LATERAL jsonb_array_elements(COALESCE(v.graph -> 'nodos', '[]'::jsonb)) AS n
+      WHERE n ->> 'tipo' = 'etiquetar'`,
+  );
+  const mapa = new Map<string, string[]>();
+  for (const r of rows) mapa.set(r.tag_id, [...(mapa.get(r.tag_id) ?? []), r.name]);
+  return mapa;
+}

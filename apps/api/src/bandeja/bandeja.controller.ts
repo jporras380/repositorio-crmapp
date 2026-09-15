@@ -97,6 +97,17 @@ const NuevaEtiqueta = z.object({
     .default(null),
 });
 
+const EdicionDeEtiqueta = z
+  .object({
+    nombre: z.string().trim().min(1).max(40).optional(),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, 'color en formato #RRGGBB')
+      .nullable()
+      .optional(),
+  })
+  .refine((d) => d.nombre !== undefined || d.color !== undefined, 'nada que cambiar');
+
 function validar<T>(esquema: z.ZodType<T, z.ZodTypeDef, unknown>, datos: unknown): T {
   const r = esquema.safeParse(datos);
   if (!r.success) {
@@ -213,6 +224,25 @@ export class BandejaController {
   @Get('etiquetas')
   listarEtiquetas(@Req() req: Req) {
     return conContextoDePeticion(req, () => this.bandeja.listarEtiquetas());
+  }
+
+  /** Para el apartado de administración: con dónde se usa cada una. */
+  @Get('etiquetas/uso')
+  etiquetasConUso(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.bandeja.etiquetasConUso());
+  }
+
+  @Patch('etiquetas/:id')
+  @HttpCode(204)
+  async editarEtiqueta(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const cambios = validar(EdicionDeEtiqueta, body);
+    await conContextoDePeticion(req, () => this.bandeja.editarEtiqueta(id, cambios));
+  }
+
+  @Delete('etiquetas/:id')
+  @HttpCode(204)
+  async borrarEtiqueta(@Req() req: Req, @Param('id') id: string) {
+    await conContextoDePeticion(req, () => this.bandeja.borrarEtiqueta(id));
   }
 
   @Post('etiquetas')

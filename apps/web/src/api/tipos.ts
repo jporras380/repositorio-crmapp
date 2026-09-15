@@ -17,6 +17,15 @@ export interface Yo {
   suscripcion: 'prueba' | 'activa' | 'gracia' | 'suspendida' | string;
 }
 
+/** Etiqueta con dónde se usa, para el apartado donde se administran. */
+export interface EtiquetaConUso {
+  id: string;
+  nombre: string;
+  color: string | null;
+  usos: { conversaciones: number; clientes: number; leads: number };
+  bots: string[];
+}
+
 export interface Etiqueta {
   id: string;
   nombre: string;

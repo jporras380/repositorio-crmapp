@@ -12,6 +12,7 @@ import type {
   CuentaDeInstagramDescubierta,
   PaginaDeFacebookDescubierta,
   AjustesDeIa,
+  EtiquetaConUso,
   DescubrimientoWhatsapp,
   AccionDeReserva,
   CatalogoDeHotel,
@@ -168,6 +169,11 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { nombre, color },
       }),
+    etiquetasConUso: () => peticion<EtiquetaConUso[]>('/v1/etiquetas/uso', t),
+    editarEtiqueta: (id: string, cambios: { nombre?: string; color?: string | null }) =>
+      peticion<void>(`/v1/etiquetas/${id}`, { ...t, metodo: 'PATCH', cuerpo: cambios }),
+    borrarEtiqueta: (id: string) =>
+      peticion<void>(`/v1/etiquetas/${id}`, { ...t, metodo: 'DELETE' }),
     respuestasRapidas: () => peticion<RespuestaRapida[]>('/v1/respuestas-rapidas', t),
     urlDeMedio: (mediaAssetId: string) =>
       peticion<{ url: string; expiraEnSegundos: number; mime: string | null }>(

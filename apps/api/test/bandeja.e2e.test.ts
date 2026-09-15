@@ -803,3 +803,121 @@ describe('estado de atención, aplazar, notas y vistas (0020)', () => {
     expect((await http.get('/v1/vistas').set(auth())).body).toHaveLength(0);
   });
 });
+
+describe('administrar etiquetas', () => {
+  let tagId: string;
+  let conv: string;
+
+  beforeAll(async () => {
+    tagId = (
+      await http
+        .post('/v1/etiquetas')
+        .set(auth())
+        .send({ nombre: 'Reserva julio', color: '#34c759' })
+        .expect(201)
+    ).body.id;
+    conv = await conversacion('Elena-etiquetas', { haceHoras: 5 });
+    await http
+      .patch(`/v1/conversaciones/${conv}/etiquetas`)
+      .set(auth())
+      .send({ tagId, poner: true })
+      .expect(204);
+  });
+
+  it('el listado de gestión dice dónde se usa cada etiqueta', async () => {
+    const r = await http.get('/v1/etiquetas/uso').set(auth()).expect(200);
+    const e = r.body.find((x: { id: string }) => x.id === tagId);
+    expect(e).toMatchObject({
+      nombre: 'Reserva julio',
+      usos: { conversaciones: 1, clientes: 0, leads: 0 },
+      bots: [],
+    });
+  });
+
+  it('renombrar y recolorear la cambia en la conversación que ya la lleva', async () => {
+    await http
+      .patch(`/v1/etiquetas/${tagId}`)
+      .set(auth())
+      .send({ nombre: 'Reserva agosto', color: '#ff9500' })
+      .expect(204);
+    const lista = await http
+      .get('/v1/conversaciones')
+      .query({ limite: 100 })
+      .set(auth())
+      .expect(200);
+    const c = lista.body.items.find((i: { id: string }) => i.id === conv);
+    expect(c.etiquetas).toEqual([{ id: tagId, nombre: 'Reserva agosto', color: '#ff9500' }]);
+  });
+
+  it('un nombre que ya existe da 409', async () => {
+    await http
+      .post('/v1/etiquetas')
+      .set(auth())
+      .send({ nombre: 'Duplicada', color: null })
+      .expect(201);
+    const r = await http
+      .patch(`/v1/etiquetas/${tagId}`)
+      .set(auth())
+      .send({ nombre: 'Duplicada' })
+      .expect(409);
+    expect(r.body.codigo).toBe('etiqueta_repetida');
+  });
+
+  it('un agente no puede editar ni borrar etiquetas', async () => {
+    const inv = await http
+      .post('/v1/invitaciones')
+      .set(auth())
+      .send({ email: 'agente-etiquetas@nippon.test', rol: 'agent' })
+      .expect(201);
+    const agente = (
+      await http
+        .post('/v1/invitaciones/aceptar')
+        .send({ token: inv.body.token, contrasena: 'contrasena-de-agente', nombreCompleto: 'Ag' })
+        .expect(200)
+    ).body.token;
+    const a = { Authorization: `Bearer ${agente}` };
+    await http.patch(`/v1/etiquetas/${tagId}`).set(a).send({ color: '#000000' }).expect(403);
+    await http.delete(`/v1/etiquetas/${tagId}`).set(a).expect(403);
+  });
+
+  it('no se borra la que usa un bot en su versión vigente, y dice cuál', async () => {
+    const flujo = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO flows (tenant_id, name, status) VALUES ($1, 'Bienvenida', 'activo') RETURNING id`,
+        [tenantId],
+      )
+    ).rows[0]!.id;
+    const version = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO flow_versions (tenant_id, flow_id, version, graph)
+         VALUES ($1, $2, 1, $3) RETURNING id`,
+        [
+          tenantId,
+          flujo,
+          JSON.stringify({
+            inicio: 'n1',
+            nodos: [{ id: 'n1', tipo: 'etiquetar', etiquetaId: tagId, siguiente: null }],
+          }),
+        ],
+      )
+    ).rows[0]!.id;
+    await admin.query(`UPDATE flows SET current_version_id = $1 WHERE id = $2`, [version, flujo]);
+
+    const r = await http.delete(`/v1/etiquetas/${tagId}`).set(auth()).expect(409);
+    expect(r.body).toMatchObject({ codigo: 'etiqueta_en_uso_por_bot', bots: ['Bienvenida'] });
+    const uso = await http.get('/v1/etiquetas/uso').set(auth()).expect(200);
+    expect(uso.body.find((x: { id: string }) => x.id === tagId).bots).toEqual(['Bienvenida']);
+
+    // Quitada del bot (su versión vigente ya no la usa), se puede borrar.
+    await admin.query(`UPDATE flows SET current_version_id = NULL WHERE id = $1`, [flujo]);
+  });
+
+  it('borrarla la quita de todo lo que la llevaba', async () => {
+    await http.delete(`/v1/etiquetas/${tagId}`).set(auth()).expect(204);
+    const { rows } = await admin.query(`SELECT 1 FROM conversation_tags WHERE tag_id = $1`, [
+      tagId,
+    ]);
+    expect(rows).toHaveLength(0);
+    await http.delete(`/v1/etiquetas/${tagId}`).set(auth()).expect(404);
+  });
+});

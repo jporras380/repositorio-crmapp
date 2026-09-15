@@ -365,8 +365,13 @@ async function ejecutarEfecto(
     }
     case 'etiquetar':
       await c.query(
+        // Solo si la etiqueta sigue existiendo: la API no deja borrar la que
+        // usa la versión vigente de un bot, pero una ejecución en vuelo de una
+        // versión anterior podría apuntar a una ya borrada. Sin esto, la FK
+        // tumbaría la ejecución entera por una etiqueta.
         `INSERT INTO conversation_tags (tenant_id, conversation_id, tag_id)
-         VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+         SELECT $1, $2, t.id FROM tags t WHERE t.id = $3
+         ON CONFLICT DO NOTHING`,
         [tenantId, ejecucion.conversation_id, efecto.etiquetaId],
       );
       return null;

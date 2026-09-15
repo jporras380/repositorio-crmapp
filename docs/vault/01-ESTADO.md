@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-44, administrar etiquetas** ([[bandeja]] §Administrar etiquetas): Ajustes → Etiquetas para crear, renombrar, recolorear y borrar, con dónde se usa cada una. No se borra la que usa un bot vigente, y el worker ya no falla si un bot en vuelo apunta a una borrada. Cierra la deuda «etiquetas editables».
 - **PR-43, IA asistida con la clave del hotel** ([[ia]]): «Sugerir con IA» en el compositor redacta un borrador con los últimos 30 mensajes, el catálogo y las instrucciones del hotel; **nunca envía**. Lo envía el agente, y queda `sent_by = human` con `ai_generated = true` y marca «IA» en el hilo. Ajustes → IA: clave de Anthropic cifrada y verificada antes de guardarse, modelo (Opus 5 por defecto) e instrucciones; empieza apagada. Respeta la visibilidad entre agentes. SDK oficial de Anthropic. Migración 0025. Sin probar con una clave real.
 - **PR-42, Facebook Messenger y comentarios de página** ([[facebook]]): tercer canal dentro del contrato `ChannelAdapter`, sin tocar `core`. Mensajes de Messenger con adjuntos, comentarios del muro como hilos (respuesta privada o pública) y asistente «Conectar Facebook» que lista las páginas. La suscripción de la página **conserva los campos de Instagram** si cuelga de la misma página: Meta reemplaza la lista y se habrían perdido sus comentarios sin error. Migración 0024 (amplía la lista de canales; reversa sin borrar datos). Sin probar con una página real.
 - **PR-41, contactos con nombre de usuario y nombres propios** ([[whatsapp]] §Nombres de usuario, [[bandeja]] §Cambiar el nombre): WhatsApp ya **no pierde mensajes de quien escribe solo con @usuario**. Meta deja de mandar el número en ese caso, y la identidad se buscaba por número. Ahora se reconoce por el BSUID (migración 0023, aditiva), se responde con `recipient` y la bandeja enseña «número · @usuario». Además, **el nombre del contacto se cambia desde la ficha** de la conversación y ningún mensaje posterior lo pisa. Probado con la conversación real cuyo perfil se llama «.».
@@ -104,7 +105,7 @@ Nada.
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
 3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **mensajes interactivos de WhatsApp** (botones y listas).
 
-Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, etiquetas editables, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
+Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM, reparto automático. TikTok sigue bloqueado por falta de API pública de mensajería.
 
 ## Cambio propuesto al plan de fases
 

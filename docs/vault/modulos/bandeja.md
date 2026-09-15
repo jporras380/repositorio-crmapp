@@ -71,3 +71,14 @@ Pedido del usuario: renombrar al contacto «para recordar de qué se le atendió
 - **Es el nombre de la persona, no el perfil de WhatsApp.** La ingesta solo pone `display_name` al crear el contacto; los mensajes siguientes refrescan la identidad (número, @usuario) y **nunca pisan el nombre**. Hay test del worker que lo fija.
 - **Vaciarlo quita el nombre propio** (`null`) y la bandeja vuelve a enseñar número o @usuario. Un nombre vacío no tiene sentido.
 - Caso real que lo motiva: un contacto cuyo perfil de WhatsApp se llama «.».
+
+## Administrar etiquetas (PR-44, 2026-09-15)
+
+Pedido del usuario desde el principio: etiquetas editables y un apartado donde administrarlas. **Ajustes → Etiquetas**: crear, renombrar en su sitio, cambiar el color y borrar.
+
+![[2026-09-15-etiquetas.png]]
+
+- **Una etiqueta es la misma en conversaciones, clientes y leads**: renombrarla la cambia en todas partes, sin copiar nada.
+- **Antes de borrar se dice cuánto se pierde** («12 conversaciones · 3 clientes · 1 lead»). Borrar la quita de todo (FK en CASCADE).
+- **No se deja borrar la que usa un bot** en su versión vigente (409 con los nombres de los bots): su paso «etiquetar» quedaría apuntando a nada. Aun así, el worker **solo pone la etiqueta si todavía existe**, porque una ejecución en vuelo de una versión anterior podría apuntar a una ya borrada; sin eso, la FK tumbaría la ejecución entera.
+- Editar y borrar exige supervisor o superior; crear sigue abierto a cualquier agente, como en la bandeja.
