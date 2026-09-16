@@ -155,3 +155,13 @@ Dos notas cortas sintetizadas con la Web Audio API: sin archivo que descargar, s
 2. Volver a abrir el panel: el que se usó está arriba, en «Los que más usas».
 3. Pulsar la campana de la cabecera: suena una vez. Pedirle a alguien que escriba al WhatsApp del hotel: suena al llegar.
 4. Pulsar la campana otra vez (🔕) y repetir: ya no suena, pero el título sigue contando.
+
+## Los servicios de desarrollo recargan solos (PR-58, 2026-09-16)
+
+`dev:api` y `dev:worker` arrancaban con `tsx` **sin `watch`**. El proceso se quedaba con el código que tenía al arrancar y nadie lo decía: se arreglaba un fallo, se volvía a probar, y el arreglo no estaba puesto porque el worker llevaba horas en marcha.
+
+Pasó de verdad con PR-57: la imagen seguía fallando después del arreglo, y la pista fue que los mensajes fallidos tenían `wamid` —o sea, el camino viejo de la URL— cuando el código nuevo ni siquiera pide una.
+
+Ahora los dos arrancan con `tsx watch`. Precio: reiniciar el worker corta un job en vuelo, y el relevo del outbox lo reintenta; es preferible a depurar un proceso que miente sobre qué código ejecuta.
+
+`--clear-screen=false` para no borrar los logs anteriores en cada recarga, que es justo lo que se está mirando cuando se depura.

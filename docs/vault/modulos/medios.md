@@ -128,3 +128,9 @@ Es el primero de los tres motivos de [[whatsapp]] §Aprendizajes con tráfico RE
 3. Comprobar que entra algo: escribir al número y ver el mensaje en la bandeja.
 
 **Síntoma que lo delata sin mirar nada más:** los mensajes que salen se quedan en «Enviado» y nunca pasan a «Entregado».
+
+### Comprobado con tráfico real (16/09/2026, 20:56)
+
+Se leyó del almacén una imagen de **1 097 KB**, se subió a Meta por bytes y se envió al número de pruebas. Los webhooks la marcaron **`sent` → `delivered` → `read`**, y el usuario confirmó haberla recibido. Es la misma imagen que minutos antes había fallado cinco veces con `131053` por el camino de la URL.
+
+El guion de comprobación se borró después: mandaba mensajes de verdad y no tiene sitio en `src/`.
