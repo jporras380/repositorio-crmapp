@@ -38,7 +38,7 @@ export interface FiltrosDeBandeja {
   canal?: string | undefined;
   /** Estado de atención DEDUCIDO (0020): nueva, por_responder, … */
   atencion?: string | undefined;
-  /** Busca por nombre del contacto, su @ o su teléfono. */
+  /** Busca por el contacto (nombre, @ o teléfono) y por el texto de sus mensajes. */
   q?: string | undefined;
   /** Rango sobre la última actividad, en ISO. */
   desde?: string | undefined;
@@ -179,13 +179,19 @@ export class BandejaService {
     if (filtros.canal) condiciones.push(`ca.channel = ${p(filtros.canal)}`);
     if (filtros.atencion) condiciones.push(`(${ESTADO_DE_ATENCION}) = ${p(filtros.atencion)}`);
     if (filtros.q) {
-      // Por el contacto, no por el contenido de los mensajes: `messages` está
-      // particionada y sin índice de texto, y un ILIKE sobre ella recorrería
-      // meses enteros. Buscar dentro de los mensajes es otro PR, con su índice.
-      const patron = `%${filtros.q.trim()}%`;
-      const i = p(patron);
+      // Dos búsquedas en una: por quién es (nombre, @ o teléfono) y por lo que
+      // se dijo. El texto de los mensajes usa el índice de 0028; sin él, un
+      // ILIKE sobre una tabla particionada recorrería meses enteros.
+      const termino = filtros.q.trim();
+      const i = p(`%${termino}%`);
+      const t = p(termino);
       condiciones.push(
-        `(co.display_name ILIKE ${i} OR ci.handle ILIKE ${i} OR co.phone ILIKE ${i})`,
+        `(co.display_name ILIKE ${i} OR ci.handle ILIKE ${i} OR co.phone ILIKE ${i}
+          OR EXISTS (
+            SELECT 1 FROM messages m
+             WHERE m.conversation_id = c.id
+               AND m.search @@ websearch_to_tsquery('spanish', ${t})
+          ))`,
       );
     }
     if (filtros.desde) {

@@ -960,3 +960,42 @@ describe('reparto automático: configuración (0026)', () => {
       .expect(403);
   });
 });
+
+describe('buscar dentro de los mensajes (0028)', () => {
+  let conv: string;
+
+  beforeAll(async () => {
+    conv = await conversacion('Rosa Buscadora', { haceHoras: 6 });
+    await admin.query(
+      `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, status)
+       VALUES ($1, $2, $3, 'inbound', 'text', $4, 'delivered')`,
+      [tenantId, conv, channelAccountId, '¿Tienen bungalow matrimonial para el 12 de julio?'],
+    );
+  });
+
+  const buscar = async (q: string) =>
+    (
+      await http.get('/v1/conversaciones').query({ q, limite: 100 }).set(auth()).expect(200)
+    ).body.items.map((i: { id: string }) => i.id);
+
+  it('encuentra por una palabra dicha en la conversación', async () => {
+    expect(await buscar('bungalow')).toContain(conv);
+  });
+
+  it('encuentra aunque la palabra esté en otra forma: reservas → reserva', async () => {
+    await admin.query(
+      `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, status)
+       VALUES ($1, $2, $3, 'outbound', 'text', 'Confirmamos tu reserva', 'sent')`,
+      [tenantId, conv, channelAccountId],
+    );
+    expect(await buscar('reservas')).toContain(conv);
+  });
+
+  it('sigue encontrando por el nombre del contacto', async () => {
+    expect(await buscar('Buscadora')).toContain(conv);
+  });
+
+  it('lo que nadie dijo no aparece', async () => {
+    expect(await buscar('helicoptero')).not.toContain(conv);
+  });
+});

@@ -259,7 +259,7 @@ export interface FiltrosDeBandeja {
   sinRespuesta?: boolean | undefined;
   /** Estado de atención, deducido por el servidor (0020). */
   atencion?: string | undefined;
-  /** Busca por nombre del contacto, su @ o su teléfono. */
+  /** Busca por el contacto (nombre, @ o teléfono) y por lo que se dijo en la conversación. */
   q?: string | undefined;
   desde?: string | undefined;
   hasta?: string | undefined;

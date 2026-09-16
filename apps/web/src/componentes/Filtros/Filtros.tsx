@@ -109,7 +109,7 @@ export function Filtros({
         <input
           className={estilos.buscar}
           type="search"
-          placeholder="Buscar por cliente o teléfono…"
+          placeholder="Buscar por cliente, teléfono o lo que se dijo…"
           aria-label="Buscar conversaciones"
           value={filtros.q ?? ''}
           onChange={(e) => alCambiar({ ...filtros, q: e.target.value || undefined })}

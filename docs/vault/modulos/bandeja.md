@@ -35,7 +35,7 @@ La definición vive **en un sitio** —una constante SQL que se usa para devolve
 
 El usuario pidió «un menú desplegable como el de Kommo, pero mucho mejor». Lo que se hizo:
 
-- **Búsqueda siempre visible**, sin abrir nada: por nombre del contacto, su @ o su teléfono. **No busca dentro de los mensajes**: `messages` está particionada y sin índice de texto, y un `ILIKE` ahí recorrería meses. Buscar en el contenido es otro PR, con su índice.
+- **Búsqueda siempre visible**, sin abrir nada: por nombre del contacto, su @, su teléfono **y por lo que se dijo dentro de la conversación** (PR-51, abajo).
 - **Panel de filtros** con estado de atención, responsable, **etapa del embudo** y rango de fechas. El botón muestra cuántos hay puestos: un filtro invisible es el que confunde.
 - **Vistas guardadas por agente**: un filtro con nombre. Se guardan como JSON con los mismos parámetros que entiende la lista, así que añadir un filtro nuevo no obliga a tocar nada. Son del agente y no de la cuenta: su forma de trabajar, no una configuración del hotel.
 - Guardar dos veces con el mismo nombre **actualiza** en vez de fallar, que es lo que espera quien ajusta un filtro y vuelve a pulsar «Guardar».
@@ -57,10 +57,12 @@ No son mensajes: no pasan por la puerta de envío, no tocan la ventana de 24 h y
 
 ## Lo que falta
 
-- **Tiempo real.** Hoy se sondea cada 10 s. Es la deuda más visible de esta pantalla.
-- **Buscar dentro de los mensajes**, con su índice.
 - Compartir vistas entre el equipo (hoy son de cada agente).
-- Reparto automático y horario comercial: las tablas `teams` y `business_hours` siguen sin usarse.
+- Equipos: `teams` y `team_members` siguen sin usarse. El reparto de PR-46 reparte
+  entre todos los que aceptan asignación, no por equipo.
+
+Ya no están aquí: el tiempo real (PR-49, `pg_notify` + SSE), el horario de
+atención (PR-47) y el reparto automático (PR-46).
 
 ## Cambiar el nombre del contacto (PR-41, 2026-09-15)
 
@@ -104,3 +106,45 @@ Ajustes → Horario. `business_hours` existía desde la fase 0 sin usarla nadie;
 - **El aviso es lo ÚNICO que el CRM envía por su cuenta** sin bot ni agente: apagado por defecto, con el texto que escribe el hotel, y **una vez cada seis horas por conversación** (`conversations.out_of_hours_reply_at`). Sin ese límite, diez mensajes de madrugada serían diez avisos.
 - Sale por la misma puerta que todo, con `origen: 'bot'`; si la ventana está cerrada o la suscripción no deja, no se fuerza nada y el mensaje del cliente ya quedó guardado.
 - Migración 0027.
+
+## Buscar dentro de los mensajes (PR-51, 2026-09-16)
+
+Escribir «bungalow» en la búsqueda ahora encuentra la conversación donde alguien
+dijo esa palabra, no solo los contactos que se llamen así. La misma caja busca
+las dos cosas: **quién es** (nombre, @ o teléfono) **y qué se dijo**.
+
+### Cómo está hecho
+
+Migración `0028`: una columna generada `messages.search tsvector` con
+`to_tsvector('spanish', body)` y un índice GIN `(tenant_id, search)`. La consulta
+de la bandeja añade un `EXISTS` sobre `messages` con
+`search @@ websearch_to_tsquery('spanish', $q)`.
+
+### Las tres decisiones y su precio
+
+- **Columna generada, no índice sobre la expresión.** Un índice sobre
+  `to_tsvector(...)` solo se usa si la consulta repite la expresión letra por
+  letra; una diferencia y PostgreSQL lo ignora *en silencio*, que es la peor
+  forma de fallar. Precio: la columna ocupa disco.
+- **Diccionario `spanish`, no `simple`.** Así «reservas» encuentra «reserva» y
+  «reservar», que es como escribe la gente. Precio: un mensaje en inglés se
+  encuentra por su palabra exacta, no por su raíz. Para un hotel que atiende en
+  español, el cambio vale.
+- **`btree_gin` para meter `tenant_id` en el mismo índice.** Sin la extensión
+  harían falta dos índices y un cruce. La migración crea la extensión ella misma
+  —lección aprendida: si la creé a mano en mi máquina, la migración miente.
+- **GIN pesa al escribir.** Cada mensaje entrante paga un poco más. A este
+  volumen no se nota; si algún día se notara, la salida es indexar solo los
+  últimos N meses con un índice parcial.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Abrir la bandeja y escribir en la búsqueda una palabra que aparezca dentro de
+   una conversación (no el nombre del contacto).
+2. Aparece la conversación. Abrirla y comprobar que la palabra está en el hilo.
+3. Escribir una palabra que nadie haya dicho: la lista queda vacía.
+
+Cubierto por `apps/api/test/bandeja.e2e.test.ts` → «buscar dentro de los
+mensajes (0028)»: por palabra dicha, por otra forma de la palabra
+(«reservas» → «reserva»), por nombre del contacto, y lo que nadie dijo no
+aparece.

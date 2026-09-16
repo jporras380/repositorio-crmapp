@@ -38,6 +38,11 @@ const citext = customType<{ data: string; driverData: string }>({
   dataType: () => 'citext',
 });
 
+/** `tsvector` para buscar dentro del texto de los mensajes (migración 0028). */
+const tsvector = customType<{ data: string; driverData: string }>({
+  dataType: () => 'tsvector',
+});
+
 const creado = timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const actualizado = timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
 
@@ -327,6 +332,8 @@ export const messages = pgTable(
     aiGenerated: boolean('ai_generated').notNull().default(false),
     waTemplateVersionId: uuid('wa_template_version_id'),
     quickReplyVersionId: uuid('quick_reply_version_id'),
+    // La calcula PostgreSQL desde `body` (columna generada): nadie la escribe.
+    search: tsvector('search'),
     createdAt: creado,
   },
   // La clave primaria incluye la columna de partición porque PostgreSQL lo
