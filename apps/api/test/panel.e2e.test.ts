@@ -27,7 +27,7 @@ let token: string;
 let tokenAjeno: string;
 let tenantId: string;
 let ca: string;
-const ahora = new Date();
+let ahora = new Date();
 
 async function alta(slug: string) {
   const r = await http
@@ -216,5 +216,56 @@ describe('GET /v1/panel', () => {
 
   it('sin sesión → 401', async () => {
     await http.get('/v1/panel').expect(401);
+  });
+
+  describe('«hoy» es el día del hotel, no el del servidor', () => {
+    /** 00:30 UTC del 17 = 19:30 del 16 en Lima. Mismo día para el hotel. */
+    const nocheEnLima = new Date('2026-09-17T00:30:00Z');
+    /** 20:00 UTC del 16 = 15:00 del 16 en Lima: la tarde del MISMO día. */
+    const tardeEnLima = new Date('2026-09-16T20:00:00Z');
+    const original = ahora;
+
+    afterAll(async () => {
+      ahora = original;
+      await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+      await admin.query(`DELETE FROM messages WHERE created_at = $1`, [tardeEnLima]);
+    });
+
+    const conZona = async (tz: string) => {
+      await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+      await admin.query(
+        `INSERT INTO business_hours (tenant_id, timezone, schedule) VALUES ($1, $2, '{}'::jsonb)`,
+        [tenantId, tz],
+      );
+    };
+
+    const actividadDe = async (canal: string) => {
+      const r = await http.get('/v1/panel').set(auth()).expect(200);
+      const fila = (r.body.actividadHoy as { canal: string; entrantes: number }[]).find(
+        (f) => f.canal === canal,
+      );
+      return fila?.entrantes ?? 0;
+    };
+
+    it('a las 19:30 de Lima sigue contando lo de esa misma tarde', async () => {
+      // Con el día UTC, a esa hora el panel ya se había puesto a cero y decía
+      // que no se había atendido a nadie, con el equipo trabajando.
+      await conZona('America/Lima');
+      ahora = nocheEnLima;
+      const conv = await conversacion({ nombre: 'DeLaTarde' });
+      await admin.query(
+        `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, status, created_at)
+         VALUES ($1, $2, $3, 'inbound', 'text', 'de la tarde', 'delivered', $4)`,
+        [tenantId, conv, ca, tardeEnLima],
+      );
+      expect(await actividadDe('whatsapp')).toBeGreaterThanOrEqual(1);
+    });
+
+    it('sin horario configurado se usa UTC: nunca se inventa una zona horaria', async () => {
+      await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+      ahora = nocheEnLima;
+      // Para UTC ya es el día 17, así que lo de las 20:00 del 16 no cuenta.
+      expect(await actividadDe('whatsapp')).toBe(0);
+    });
   });
 });

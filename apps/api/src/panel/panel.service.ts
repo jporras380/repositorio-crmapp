@@ -23,6 +23,18 @@ import {
 
 export type ClaveDePeriodo = '24h' | '7d' | '30d';
 
+/**
+ * Comienzo del día **en la zona del hotel**, como `timestamptz`.
+ *
+ * El rodeo `AT TIME ZONE` dos veces no es adorno: el primero lleva el instante
+ * a la hora local, `date_trunc` corta ahí el día, y el segundo lo devuelve a
+ * instante. Sin eso, `date_trunc('day', ...)` corta por la zona del SERVIDOR
+ * —UTC—, que en Lima empieza el día a las 19:00 de la tarde anterior.
+ *
+ * `$1` es el instante y `$2` la zona horaria.
+ */
+const INICIO_DEL_DIA = `(date_trunc('day', $1::timestamptz AT TIME ZONE $2) AT TIME ZONE $2)`;
+
 const DURACION: Record<ClaveDePeriodo, number> = {
   '24h': 1,
   '7d': 7,
@@ -34,10 +46,12 @@ const DURACION: Record<ClaveDePeriodo, number> = {
  *
  * Tres decisiones que cambian lo que se lee:
  *
- * - **Ventanas móviles, no «hoy» ni «esta semana».** «Hoy» exige saber la
- *   zona horaria del hotel, que no se guarda; con el día UTC, a las 20:00 en
- *   Lima el informe de «hoy» ya estaría vacío. «Últimas 24 horas» significa
- *   lo mismo en cualquier sitio.
+ * - **Ventanas móviles en el informe del periodo.** «Últimas 24 horas»
+ *   significa lo mismo en cualquier sitio, y para comparar periodos es lo
+ *   correcto. Donde el panel sí dice «hoy» —cerradas hoy, actividad de hoy—
+ *   el día es el DEL HOTEL, con su zona horaria (0027). Hasta PR-59 era el
+ *   día UTC: en Lima, a las 19:00 de la tarde el panel se ponía a cero y
+ *   decía que no se había atendido a nadie, con el equipo trabajando.
  * - **Mediana y percentil 90, no media.** El encargo dice «tiempo promedio»,
  *   pero una conversación olvidada un fin de semana dispara la media y deja
  *   de describir al equipo. La mediana dice el día normal; el p90, cuánto
@@ -284,6 +298,13 @@ export class PanelService {
     const ahora = this.#ahora();
 
     return this.#db.enTransaccion(async (c) => {
+      // El día del hotel, no el del servidor. Sin horario configurado se usa
+      // UTC, que es lo que había antes: nunca se inventa una zona horaria.
+      const { rows: zona } = await c.query<{ timezone: string }>(
+        `SELECT timezone FROM business_hours WHERE team_id IS NULL LIMIT 1`,
+      );
+      const tz = zona[0]?.timezone ?? 'UTC';
+
       const estado = await c.query<{
         sin_responder: string;
         ventanas_por_cerrar: string;
@@ -307,10 +328,10 @@ export class PanelService {
              AS sin_asignar,
            count(*) FILTER (WHERE status = 'open') AS abiertas,
            count(*) FILTER (WHERE status = 'pending') AS pendientes,
-           count(*) FILTER (WHERE status = 'closed' AND closed_at >= date_trunc('day', $1::timestamptz))
+           count(*) FILTER (WHERE status = 'closed' AND closed_at >= ${INICIO_DEL_DIA})
              AS cerradas_hoy
          FROM conversations c`,
-        [ahora],
+        [ahora, tz],
       );
 
       const actividad = await c.query<{ canal: string; entrantes: string; salientes: string }>(
@@ -319,10 +340,10 @@ export class PanelService {
                 count(*) FILTER (WHERE m.direction = 'outbound') AS salientes
            FROM messages m
            JOIN channel_accounts ca ON ca.id = m.channel_account_id
-          WHERE m.created_at >= date_trunc('day', $1::timestamptz)
+          WHERE m.created_at >= ${INICIO_DEL_DIA}
           GROUP BY ca.channel
           ORDER BY ca.channel`,
-        [ahora],
+        [ahora, tz],
       );
 
       // Mediana y no media: una conversación olvidada un fin de semana

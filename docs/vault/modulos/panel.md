@@ -46,3 +46,29 @@ Casi todo son cifras sueltas, no gráficos: un número con su etiqueta se lee en
 
 - Tendencias (comparar con el periodo anterior) y exportar el informe.
 - Tiempo de primera respuesta por agente: `first_response_at` no guarda quién respondió.
+
+## «Hoy» es el día del hotel, no el del servidor (PR-59, 2026-09-16)
+
+Salió de una frase del usuario: «son las 16:02 pm hora Perú», cuando yo venía leyendo horas del servidor y llamándolas suyas. El servidor va en UTC; Perú es UTC−5. El CRM cometía el mismo error donde sí importa.
+
+`cerradasHoy` y `actividadHoy` usaban `date_trunc('day', ...)`, que corta el día **en la zona del servidor**. Para el hotel, «hoy» empezaba a las **19:00 de la tarde anterior**: todas las tardes, a partir de esa hora, el panel se ponía a cero y decía que no se había atendido a nadie — con el equipo trabajando.
+
+Lo más interesante es por qué estaba así. El comentario del propio archivo lo explicaba: «"Hoy" exige saber la zona horaria del hotel, **que no se guarda**». Era cierto cuando se escribió. Desde PR-47 (migración 0027) **sí se guarda**, y nadie volvió a mirar el comentario. Una limitación documentada que caducó y se quedó.
+
+### Cómo queda
+
+`(date_trunc('day', $1::timestamptz AT TIME ZONE $2) AT TIME ZONE $2)`. El rodeo doble no es adorno: el primero lleva el instante a la hora local, `date_trunc` corta ahí, el segundo lo devuelve a instante.
+
+- **Sin horario configurado se usa UTC**, que es lo que había. Nunca se inventa una zona horaria: una cifra silenciosamente movida cinco horas es peor que una cifra que se sabe en UTC.
+- **El informe del periodo no cambia**: sigue con ventanas móviles («últimas 24 h»), que significan lo mismo en cualquier sitio y son lo correcto para comparar periodos.
+
+### Lo que NO cubre
+
+El periodo de **facturación** sigue cortándose en UTC (`inicioDePeriodo`). Con cobro por asiento el impacto es mínimo —se cuentan asientos, no eventos—, pero si algún día se cobra por uso habrá que mirarlo: lo consumido en las últimas cinco horas del mes cae en el mes siguiente.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Ajustes → Horario, con la zona del hotel puesta.
+2. Después de las 19:00 hora local, abrir el panel: «actividad de hoy» sigue contando lo de esa tarde.
+
+Cubierto por dos tests con el reloj fijado a las 00:30 UTC (19:30 en Lima): con zona configurada cuenta lo de la tarde; sin ella, se comporta como antes.
