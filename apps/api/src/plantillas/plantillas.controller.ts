@@ -44,6 +44,20 @@ function validar<T>(esquema: z.ZodType<T, z.ZodTypeDef, unknown>, datos: unknown
   return r.data;
 }
 
+const NuevaPlantilla = z.object({
+  nombre: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9_]{1,512}$/, 'minúsculas, números y guion bajo'),
+  idioma: z.string().trim().min(2).max(10),
+  categoria: z.enum(['MARKETING', 'UTILITY', 'AUTHENTICATION']),
+  encabezado: z.string().max(60).optional(),
+  cuerpo: z.string().min(1).max(1024),
+  pie: z.string().max(60).optional(),
+  botones: z.array(z.string().min(1).max(25)).max(3).optional(),
+  ejemplos: z.array(z.string().max(200)).max(20).optional(),
+});
+
 type Req = { contexto?: unknown };
 
 @Controller('v1/canales/:id/plantillas')
@@ -56,11 +70,26 @@ export class PlantillasWhatsappController {
     return conContextoDePeticion(req, () => this.plantillas.listarWhatsapp(id));
   }
 
+  /** Crea la plantilla en Meta y la deja en revisión. Devuelve los avisos. */
+  @Post()
+  @HttpCode(201)
+  crear(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const d = validar(NuevaPlantilla, body);
+    return conContextoDePeticion(req, () => this.plantillas.crearWhatsapp(id, d));
+  }
+
   /** Trae el estado real de Meta. 200 con el recuento; el estado no se inventa aquí. */
   @Post('sincronizar')
   @HttpCode(200)
   sincronizar(@Req() req: Req, @Param('id') id: string) {
     return conContextoDePeticion(req, () => this.plantillas.sincronizar(id));
+  }
+
+  /** La borra en Meta; aquí queda deshabilitada, no se pierde el historial. */
+  @Delete(':plantillaId')
+  @HttpCode(204)
+  async borrar(@Req() req: Req, @Param('plantillaId') plantillaId: string) {
+    await conContextoDePeticion(req, () => this.plantillas.borrarWhatsapp(plantillaId));
   }
 }
 

@@ -77,6 +77,7 @@ import { IaController } from './ia/ia.controller.js';
 import { HorarioService } from './horario/horario.service.js';
 import { HorarioController } from './horario/horario.controller.js';
 import { clienteAnthropic, type ClienteDeIa } from './ia/cliente-de-ia.js';
+import type { EditorDePlantillasDeMeta } from './plantillas/editor-de-meta.js';
 
 export interface OpcionesDeApp {
   databaseUrl: string;
@@ -102,6 +103,10 @@ export interface OpcionesDeApp {
   descubridor?: DescubridorDeMeta;
   /** Proveedor de IA (Anthropic con la clave del hotel). Se inyecta en tests. */
   clienteDeIa?: ClienteDeIa;
+  /** Crea y borra plantillas HSM en Meta. Se inyecta en tests. */
+  editorDePlantillas?: EditorDePlantillasDeMeta;
+  /** Resolver de credenciales de WABA. Se inyecta en tests. */
+  credencialesWhatsapp?: (id: string) => Promise<{ wabaId: string; accessToken: string }>;
   /**
    * Sandbox en vez de canal real. Solo para tests y demos sin Meta. En
    * producción el valor por defecto es el adaptador real de WhatsApp.
@@ -265,11 +270,18 @@ export class AppModule {
         },
         {
           provide: TOKEN_PLANTILLAS,
-          inject: [TOKEN_DB, TOKEN_ADAPTADORES],
-          useFactory: (db: BaseDeDatos, adaptadores: Map<string, ChannelAdapter>) =>
+          inject: [TOKEN_DB, TOKEN_ADAPTADORES, TOKEN_CANALES],
+          useFactory: (
+            db: BaseDeDatos,
+            adaptadores: Map<string, ChannelAdapter>,
+            canales: CanalesService,
+          ) =>
             new PlantillasService({
               db,
               canales: adaptadores,
+              credencialesWhatsapp:
+                opciones.credencialesWhatsapp ?? canales.resolverCredencialesWhatsapp,
+              ...(opciones.editorDePlantillas ? { editor: opciones.editorDePlantillas } : {}),
               ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
             }),
         },

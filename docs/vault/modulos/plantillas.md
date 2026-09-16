@@ -39,3 +39,14 @@ pnpm --filter @crmapp/db test       # deriva del esquema y reversa de 0012
 - Editor de HSM (crear y enviar a revisión desde el CRM: `POST /{waba}/message_templates`) con `category_declared`, `components` y avisos sin bloquear.
 - Paginación de `syncTemplates` (>100 plantillas) — toca el adaptador real, no el contrato.
 - Aviso en la bandeja al recibir `plantilla.actualizada` (WebSocket, fase de web).
+
+## Editor de plantillas (PR-48, 2026-09-16)
+
+Hasta aquí las plantillas solo se sincronizaban: crearlas era ir al panel de Meta. Ahora se crean y se borran desde Ajustes → Plantillas.
+
+- **El contrato `ChannelAdapter` no se tocó** (lista de parada). Crear plantillas es gestión de la WABA, no envío por un canal: vive en `apps/api/src/plantillas/editor-de-meta.ts`, como el descubridor de cuentas. Endpoints documentados: `POST /{waba}/message_templates` y `DELETE …?name=&hsm_id=`.
+- **Valida antes de gastar un intento.** Cada envío a Meta es una espera de revisión, así que lo que Meta rechaza SIEMPRE por forma —nombre con mayúsculas, variable sin ejemplo, variables con saltos— es **error** y no sale de aquí. Lo que suele rechazar —enlaces acortados, variable pegada al borde, promoción declarada como utilidad— es **aviso**: se advierte y se deja intentar, porque quien aprueba es Meta ([[whatsapp]] §Causas frecuentes de rechazo). La regla vive en `core/plantillas.ts` y la usan el servidor y la pantalla.
+- **La categoría efectiva es la que devuelve Meta al crearla**, no la declarada: es la que determina el costo, y confundirlas es facturar mal.
+- **Borrar no borra la fila**: la quita de Meta y aquí queda `deshabilitada`. Los mensajes enviados apuntan a su versión; perderla sería perder el historial de lo que se le dijo a un huésped.
+- Un canal sin token conectado responde 409 con qué hacer, no un error 500.
+- **Sin probar contra Meta real:** hace falta una WABA con permiso de gestión.

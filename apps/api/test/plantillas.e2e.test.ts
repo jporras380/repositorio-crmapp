@@ -16,6 +16,7 @@ import { migrar } from '@crmapp/db';
 import { AdaptadorSandbox, type ChannelAdapter } from '@crmapp/channels';
 import { AppModule } from '../src/app.module.js';
 import { FiltroDeErrores } from '../src/errores.js';
+import { ErrorDeNegocio } from '../src/auth/auth.service.js';
 
 const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
 const PORT = process.env['TEST_PG_PORT'] ?? '55432';
@@ -31,6 +32,8 @@ let token: string;
 let tokenAjeno: string;
 let tenantId: string;
 let channelAccountId: string;
+const creadas: { nombre: string; categoria: string; componentes: unknown[] }[] = [];
+const borradas: string[] = [];
 
 const sandbox = new AdaptadorSandbox({
   canal: 'whatsapp',
@@ -118,6 +121,24 @@ beforeAll(async () => {
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
       canales: new Map<string, ChannelAdapter>([['whatsapp', sandbox]]),
+      credencialesWhatsapp: async () => ({ wabaId: 'WABA-TEST', accessToken: 'token-de-prueba' }),
+      // Editor falso: registra lo que se manda a Meta y rechaza un nombre.
+      editorDePlantillas: {
+        crear: async (p) => {
+          creadas.push(p);
+          if (p.nombre.includes('prohibida')) {
+            throw new ErrorDeNegocio(
+              'plantilla_rechazada_por_meta',
+              'Meta no aceptó la plantilla: nombre no permitido.',
+              422,
+            );
+          }
+          return { metaTemplateId: 'meta-1', estado: 'PENDING', categoriaEfectiva: 'MARKETING' };
+        },
+        borrar: async (p) => {
+          borradas.push(p.nombre);
+        },
+      },
     }),
     { logger: false, rawBody: true },
   );
@@ -387,5 +408,130 @@ describe('respuestas rápidas: versiones y envío', () => {
       .set(auth())
       .send({ atajo: '/gracias', titulo: 'Gracias 3', cuerpo: 'Gracias.' })
       .expect(201);
+  });
+});
+
+describe('editor de plantillas: crear y borrar en Meta', () => {
+  let creadaId: string;
+
+  it('valida antes de gastar un intento: una variable sin ejemplo ni llega a Meta', async () => {
+    const antes = creadas.length;
+    const r = await http
+      .post(`/v1/canales/${channelAccountId}/plantillas`)
+      .set(auth())
+      .send({
+        nombre: 'sin_ejemplo',
+        idioma: 'es',
+        categoria: 'UTILITY',
+        cuerpo: 'Hola {{1}}, tu reserva está lista.',
+      })
+      .expect(422);
+    expect(r.body.codigo).toBe('plantilla_invalida');
+    expect(creadas).toHaveLength(antes);
+  });
+
+  it('crea la plantilla en Meta con sus componentes y la deja en revisión', async () => {
+    const r = await http
+      .post(`/v1/canales/${channelAccountId}/plantillas`)
+      .set(auth())
+      .send({
+        nombre: 'confirmacion_reserva',
+        idioma: 'es',
+        categoria: 'UTILITY',
+        cuerpo: 'Hola {{1}}, confirmamos tu reserva del {{2}}.',
+        pie: 'El Paraíso de Barranca',
+        botones: ['Ver detalles'],
+        ejemplos: ['Rosa', '12 de julio'],
+      })
+      .expect(201);
+    creadaId = r.body.id;
+    expect(r.body.estado).toBe('PENDING');
+
+    const enviada = creadas.at(-1)!;
+    expect(enviada.componentes).toEqual([
+      {
+        type: 'BODY',
+        text: 'Hola {{1}}, confirmamos tu reserva del {{2}}.',
+        example: { body_text: [['Rosa', '12 de julio']] },
+      },
+      { type: 'FOOTER', text: 'El Paraíso de Barranca' },
+      { type: 'BUTTONS', buttons: [{ type: 'QUICK_REPLY', text: 'Ver detalles' }] },
+    ]);
+
+    const lista = await http
+      .get(`/v1/canales/${channelAccountId}/plantillas`)
+      .set(auth())
+      .expect(200);
+    const creada = lista.body.find((p: { id: string }) => p.id === creadaId);
+    // La categoría EFECTIVA es la que fija Meta, no la declarada: es la que cobra.
+    expect(creada).toMatchObject({
+      estado: 'en_revision',
+      categoriaDeclarada: 'UTILITY',
+      categoriaEfectiva: 'MARKETING',
+    });
+  });
+
+  it('los avisos se devuelven, pero no impiden crearla', async () => {
+    const r = await http
+      .post(`/v1/canales/${channelAccountId}/plantillas`)
+      .set(auth())
+      .send({
+        nombre: 'promo_julio',
+        idioma: 'es',
+        categoria: 'UTILITY',
+        cuerpo: 'Aprovecha nuestro descuento de julio en bit.ly/hotel',
+      })
+      .expect(201);
+    expect(r.body.avisos.map((a: { codigo: string }) => a.codigo)).toEqual(
+      expect.arrayContaining(['enlace_acortado', 'promocional_como_utility']),
+    );
+  });
+
+  it('el mismo nombre e idioma no se crea dos veces', async () => {
+    const r = await http
+      .post(`/v1/canales/${channelAccountId}/plantillas`)
+      .set(auth())
+      .send({
+        nombre: 'confirmacion_reserva',
+        idioma: 'es',
+        categoria: 'UTILITY',
+        cuerpo: 'Otra cosa.',
+      })
+      .expect(409);
+    expect(r.body.codigo).toBe('plantilla_repetida');
+  });
+
+  it('si Meta la rechaza, se dice su motivo y no queda nada guardado', async () => {
+    const r = await http
+      .post(`/v1/canales/${channelAccountId}/plantillas`)
+      .set(auth())
+      .send({
+        nombre: 'plantilla_prohibida',
+        idioma: 'es',
+        categoria: 'UTILITY',
+        cuerpo: 'Texto cualquiera.',
+      })
+      .expect(422);
+    expect(r.body.mensaje).toContain('Meta no aceptó');
+    const lista = await http
+      .get(`/v1/canales/${channelAccountId}/plantillas`)
+      .set(auth())
+      .expect(200);
+    expect(lista.body.some((p: { nombre: string }) => p.nombre === 'plantilla_prohibida')).toBe(
+      false,
+    );
+  });
+
+  it('borrarla la quita de Meta y aquí queda deshabilitada, no borrada', async () => {
+    await http
+      .delete(`/v1/canales/${channelAccountId}/plantillas/${creadaId}`)
+      .set(auth())
+      .expect(204);
+    expect(borradas).toContain('confirmacion_reserva');
+    const lista = await http
+      .get(`/v1/canales/${channelAccountId}/plantillas`)
+      .set(auth())
+      .expect(200);
+    expect(lista.body.find((p: { id: string }) => p.id === creadaId).estado).toBe('deshabilitada');
   });
 });

@@ -9,11 +9,25 @@
 import type { PoolClient } from 'pg';
 import { ErrorDeCanal, type ChannelAdapter, type PlantillaSincronizada } from '@crmapp/channels';
 import { contextoActual, type BaseDeDatos } from '../db.js';
+import {
+  componentesDePlantilla,
+  validarPlantilla,
+  type BorradorDePlantilla,
+  type ProblemaDePlantilla,
+} from '@crmapp/core';
+import { editorGraph, type EditorDePlantillasDeMeta } from './editor-de-meta.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 
 export interface OpcionesDePlantillas {
   db: BaseDeDatos;
   canales: Map<string, Pick<ChannelAdapter, 'syncTemplates'>>;
+  /** Credenciales de la WABA para crear o borrar plantillas en Meta. */
+  credencialesWhatsapp?: (channelAccountId: string) => Promise<{
+    wabaId: string;
+    accessToken: string;
+  }>;
+  /** Editor de plantillas en Meta. Se inyecta en tests. */
+  editor?: EditorDePlantillasDeMeta;
   ahora?: () => Date;
 }
 
@@ -58,12 +72,162 @@ const KINDS_ADJUNTABLES = new Set(['image', 'video', 'audio', 'document']);
 export class PlantillasService {
   readonly #db: BaseDeDatos;
   readonly #canales: OpcionesDePlantillas['canales'];
+  readonly #credenciales: OpcionesDePlantillas['credencialesWhatsapp'];
+  readonly #editor: EditorDePlantillasDeMeta;
   readonly #ahora: () => Date;
 
   constructor(o: OpcionesDePlantillas) {
     this.#db = o.db;
     this.#canales = o.canales;
+    this.#credenciales = o.credencialesWhatsapp;
+    this.#editor = o.editor ?? editorGraph();
     this.#ahora = o.ahora ?? (() => new Date());
+  }
+
+  /**
+   * Crea la plantilla en Meta y la guarda `en_revision`.
+   *
+   * La valida ANTES de llamar (packages/core): lo que Meta rechazaría siempre
+   * —nombre con mayúsculas, variable sin ejemplo— no se envía, porque cada
+   * intento cuesta una espera de revisión. Los avisos no frenan: aprueba Meta.
+   *
+   * La categoría que queda guardada como efectiva es la que devuelve Meta, no
+   * la declarada: es la que determina el costo (ARCH §5.6).
+   */
+  async crearWhatsapp(
+    channelAccountId: string,
+    borrador: BorradorDePlantilla,
+  ): Promise<{ id: string; estado: string; avisos: ProblemaDePlantilla[] }> {
+    const ctx = this.#exigirGestor();
+    const problemas = validarPlantilla(borrador);
+    const errores = problemas.filter((p) => p.nivel === 'error');
+    if (errores.length > 0) {
+      throw new ErrorDeNegocio('plantilla_invalida', errores[0]!.mensaje, 422, { errores });
+    }
+    const cred = await this.#credencialesDe(channelAccountId);
+
+    // Antes de gastar la llamada: si ya existe ese nombre e idioma, Meta la
+    // rechazaría y el usuario no sabría por qué.
+    await this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query(
+        `SELECT 1 FROM wa_templates
+          WHERE channel_account_id = $1 AND name = $2 AND language = $3`,
+        [channelAccountId, borrador.nombre, borrador.idioma],
+      );
+      if (rows.length > 0) {
+        throw new ErrorDeNegocio(
+          'plantilla_repetida',
+          `Ya existe una plantilla «${borrador.nombre}» en ${borrador.idioma}.`,
+          409,
+        );
+      }
+    });
+
+    const componentes = componentesDePlantilla(borrador);
+    // Red fuera de la transacción.
+    const creada = await this.#editor.crear({
+      wabaId: cred.wabaId,
+      accessToken: cred.accessToken,
+      nombre: borrador.nombre,
+      idioma: borrador.idioma,
+      categoria: borrador.categoria,
+      componentes,
+    });
+
+    const ahora = this.#ahora();
+    const id = await this.#db.enTransaccion(async (c) => {
+      const id = await this.#db.nuevoId(c);
+      const versionId = await this.#db.nuevoId(c);
+      await c.query(
+        `INSERT INTO wa_templates
+           (id, tenant_id, channel_account_id, name, language, category_declared,
+            category_effective, status, meta_template_id, last_synced_at, current_version_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'en_revision', $8, $9, $10)`,
+        [
+          id,
+          ctx.tenantId,
+          channelAccountId,
+          borrador.nombre,
+          borrador.idioma,
+          borrador.categoria,
+          creada.categoriaEfectiva,
+          creada.metaTemplateId,
+          ahora,
+          versionId,
+        ],
+      );
+      await c.query(
+        `INSERT INTO wa_template_versions
+           (id, tenant_id, template_id, version, components, example_params, status,
+            meta_template_id, submitted_at)
+         VALUES ($1, $2, $3, 1, $4, $5, 'en_revision', $6, $7)`,
+        [
+          versionId,
+          ctx.tenantId,
+          id,
+          JSON.stringify(componentes),
+          JSON.stringify(borrador.ejemplos ?? []),
+          creada.metaTemplateId,
+          ahora,
+        ],
+      );
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'plantilla.creada', 'wa_template', $3, $4)`,
+        [
+          ctx.tenantId,
+          ctx.userId,
+          id,
+          JSON.stringify({ nombre: borrador.nombre, idioma: borrador.idioma }),
+        ],
+      );
+      return id;
+    });
+
+    return { id, estado: creada.estado, avisos: problemas.filter((p) => p.nivel === 'aviso') };
+  }
+
+  /**
+   * La borra en Meta y la marca `deshabilitada` aquí. No se borra la fila:
+   * los mensajes ya enviados apuntan a su versión, y perder eso sería perder
+   * el historial de lo que se le dijo a un huésped.
+   */
+  async borrarWhatsapp(templateId: string): Promise<void> {
+    const ctx = this.#exigirGestor();
+    const plantilla = await this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{
+        name: string;
+        channel_account_id: string;
+        meta_template_id: string | null;
+        status: string;
+      }>(
+        `SELECT name, channel_account_id, meta_template_id, status
+           FROM wa_templates WHERE id = $1`,
+        [templateId],
+      );
+      if (!rows[0]) {
+        throw new ErrorDeNegocio('plantilla_no_encontrada', 'La plantilla no existe.', 404);
+      }
+      return rows[0];
+    });
+    const cred = await this.#credencialesDe(plantilla.channel_account_id);
+    await this.#editor.borrar({
+      wabaId: cred.wabaId,
+      accessToken: cred.accessToken,
+      nombre: plantilla.name,
+      ...(plantilla.meta_template_id ? { metaTemplateId: plantilla.meta_template_id } : {}),
+    });
+    await this.#db.enTransaccion(async (c) => {
+      await c.query(
+        `UPDATE wa_templates SET status = 'deshabilitada', updated_at = now() WHERE id = $1`,
+        [templateId],
+      );
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'plantilla.borrada', 'wa_template', $3, $4)`,
+        [ctx.tenantId, ctx.userId, templateId, JSON.stringify({ nombre: plantilla.name })],
+      );
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -395,6 +559,32 @@ export class PlantillasService {
         );
       }
       throw error;
+    }
+  }
+
+  /**
+   * Credenciales de la WABA. Un canal sin token conectado es un caso normal
+   * —se desconectó, o caducó— y merece un mensaje, no un error 500.
+   */
+  async #credencialesDe(
+    channelAccountId: string,
+  ): Promise<{ wabaId: string; accessToken: string }> {
+    if (!this.#credenciales) {
+      throw new ErrorDeNegocio(
+        'canal_no_soportado',
+        'Esta instalación no puede gestionar plantillas en Meta.',
+        503,
+      );
+    }
+    try {
+      return await this.#credenciales(channelAccountId);
+    } catch (error) {
+      if (error instanceof ErrorDeNegocio) throw error;
+      throw new ErrorDeNegocio(
+        'canal_sin_credenciales',
+        'Ese número no tiene credenciales conectadas. Conéctalo o renueva su token en Ajustes → Canales.',
+        409,
+      );
     }
   }
 

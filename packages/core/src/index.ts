@@ -6,3 +6,4 @@ export * from './ventanas.js';
 export * from './tarifas.js';
 export * from './reservas.js';
 export * from './horario.js';
+export * from './plantillas.js';

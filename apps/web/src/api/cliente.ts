@@ -15,6 +15,8 @@ import type {
   EtiquetaConUso,
   ConfiguracionDeReparto,
   HorarioDeAtencion,
+  BorradorDePlantilla,
+  ProblemaDePlantilla,
   DescubrimientoWhatsapp,
   AccionDeReserva,
   CatalogoDeHotel,
@@ -263,6 +265,16 @@ export function crearApi(token: string | null) {
       }),
     plantillasDeCanal: (channelAccountId: string) =>
       peticion<PlantillaDeWhatsapp[]>(`/v1/canales/${channelAccountId}/plantillas`, t),
+    crearPlantilla: (channelAccountId: string, borrador: BorradorDePlantilla) =>
+      peticion<{ id: string; estado: string; avisos: ProblemaDePlantilla[] }>(
+        `/v1/canales/${channelAccountId}/plantillas`,
+        { ...t, metodo: 'POST', cuerpo: borrador },
+      ),
+    borrarPlantilla: (channelAccountId: string, plantillaId: string) =>
+      peticion<void>(`/v1/canales/${channelAccountId}/plantillas/${plantillaId}`, {
+        ...t,
+        metodo: 'DELETE',
+      }),
     sincronizarPlantillas: (channelAccountId: string) =>
       peticion<{ total: number; nuevas: number; actualizadas: number }>(
         `/v1/canales/${channelAccountId}/plantillas/sincronizar`,

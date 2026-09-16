@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-48, editor de plantillas de WhatsApp** ([[plantillas]] §Editor): crear una plantilla y mandarla a revisión desde el CRM, con botones de respuesta rápida y ejemplos de cada variable, y borrarla en Meta. Valida antes de gastar un intento de revisión: error lo que Meta rechaza siempre, aviso lo que suele rechazar. Sin tocar el contrato de canales. Cierra la deuda «editor de plantillas HSM».
 - **PR-47, horario de atención y aviso fuera de horario** ([[bandeja]] §Horario): Ajustes → Horario con los tramos por día en la hora del hotel, y respuesta automática apagada por defecto para quien escribe de madrugada. Regla pura en `core` con `Intl`; el worker la envía por la puerta de siempre, una vez cada seis horas. Migración 0027.
 - **PR-46, reparto automático** ([[bandeja]] §Reparto automático): las conversaciones nuevas se asignan solas al miembro con menos abiertas, entre quienes están marcados; quien vuelve sigue con su responsable, y el lead va con la conversación. Apagado por defecto. Migración 0026.
 - **PR-45, botones y listas de WhatsApp ya no se pierden** ([[whatsapp]] §Botones y listas): pulsar un botón de plantilla o elegir de una lista llegaba como `button`/`interactive` y se descartaba. Ahora entra como texto con lo elegido, y dispara bots.
@@ -108,7 +109,7 @@ Nada.
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
 3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **enviar** mensajes interactivos de WhatsApp (botones y listas) desde bots y compositor; recibirlos ya funciona.
 
-Deuda con nombre: WebSocket en vez de sondeo, equipos (el horario ya es de la cuenta), editor de plantillas HSM. TikTok sigue bloqueado por falta de API pública de mensajería.
+Deuda con nombre: WebSocket en vez de sondeo, equipos (el horario ya es de la cuenta). TikTok sigue bloqueado por falta de API pública de mensajería.
 
 ## Cambio propuesto al plan de fases
 

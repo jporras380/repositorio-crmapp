@@ -1,0 +1,38 @@
+@layer components {
+  .ejemplos,
+  .botones {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    min-inline-size: 0;
+  }
+  .ejemplos legend,
+  .botones legend {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    padding-inline: var(--space-2);
+  }
+  .boton {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+  .boton input {
+    flex: 1;
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--fg);
+    font-size: var(--text-md);
+  }
+  .boton input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+  }
+}

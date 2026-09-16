@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { CuentaDeCanal, PlantillaDeWhatsapp } from '../../api/tipos.ts';
+import { NuevaPlantilla } from './NuevaPlantilla.tsx';
 import estilos from './ajustes.module.css';
 
 interface Props {
@@ -27,6 +28,7 @@ export function Plantillas({ api, gestor }: Props) {
   const [plantillas, setPlantillas] = useState<PlantillaDeWhatsapp[] | null>(null);
   const [aviso, setAviso] = useState<{ tono: 'ok' | 'error'; texto: string } | null>(null);
   const [sincronizando, setSincronizando] = useState(false);
+  const [creando, setCreando] = useState(false);
 
   useEffect(() => {
     api
@@ -48,6 +50,26 @@ export function Plantillas({ api, gestor }: Props) {
     }
   }, [api, cuentaId]);
   useEffect(() => void cargar(), [cargar]);
+
+  async function borrar(p: PlantillaDeWhatsapp) {
+    if (
+      !confirm(
+        `¿Borrar «${p.nombre}» de Meta? Dejará de poder enviarse. Los mensajes ya enviados se conservan.`,
+      )
+    )
+      return;
+    setAviso(null);
+    try {
+      await api.borrarPlantilla(cuentaId, p.id);
+      setAviso({ tono: 'ok', texto: `«${p.nombre}» se borró en Meta.` });
+      await cargar();
+    } catch (e) {
+      setAviso({
+        tono: 'error',
+        texto: e instanceof ErrorDeApi ? e.message : 'No se pudo borrar.',
+      });
+    }
+  }
 
   async function sincronizar() {
     setSincronizando(true);
@@ -80,14 +102,19 @@ export function Plantillas({ api, gestor }: Props) {
             dice qué corregir.
           </p>
         </div>
-        {gestor && cuentaId && (
-          <button
-            className={estilos.primario}
-            onClick={() => void sincronizar()}
-            disabled={sincronizando}
-          >
-            {sincronizando ? 'Consultando a Meta…' : 'Sincronizar con Meta'}
-          </button>
+        {gestor && cuentaId && !creando && (
+          <div className={estilos.acciones}>
+            <button
+              className={estilos.secundario}
+              onClick={() => void sincronizar()}
+              disabled={sincronizando}
+            >
+              {sincronizando ? 'Consultando a Meta…' : 'Sincronizar con Meta'}
+            </button>
+            <button className={estilos.primario} onClick={() => setCreando(true)}>
+              Nueva plantilla
+            </button>
+          </div>
         )}
       </header>
 
@@ -102,6 +129,24 @@ export function Plantillas({ api, gestor }: Props) {
             ))}
           </select>
         </label>
+      )}
+
+      {creando && cuentaId && (
+        <NuevaPlantilla
+          api={api}
+          cuentaId={cuentaId}
+          alCancelar={() => setCreando(false)}
+          alCreada={(avisos) => {
+            setCreando(false);
+            setAviso({
+              tono: 'ok',
+              texto:
+                'Enviada a Meta. Quedará «En revisión» hasta que la apruebe.' +
+                (avisos.length > 0 ? ` Ojo: ${avisos.map((a) => a.mensaje).join(' ')}` : ''),
+            });
+            void cargar();
+          }}
+        />
       )}
 
       {aviso && (
@@ -135,6 +180,7 @@ export function Plantillas({ api, gestor }: Props) {
                 <th>Categoría</th>
                 <th>Calidad</th>
                 <th>Última sincronización</th>
+                {gestor && <th />}
               </tr>
             </thead>
             <tbody>
@@ -163,6 +209,19 @@ export function Plantillas({ api, gestor }: Props) {
                         ? new Date(p.ultimaSincronizacion).toLocaleString('es')
                         : '—'}
                     </td>
+                    {gestor && (
+                      <td>
+                        {p.estado !== 'deshabilitada' && (
+                          <button
+                            className={estilos.peligro}
+                            onClick={() => void borrar(p)}
+                            title="La borra en Meta; aquí queda deshabilitada"
+                          >
+                            Borrar
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

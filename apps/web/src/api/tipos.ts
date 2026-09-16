@@ -174,6 +174,24 @@ export interface AjustesDeIa {
   modelosDisponibles: string[];
 }
 
+/** Aviso o error del editor de plantillas: `error` impide enviarla a Meta. */
+export interface ProblemaDePlantilla {
+  nivel: 'error' | 'aviso';
+  codigo: string;
+  mensaje: string;
+}
+
+export interface BorradorDePlantilla {
+  nombre: string;
+  idioma: string;
+  categoria: string;
+  encabezado?: string;
+  cuerpo: string;
+  pie?: string;
+  botones?: string[];
+  ejemplos?: string[];
+}
+
 export interface PlantillaDeWhatsapp {
   id: string;
   nombre: string;
