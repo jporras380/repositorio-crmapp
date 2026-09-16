@@ -130,9 +130,32 @@ El nodo **«Pasar a una persona»** escribe el motivo en la conversación (`conv
 
 Cubierto por tests en los tres niveles: dominio puro (`packages/core/test/flujos.test.ts`), motor y puerta (`apps/worker/test/flujos.test.ts` → «deja escrito el motivo … y contestar lo borra») y API (`apps/api/test/bandeja.e2e.test.ts` → «cuando un bot pide una persona»).
 
+## Horas activas: a qué hora se le deja hablar (PR-53, 2026-09-16)
+
+El hotel tenía horario desde PR-47 y avisaba «estamos cerrados» de madrugada, pero los bots no lo miraban. El mismo mensaje de las 3 de la mañana podía recibir **el aviso y el saludo del bot**: dos voces que no se hablan entre ellas, exactamente lo que el relevo de PR-32 existe para evitar.
+
+Cada bot tiene ahora `flows.active_hours` (migración 0030) con tres valores: `siempre`, `solo_abierto`, `solo_cerrado`. Se elige en el editor, dentro de «Cuándo arranca».
+
+### Las decisiones y su precio
+
+- **Por bot, no por cuenta.** Los dos casos son reales y opuestos: un bot que califica un lead y lo pasa a una persona **solo sirve con gente delante**; un bot que contesta las preguntas de siempre **solo hace falta cuando no hay nadie**. Una bandera por cuenta obligaría a elegir uno.
+- **Por defecto `siempre`**, que es lo que hacían todos los bots ya publicados. Cambiárselo con una migración sería reescribirles el guion a espaldas de quien los montó, y el síntoma —un bot que deja de contestar— no se parece en nada a la causa.
+- **Si no se sabe si está abierto, el bot habla.** Sin horario puesto o con una zona horaria que no se entiende, `puedeHablarElBot` devuelve `true`. Callar sería un fallo silencioso: el cliente escribe, no le contesta nadie y en el CRM no aparece ningún error. Hablar a deshora, como mucho, se ve. Dos tests fijan las dos formas de no saberlo.
+- **No crea versión del flujo.** No es parte del guion, es cuándo se le deja hablar: cambiarlo tiene efecto sobre la marcha, también en un bot ya activo. Precio: no queda en el historial de versiones quién lo cambió.
+- **El choque de las dos voces se avisa, no se impide.** Si el aviso automático está encendido y el bot puede hablar con el hotel cerrado, el editor lo dice con todas las letras y propone las dos salidas. Es un aviso y no un error porque puede ser lo que se quiere —un bot de noche que además saluda— y prohibirlo sería decidir por el hotel.
+- **La consulta del horario solo se hace si algún bot la necesita**: los `siempre` no la pagan.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Ajustes → Horario: dejarlo configurado y encender el aviso de fuera de horario.
+2. Bots → editar uno → «Horas en que puede hablar». Con «A cualquier hora» aparece el aviso de las dos voces.
+3. Ponerlo en «Solo en horario de atención»: el aviso desaparece. Guardar.
+4. Escribir al número fuera del horario: llega el aviso del hotel y **no** el bot.
+
+Cubierto por tests en los tres niveles: regla pura (`packages/core/test/horario.test.ts`), motor con horario real y reloj controlado (`apps/worker/test/flujos.test.ts` → «los bots respetan el horario del hotel»), API (`apps/api/test/flujos.e2e.test.ts`) y editor (`EditorDeFlujo.test.tsx`, los tres casos del aviso).
+
 ## Lo que falta
 
-- **Horas activas.** El bot de Kommo tiene horario; el nuestro contesta a las 4 de la mañana. (El aviso de fuera de horario de PR-47 no es lo mismo: ese lo manda el worker, no el bot.)
 - **Nodos que Kommo tiene y nosotros no:** nota interna, reacción, lista de WhatsApp, Round Robin, «ir a otro paso».
 - **Disparadores.** Dos frente a los ~10 de Kommo, pero la mitad de los suyos dependen de un **embudo de leads** que aquí no existe.
 - **Enforcement.** El uso de bots ya se mide contra `bot_runs_mes`, pero pasarse no tiene consecuencia: qué ocurre al superar un límite es parte de P-21.

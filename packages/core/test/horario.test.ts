@@ -4,7 +4,13 @@
  * el día cerrado y el horario partido.
  */
 import { describe, expect, it } from 'vitest';
-import { estaAbierto, momentoLocal, validarHorario, type Horario } from '../src/horario.js';
+import {
+  estaAbierto,
+  momentoLocal,
+  puedeHablarElBot,
+  validarHorario,
+  type Horario,
+} from '../src/horario.js';
 
 const LIMA = 'America/Lima'; // UTC−5, sin horario de verano
 const HOTEL: Horario = {
@@ -81,5 +87,27 @@ describe('validarHorario', () => {
         ],
       }),
     ).toEqual([{ tipo: 'tramos_se_solapan', dia: '1' }]);
+  });
+});
+
+describe('puedeHablarElBot (0030)', () => {
+  it('«siempre» habla abierto, cerrado y sin horario que mirar', () => {
+    expect(puedeHablarElBot('siempre', true)).toBe(true);
+    expect(puedeHablarElBot('siempre', false)).toBe(true);
+    expect(puedeHablarElBot('siempre', null)).toBe(true);
+  });
+
+  it('«solo_abierto» calla cuando el hotel está cerrado, y al revés', () => {
+    expect(puedeHablarElBot('solo_abierto', true)).toBe(true);
+    expect(puedeHablarElBot('solo_abierto', false)).toBe(false);
+    expect(puedeHablarElBot('solo_cerrado', false)).toBe(true);
+    expect(puedeHablarElBot('solo_cerrado', true)).toBe(false);
+  });
+
+  it('si no se sabe si está abierto, el bot habla', () => {
+    // Callar por un horario que no se entiende es un fallo silencioso: el
+    // cliente escribe, no contesta nadie y en el CRM no aparece ningún error.
+    expect(puedeHablarElBot('solo_abierto', null)).toBe(true);
+    expect(puedeHablarElBot('solo_cerrado', null)).toBe(true);
   });
 });

@@ -125,3 +125,26 @@ export function estaAbierto(instante: Date, horario: Horario, zonaHoraria: strin
     return Number.isFinite(d) && Number.isFinite(h) && ahora.minutos >= d && ahora.minutos < h;
   });
 }
+
+/**
+ * Cuándo puede hablar un bot (0030).
+ *
+ * `siempre` es el valor por defecto y el de todos los bots que ya existían:
+ * cambiar el comportamiento de un bot publicado con una migración sería
+ * cambiarle el guion a espaldas de quien lo montó.
+ */
+export type HorasActivas = 'siempre' | 'solo_abierto' | 'solo_cerrado';
+
+/**
+ * ¿Puede arrancar este bot ahora mismo?
+ *
+ * `abierto` viene de `estaAbierto`, con su `null` cuando no se puede saber. En
+ * ese caso el bot **arranca**: callar un bot por un horario que no se entiende
+ * es un fallo silencioso —el cliente escribe y no le contesta nadie, y en el
+ * CRM no aparece ningún error que lo explique—. Dejarlo hablar, como mucho,
+ * contesta a deshora, y eso se ve.
+ */
+export function puedeHablarElBot(horas: HorasActivas, abierto: boolean | null): boolean {
+  if (horas === 'siempre' || abierto === null) return true;
+  return horas === 'solo_abierto' ? abierto : !abierto;
+}

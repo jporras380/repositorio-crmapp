@@ -88,11 +88,14 @@ const NuevoFlujo = z.object({
   disparadores: z.array(DisparadorSchema).max(10).default([]),
 });
 
+const HorasActivasSchema = z.enum(['siempre', 'solo_abierto', 'solo_cerrado']);
+
 const EdicionFlujo = z
   .object({
     nombre: z.string().min(1).max(80).optional(),
     grafo: GrafoSchema.optional(),
     disparadores: z.array(DisparadorSchema).max(10).optional(),
+    horasActivas: HorasActivasSchema.optional(),
   })
   .refine((d) => Object.keys(d).length > 0, 'sin cambios');
 
@@ -151,6 +154,7 @@ export class FlujosController {
         ...(d.nombre !== undefined ? { nombre: d.nombre } : {}),
         ...(d.grafo !== undefined ? { grafo: d.grafo as Grafo } : {}),
         ...(d.disparadores !== undefined ? { disparadores: d.disparadores as Disparador[] } : {}),
+        ...(d.horasActivas !== undefined ? { horasActivas: d.horasActivas } : {}),
       }),
     );
   }

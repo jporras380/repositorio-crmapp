@@ -17,7 +17,13 @@
  * reportado. Guardar un borrador roto es gratis; publicarlo, no.
  */
 import type { PoolClient } from 'pg';
-import { simular, validarGrafo, type Grafo, type Simulacion } from '@crmapp/core';
+import {
+  simular,
+  validarGrafo,
+  type Grafo,
+  type HorasActivas,
+  type Simulacion,
+} from '@crmapp/core';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 
@@ -31,6 +37,8 @@ export interface ResumenDeFlujo {
   id: string;
   nombre: string;
   estado: 'borrador' | 'activo' | 'pausado' | string;
+  /** Cuándo puede hablar este bot, contra el horario del hotel (0030). */
+  horasActivas: HorasActivas;
   version: number | null;
   disparadores: Disparador[];
   ejecucionesVivas: number;
@@ -78,12 +86,13 @@ export class FlujosService {
         id: string;
         nombre: string;
         estado: string;
+        active_hours: HorasActivas;
         version: number | null;
         disparadores: Disparador[] | null;
         vivas: string;
         creado_en: Date;
       }>(
-        `SELECT f.id, f.name AS nombre, f.status AS estado, v.version,
+        `SELECT f.id, f.name AS nombre, f.status AS estado, f.active_hours, v.version,
                 (SELECT json_agg(json_build_object(
                           'tipo', t.type, 'palabras', t.config -> 'palabras', 'activo', t.enabled)
                         ORDER BY t.created_at)
@@ -99,6 +108,7 @@ export class FlujosService {
         id: r.id,
         nombre: r.nombre,
         estado: r.estado,
+        horasActivas: r.active_hours,
         version: r.version,
         disparadores: r.disparadores ?? [],
         ejecucionesVivas: Number(r.vivas),
@@ -147,7 +157,12 @@ export class FlujosService {
   /** Guardar cambios es crear una versión. El grafo anterior no se toca jamás. */
   async guardarVersion(
     id: string,
-    datos: { nombre?: string; grafo?: Grafo; disparadores?: Disparador[] },
+    datos: {
+      nombre?: string;
+      grafo?: Grafo;
+      disparadores?: Disparador[];
+      horasActivas?: HorasActivas;
+    },
   ): Promise<{ version: number | null }> {
     const ctx = this.#exigirContexto();
     return this.#db.enTransaccion(async (c) => {
@@ -156,6 +171,15 @@ export class FlujosService {
         await c.query(`UPDATE flows SET name = $2, updated_at = now() WHERE id = $1`, [
           id,
           datos.nombre,
+        ]);
+      }
+      if (datos.horasActivas) {
+        // No crea versión: no es parte del guion, es cuándo se le deja hablar.
+        // Cambiarlo tiene efecto sobre la marcha, también para los bots que ya
+        // están publicados, que es lo que espera quien lo toca.
+        await c.query(`UPDATE flows SET active_hours = $2, updated_at = now() WHERE id = $1`, [
+          id,
+          datos.horasActivas,
         ]);
       }
       if (datos.disparadores) {

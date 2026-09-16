@@ -31,10 +31,14 @@ import {
   contiene,
   decidirPaso,
   ErrorDeNegocio,
+  estaAbierto,
+  puedeHablarElBot,
   type ContextoDelFlujo,
   type EntradaDelFlujo,
   type Efecto,
   type Grafo,
+  type Horario,
+  type HorasActivas,
   type Nodo,
 } from '@crmapp/core';
 import type { ChannelAdapter } from '@crmapp/channels';
@@ -146,7 +150,13 @@ async function alLlegarUnMensaje(
   );
   if (Number(vivas[0]?.n ?? 0) > 0) return { ...vacio, ignorado: 'ya_hay_flujo' };
 
-  const disparado = await buscarDisparo(c, conversationId, messageId, texto);
+  const disparado = await buscarDisparo(
+    c,
+    conversationId,
+    messageId,
+    texto,
+    deps.ahora ? deps.ahora() : new Date(),
+  );
   if (!disparado) return { ...vacio, ignorado: 'sin_disparador' };
 
   // La conversación la lleva una persona. Apagar el bot cuando el agente
@@ -462,6 +472,7 @@ async function buscarDisparo(
   conversationId: string,
   messageId: string,
   texto: string,
+  ahora: Date,
 ): Promise<Disparo | null> {
   const { rows } = await c.query<{
     flow_id: string;
@@ -469,8 +480,10 @@ async function buscarDisparo(
     graph: Grafo;
     type: string;
     config: { palabras?: string[] };
+    active_hours: HorasActivas;
   }>(
-    `SELECT f.id AS flow_id, f.current_version_id AS flow_version_id, v.graph, t.type, t.config
+    `SELECT f.id AS flow_id, f.current_version_id AS flow_version_id, v.graph, t.type, t.config,
+            f.active_hours
        FROM flows f
        JOIN flow_triggers t ON t.flow_id = f.id AND t.enabled
        JOIN flow_versions v ON v.id = f.current_version_id
@@ -479,11 +492,21 @@ async function buscarDisparo(
   );
   if (rows.length === 0) return null;
 
+  // El horario se consulta UNA vez y solo si algún bot lo necesita: la
+  // inmensa mayoría son `siempre` y no hay por qué pagar la consulta.
+  let abierto: boolean | null | undefined;
+  const dentroDeSuHorario = async (horas: HorasActivas): Promise<boolean> => {
+    if (horas === 'siempre') return true;
+    if (abierto === undefined) abierto = await estaAbiertoElNegocio(c, ahora);
+    return puedeHablarElBot(horas, abierto);
+  };
+
   let primeraDelHilo: boolean | null = null;
   for (const r of rows) {
     if (r.type === 'palabra_clave') {
       const palabras = r.config.palabras ?? [];
       if (palabras.some((p) => contiene(texto, p))) {
+        if (!(await dentroDeSuHorario(r.active_hours))) continue;
         return { flowId: r.flow_id, flowVersionId: r.flow_version_id, graph: r.graph };
       }
       continue;
@@ -501,11 +524,26 @@ async function buscarDisparo(
         primeraDelHilo = !previos[0]?.hay;
       }
       if (primeraDelHilo) {
+        if (!(await dentroDeSuHorario(r.active_hours))) continue;
         return { flowId: r.flow_id, flowVersionId: r.flow_version_id, graph: r.graph };
       }
     }
   }
   return null;
+}
+
+/**
+ * ¿Está abierto el hotel ahora? `null` si no se sabe —no hay horario puesto o
+ * la zona horaria no se entiende—, y entonces el bot habla igual: ver
+ * `puedeHablarElBot`.
+ */
+async function estaAbiertoElNegocio(c: PoolClient, ahora: Date): Promise<boolean | null> {
+  const { rows } = await c.query<{ timezone: string; schedule: Horario }>(
+    `SELECT timezone, schedule FROM business_hours WHERE team_id IS NULL`,
+  );
+  const h = rows[0];
+  if (!h) return null;
+  return estaAbierto(ahora, h.schedule ?? {}, h.timezone);
 }
 
 async function crearEjecucion(

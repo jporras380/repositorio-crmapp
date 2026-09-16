@@ -45,6 +45,7 @@ import type {
   DisparadorDeFlujo,
   EjecucionDeFlujo,
   GrafoDeFlujo,
+  HorasActivasDeFlujo,
   Miembro,
   ResumenDeFlujo,
   ResumenDeSuscripcion,
@@ -301,7 +302,12 @@ export function crearApi(token: string | null) {
       peticion<{ id: string; version: number }>('/v1/flujos', { ...t, metodo: 'POST', cuerpo: d }),
     guardarFlujo: (
       id: string,
-      d: { nombre?: string; grafo?: GrafoDeFlujo; disparadores?: DisparadorDeFlujo[] },
+      d: {
+        nombre?: string;
+        grafo?: GrafoDeFlujo;
+        disparadores?: DisparadorDeFlujo[];
+        horasActivas?: HorasActivasDeFlujo;
+      },
     ) =>
       peticion<{ version: number | null }>(`/v1/flujos/${id}`, {
         ...t,

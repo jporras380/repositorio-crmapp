@@ -560,6 +560,8 @@ export const flows = pgTable('flows', {
   tenantId: uuid('tenant_id').notNull(),
   name: text('name').notNull(),
   status: text('status').notNull().default('borrador'),
+  /** Cuándo puede hablar: siempre, solo_abierto o solo_cerrado (0030). */
+  activeHours: text('active_hours').notNull().default('siempre'),
   currentVersionId: uuid('current_version_id'),
   createdBy: uuid('created_by'),
   createdAt: creado,

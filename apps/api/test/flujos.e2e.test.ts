@@ -255,6 +255,35 @@ describe('flujos', () => {
     expect(r.body.codigo).toBe('flujo_repetido');
   });
 
+  it('las horas activas empiezan en «siempre» y se cambian sin crear versión', async () => {
+    const { id } = await crear('De noche');
+    await http.post(`/v1/flujos/${id}/publicar`).set(auth()).expect(201);
+    expect((await http.get(`/v1/flujos/${id}`).set(auth())).body.horasActivas).toBe('siempre');
+
+    const r = await http
+      .patch(`/v1/flujos/${id}`)
+      .set(auth())
+      .send({ horasActivas: 'solo_cerrado' })
+      .expect(200);
+    // No es parte del guion: cambiarlo no publica una versión nueva, y tiene
+    // efecto sobre la marcha también para un bot ya activo.
+    expect(r.body.version).toBeNull();
+    expect((await http.get(`/v1/flujos/${id}`).set(auth())).body).toMatchObject({
+      horasActivas: 'solo_cerrado',
+      estado: 'activo',
+      version: 1,
+    });
+  });
+
+  it('una franja horaria inventada no se guarda', async () => {
+    const { id } = await crear('Rara');
+    await http
+      .patch(`/v1/flujos/${id}`)
+      .set(auth())
+      .send({ horasActivas: 'cuando_le_apetezca' })
+      .expect(400);
+  });
+
   it('el flujo de otro inquilino no existe', async () => {
     const { id } = await crear('Privado');
     await http.get(`/v1/flujos/${id}`).set(auth(tokenAjeno)).expect(404);

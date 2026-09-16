@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-53, los bots respetan el horario del hotel** ([[salesbots]] §Horas activas): cada bot elige si habla a cualquier hora, solo en horario o solo fuera de él. Antes, un mensaje de madrugada podía recibir el aviso de «estamos cerrados» **y** el bot: dos voces a la vez. Por defecto `siempre` —no se le cambia el guion a un bot publicado— y si no se sabe si está abierto, habla. Migración 0030. Cierra la deuda «horas activas» de los bots.
 - **PR-52, el bot dice por qué necesita una persona** ([[salesbots]] §El relevo al revés, [[bandeja]]): nodo «Pasar a una persona» que termina el flujo y deja el motivo escrito en la conversación; insignia en la fila, aviso en la cabecera del hilo y pestaña «Piden persona». Se apaga solo al contestar. Migración 0029. Cierra la deuda «`handoff_reason` en el relevo».
 - **PR-51, buscar dentro de los mensajes** ([[bandeja]] §Buscar dentro de los mensajes): la misma caja de búsqueda encuentra por quién es (nombre, @, teléfono) y por lo que se dijo. Columna generada `tsvector` en español + índice GIN con `btree_gin` (migración 0028). Cierra la deuda «buscar en el contenido, con su índice».
 - **PR-50, aviso de mensaje nuevo** ([[web]] §Avisar): contador en el título de la pestaña y notificación del navegador, solo cuando el agente no está mirando y solo para lo que entra. El permiso se pide con un botón, nunca al cargar.

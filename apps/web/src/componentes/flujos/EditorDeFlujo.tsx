@@ -5,6 +5,8 @@ import type {
   DisparadorDeFlujo,
   Etiqueta,
   GrafoDeFlujo,
+  HorarioDeAtencion,
+  HorasActivasDeFlujo,
   Miembro,
   NodoDeFlujo,
   ProblemaDeFlujo,
@@ -71,6 +73,9 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
   const [nombre, setNombre] = useState('');
   const [grafo, setGrafo] = useState<GrafoDeFlujo | null>(null);
   const [disparadores, setDisparadores] = useState<DisparadorDeFlujo[]>([]);
+  const [horasActivas, setHorasActivas] = useState<HorasActivasDeFlujo>('siempre');
+  /** Horario del hotel: solo para avisar de que dos voces hablarían a la vez. */
+  const [horario, setHorario] = useState<HorarioDeAtencion | null>(null);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
   const [usuarios, setUsuarios] = useState<Miembro[]>([]);
   const [sucio, setSucio] = useState(false);
@@ -86,12 +91,21 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
     let vivo = true;
     void (async () => {
       try {
-        const [d, e, u] = await Promise.all([api.flujo(flujoId), api.etiquetas(), api.usuarios()]);
+        const [d, e, u, h] = await Promise.all([
+          api.flujo(flujoId),
+          api.etiquetas(),
+          api.usuarios(),
+          // El horario es un extra: si falla, el editor funciona igual y solo
+          // se pierde el aviso de las dos voces.
+          api.horario().catch(() => null),
+        ]);
         if (!vivo) return;
         setDetalle(d);
         setNombre(d.nombre);
         setGrafo(d.grafo);
         setDisparadores(d.disparadores);
+        setHorasActivas(d.horasActivas);
+        setHorario(h);
         setEtiquetas(e);
         setUsuarios(u);
       } catch (err) {
@@ -145,7 +159,7 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
   const guardar = () =>
     hacer(async () => {
       if (!grafo) return null;
-      await api.guardarFlujo(flujoId, { nombre, grafo, disparadores });
+      await api.guardarFlujo(flujoId, { nombre, grafo, disparadores, horasActivas });
       setSucio(false);
       const d = await api.flujo(flujoId);
       setDetalle(d);
@@ -155,7 +169,7 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
   const publicar = () =>
     hacer(async () => {
       if (sucio && grafo) {
-        await api.guardarFlujo(flujoId, { nombre, grafo, disparadores });
+        await api.guardarFlujo(flujoId, { nombre, grafo, disparadores, horasActivas });
         setSucio(false);
       }
       const { version } = await api.publicarFlujo(flujoId);
@@ -245,8 +259,14 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
 
           <Disparadores
             valor={disparadores}
+            horasActivas={horasActivas}
+            horario={horario}
             alCambiar={(d) => {
               setDisparadores(d);
+              setSucio(true);
+            }}
+            alCambiarHoras={(h) => {
+              setHorasActivas(h);
               setSucio(true);
             }}
           />
@@ -685,15 +705,31 @@ function Espera({
   );
 }
 
+const HORAS: [HorasActivasDeFlujo, string][] = [
+  ['siempre', 'A cualquier hora'],
+  ['solo_abierto', 'Solo en horario de atención'],
+  ['solo_cerrado', 'Solo fuera de horario'],
+];
+
 function Disparadores({
   valor,
+  horasActivas,
+  horario,
   alCambiar,
+  alCambiarHoras,
 }: {
   valor: DisparadorDeFlujo[];
+  horasActivas: HorasActivasDeFlujo;
+  horario: HorarioDeAtencion | null;
   alCambiar: (d: DisparadorDeFlujo[]) => void;
+  alCambiarHoras: (h: HorasActivasDeFlujo) => void;
 }) {
   const porPalabra = valor.find((d) => d.tipo === 'palabra_clave');
   const alAbrir = valor.some((d) => d.tipo === 'conversacion_abierta');
+  // Dos voces a la vez: el aviso automático de «estamos cerrados» y este bot
+  // contestarían al MISMO mensaje de madrugada. Es un aviso y no un error
+  // porque puede ser lo que se quiere; lo que no puede es pasar sin saberlo.
+  const dosVoces = horario?.avisoActivo === true && horasActivas !== 'solo_abierto';
   return (
     <fieldset className={estilos.disparadores}>
       <legend className={estilos.disparadoresTitulo}>Cuándo arranca</legend>
@@ -725,6 +761,27 @@ function Disparadores({
         />
         Cuando escriban alguna de estas palabras
       </label>
+      <label className={estilos.casilla}>
+        Horas en que puede hablar
+        <select
+          className={estilos.select}
+          value={horasActivas}
+          onChange={(e) => alCambiarHoras(e.target.value as HorasActivasDeFlujo)}
+        >
+          {HORAS.map(([v, texto]) => (
+            <option key={v} value={v}>
+              {texto}
+            </option>
+          ))}
+        </select>
+      </label>
+      {dosVoces && (
+        <p className={estilos.pista}>
+          El aviso automático de «estamos cerrados» está encendido. Fuera de horario, quien escriba
+          recibirá ese aviso <strong>y</strong> a este bot: dos voces en el mismo mensaje. Ponlo en
+          «Solo en horario de atención», o apaga el aviso en Ajustes → Horario.
+        </p>
+      )}
       {porPalabra && (
         <input
           className={estilos.palabras}

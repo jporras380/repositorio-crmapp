@@ -29,6 +29,7 @@ function detalle(extra: Partial<DetalleDeFlujo> = {}): DetalleDeFlujo {
     id: 'f1',
     nombre: 'Bienvenida',
     estado: 'borrador',
+    horasActivas: 'siempre',
     version: null,
     disparadores: [{ tipo: 'conversacion_abierta' }],
     ejecucionesVivas: 0,
@@ -42,9 +43,17 @@ function detalle(extra: Partial<DetalleDeFlujo> = {}): DetalleDeFlujo {
 function pintar(
   d: DetalleDeFlujo = detalle(),
   probar = vi.fn().mockResolvedValue({ pasos: [], final: 'fin', problemas: [] }),
+  avisoFueraDeHorario = false,
 ) {
   const api = {
     flujo: vi.fn().mockResolvedValue(d),
+    horario: vi.fn().mockResolvedValue({
+      zonaHoraria: 'America/Lima',
+      horario: {},
+      avisoActivo: avisoFueraDeHorario,
+      avisoTexto: '',
+      configurado: true,
+    }),
     etiquetas: vi.fn().mockResolvedValue([{ id: 'e1', nombre: 'Lead', color: '#f90' }]),
     usuarios: vi.fn().mockResolvedValue([{ id: 'u1', nombre: 'Ana', rol: 'admin' }]),
     probarFlujo: probar,
@@ -77,7 +86,9 @@ describe('EditorDeFlujo', () => {
     // El paso nuevo existe y el saludo ahora lleva a él, no directamente a la espera.
     const tipos = [...document.querySelectorAll('.pasoTipo')].map((t) => t.textContent);
     expect(tipos).toEqual(['Enviar mensaje', 'Poner etiqueta', 'Esperar respuesta', 'Terminar']);
-    const enlaces = screen.getAllByRole('combobox');
+    // Por su etiqueta y no por el orden del DOM: hay más desplegables en la
+    // pantalla (las horas activas, por ejemplo) y el índice se rompe solo.
+    const enlaces = screen.getAllByLabelText('Luego');
     // El primer «Luego» del saludo apunta al paso recién creado.
     expect((enlaces[0] as HTMLSelectElement).value).toBe('paso4');
   });
@@ -90,7 +101,7 @@ describe('EditorDeFlujo', () => {
     const tipos = [...document.querySelectorAll('.pasoTipo')].map((t) => t.textContent);
     expect(tipos).toEqual(['Enviar mensaje', 'Terminar']);
     // El saludo hereda el destino de la espera: sigue llevando a «fin».
-    const enlaces = screen.getAllByRole('combobox');
+    const enlaces = screen.getAllByLabelText('Luego');
     expect((enlaces[0] as HTMLSelectElement).value).toBe('fin');
   });
 
@@ -142,5 +153,22 @@ describe('EditorDeFlujo', () => {
       const ultimo = probar.mock.calls.at(-1);
       expect(ultimo?.[0].nodos[0].texto).toBe('Buenas');
     });
+  });
+
+  it('avisa de las dos voces: el aviso de «estamos cerrados» y un bot de madrugada', async () => {
+    pintar(detalle({ horasActivas: 'siempre' }), undefined, true);
+    expect(await screen.findByText(/dos voces en el mismo mensaje/)).toBeTruthy();
+  });
+
+  it('puesto en «solo en horario», no hay dos voces y el aviso desaparece', async () => {
+    pintar(detalle({ horasActivas: 'solo_abierto' }), undefined, true);
+    await screen.findByDisplayValue('Hola');
+    expect(screen.queryByText(/dos voces en el mismo mensaje/)).toBeNull();
+  });
+
+  it('sin aviso automático encendido, tampoco hay nada que advertir', async () => {
+    pintar(detalle({ horasActivas: 'siempre' }), undefined, false);
+    await screen.findByDisplayValue('Hola');
+    expect(screen.queryByText(/dos voces en el mismo mensaje/)).toBeNull();
   });
 });

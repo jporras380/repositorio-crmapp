@@ -33,7 +33,12 @@ let etiquetaId: string;
 const canales = new Map<string, ChannelAdapter>([['whatsapp', new AdaptadorSandbox()]]);
 const programarDespertar = vi.fn(async () => undefined);
 
-const deps = () => ({ pool: app, canales, programarDespertar });
+const deps = (ahora?: () => Date) => ({
+  pool: app,
+  canales,
+  programarDespertar,
+  ...(ahora ? { ahora } : {}),
+});
 
 /** El flujo de calificación: saluda, pregunta, ramifica, etiqueta y asigna. */
 const CALIFICAR = (): Grafo => ({
@@ -88,11 +93,16 @@ async function respondeUnAgente(texto: string): Promise<void> {
   });
 }
 
-async function crearFlujo(grafo: Grafo, disparador: 'conversacion_abierta' | 'palabra_clave') {
+async function crearFlujo(
+  grafo: Grafo,
+  disparador: 'conversacion_abierta' | 'palabra_clave',
+  horasActivas: 'siempre' | 'solo_abierto' | 'solo_cerrado' = 'siempre',
+) {
   const flowId = (
     await admin.query<{ id: string }>(
-      `INSERT INTO flows (tenant_id, name, status) VALUES ($1, $2, 'activo') RETURNING id`,
-      [tenantId, `flujo-${Math.random().toString(36).slice(2, 8)}`],
+      `INSERT INTO flows (tenant_id, name, status, active_hours)
+       VALUES ($1, $2, 'activo', $3) RETURNING id`,
+      [tenantId, `flujo-${Math.random().toString(36).slice(2, 8)}`, horasActivas],
     )
   ).rows[0]!.id;
   const versionId = (
@@ -374,6 +384,72 @@ describe('criterio de salida de la fase 3', () => {
     const { rows: etiquetas } = await admin.query(`SELECT 1 FROM conversation_tags`);
     expect(etiquetas).toHaveLength(0);
     expect((await ejecucion())[0]).toMatchObject({ status: 'done' });
+  });
+});
+
+describe('los bots respetan el horario del hotel (0030)', () => {
+  const HORARIO = { '1': [['09:00', '18:00']], '2': [['09:00', '18:00']] };
+  /** Martes 11:00 y 23:00 en Lima (UTC−5). */
+  const abierto = () => new Date('2026-09-15T16:00:00Z');
+  const cerrado = () => new Date('2026-09-16T04:00:00Z');
+
+  const conHorario = async (tz = 'America/Lima') => {
+    await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+    await admin.query(
+      `INSERT INTO business_hours (tenant_id, timezone, schedule) VALUES ($1, $2, $3)`,
+      [tenantId, tz, JSON.stringify(HORARIO)],
+    );
+  };
+
+  afterEach(async () => {
+    await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+  });
+
+  /**
+   * Dispara por palabra clave, no por «primer mensaje de la conversación»:
+   * así se puede probar la misma conversación a dos horas distintas dentro de
+   * un mismo test sin que el disparador se agote en el primer intento.
+   */
+  const dispara = async (cuando: () => Date, correlationId: string) => {
+    const id = await entrante('quiero el precio');
+    return manejarTrabajoDeFlujo(deps(cuando), {
+      tenantId,
+      correlationId,
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+  };
+
+  it('un bot «solo en horario» calla de madrugada y arranca por la mañana', async () => {
+    await conHorario();
+    await crearFlujo(CALIFICAR(), 'palabra_clave', 'solo_abierto');
+
+    const deNoche = await dispara(cerrado, 'h-noche');
+    expect(deNoche.ignorado).toBe('sin_disparador');
+    expect(deNoche.ejecucionesIniciadas).toBe(0);
+
+    const deDia = await dispara(abierto, 'h-dia');
+    expect(deDia.ejecucionesIniciadas).toBe(1);
+  });
+
+  it('un bot «solo fuera de horario» hace justo lo contrario', async () => {
+    await conHorario();
+    await crearFlujo(CALIFICAR(), 'palabra_clave', 'solo_cerrado');
+
+    expect((await dispara(abierto, 'c-dia')).ignorado).toBe('sin_disparador');
+    expect((await dispara(cerrado, 'c-noche')).ejecucionesIniciadas).toBe(1);
+  });
+
+  it('sin horario puesto, el bot habla igual: callar en silencio sería peor', async () => {
+    // No hay fila en `business_hours`: no se puede saber si está abierto, y un
+    // bot que calla sin dejar rastro es un cliente sin contestar y sin error.
+    await crearFlujo(CALIFICAR(), 'palabra_clave', 'solo_abierto');
+    expect((await dispara(cerrado, 'sin-horario')).ejecucionesIniciadas).toBe(1);
+  });
+
+  it('con una zona horaria que no se entiende, también habla', async () => {
+    await conHorario('Marte/Olympus');
+    await crearFlujo(CALIFICAR(), 'palabra_clave', 'solo_abierto');
+    expect((await dispara(cerrado, 'tz-rara')).ejecucionesIniciadas).toBe(1);
   });
 });
 

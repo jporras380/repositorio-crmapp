@@ -333,10 +333,14 @@ export interface ProblemaDeFlujo {
   nodoId?: string;
 }
 
+/** Cuándo se le deja hablar al bot, contra el horario del hotel. */
+export type HorasActivasDeFlujo = 'siempre' | 'solo_abierto' | 'solo_cerrado';
+
 export interface ResumenDeFlujo {
   id: string;
   nombre: string;
   estado: 'borrador' | 'activo' | 'pausado' | string;
+  horasActivas: HorasActivasDeFlujo;
   /** Versión PUBLICADA; `null` mientras sea borrador. */
   version: number | null;
   disparadores: DisparadorDeFlujo[];
