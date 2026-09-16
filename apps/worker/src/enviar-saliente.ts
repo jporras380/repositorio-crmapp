@@ -48,7 +48,7 @@ export interface DependenciasDeEnvio {
    * encolar: un job que espere en cola más que el TTL de la firma fallaría
    * con una URL caducada y el cliente vería "no se pudo enviar" sin motivo.
    */
-  almacen?: Pick<Almacen, 'urlDeLectura'> | undefined;
+  almacen?: Pick<Almacen, 'urlDeLectura' | 'leer'> | undefined;
 }
 
 export type ResultadoDeEntrega = 'enviado' | 'ya_procesado' | 'fallido';
@@ -80,8 +80,13 @@ export async function enviarMensajeSaliente(
   //    todo el tiempo que tarde Meta.
   let resultado: ResultadoDeEnvio;
   try {
-    const cargaResuelta = await resolverMedioPropio(deps, tenantId, carga);
-    resultado = await entregar(adaptador, cargaResuelta);
+    const { carga: cargaResuelta, bytes } = await resolverMedioPropio(
+      deps,
+      tenantId,
+      carga,
+      adaptador,
+    );
+    resultado = await entregar(adaptador, cargaResuelta, bytes);
   } catch (error) {
     if (error instanceof ErrorDeCanal && !error.reintentable) {
       await withTenant(deps.pool, tenantId, async (c) => {
@@ -162,20 +167,43 @@ export async function enviarMensajeSaliente(
 }
 
 /** Sustituye `mediaAssetId` por una URL firmada fresca. Sin medio propio, no toca nada. */
+/** Los bytes de un medio propio, cuando el canal los sube él mismo. */
+interface BytesDeMedio {
+  datos: Buffer;
+  mime: string;
+}
+
+/**
+ * Deja el medio propio listo para el canal, de una de dos formas.
+ *
+ * **Si el canal sube los bytes él mismo** (WhatsApp, que declara
+ * `requiereUrlPublicaParaMedios: false`), se leen del almacén y se le pasan.
+ * Meta los guarda y devuelve un id.
+ *
+ * **Si el canal exige una URL pública** (Instagram), se firma una de lectura.
+ *
+ * La capacidad estaba declarada desde PR-7 y no la miraba nadie: se mandaba
+ * SIEMPRE una URL. En desarrollo, esa URL apunta a MinIO en `localhost`, donde
+ * los servidores de Meta no pueden entrar, así que la imagen se aceptaba con
+ * su `wamid` y fallaba después, en silencio, con «Media upload error». En
+ * producción obligaba a exponer el bucket a internet sin necesidad.
+ */
 async function resolverMedioPropio(
   deps: DependenciasDeEnvio,
   tenantId: string,
   carga: CargaDeEnvio,
-): Promise<CargaDeEnvio> {
+  adaptador: ChannelAdapter,
+): Promise<{ carga: CargaDeEnvio; bytes: BytesDeMedio | null }> {
   const p = carga.peticion;
   if (p.tipo === 'text' || p.tipo === 'template' || p.tipo === 'comment_reply' || !p.mediaAssetId)
-    return carga;
+    return { carga, bytes: null };
   if (!deps.almacen) throw new Error('Medio propio sin almacén configurado.');
-  const clave = await withTenant(deps.pool, tenantId, async (c) => {
-    const { rows } = await c.query<{ storage_key: string | null; status: string }>(
-      `SELECT storage_key, status FROM media_assets WHERE id = $1`,
-      [p.mediaAssetId],
-    );
+  const medio = await withTenant(deps.pool, tenantId, async (c) => {
+    const { rows } = await c.query<{
+      storage_key: string | null;
+      status: string;
+      mime: string | null;
+    }>(`SELECT storage_key, status, mime FROM media_assets WHERE id = $1`, [p.mediaAssetId]);
     const m = rows[0];
     if (!m || m.status !== 'stored' || !m.storage_key) {
       // No reintentable: el medio no va a aparecer por esperar.
@@ -185,13 +213,26 @@ async function resolverMedioPropio(
         false,
       );
     }
-    return m.storage_key;
+    return { clave: m.storage_key, mime: m.mime };
   });
-  const url = await deps.almacen.urlDeLectura(clave, 60 * 60);
-  return { ...carga, peticion: { ...p, url } };
+
+  if (!adaptador.capacidades().requiereUrlPublicaParaMedios) {
+    const { datos, mime } = await deps.almacen.leer(medio.clave);
+    return {
+      carga,
+      bytes: { datos, mime: medio.mime ?? mime ?? 'application/octet-stream' },
+    };
+  }
+
+  const url = await deps.almacen.urlDeLectura(medio.clave, 60 * 60);
+  return { carga: { ...carga, peticion: { ...p, url } }, bytes: null };
 }
 
-async function entregar(adaptador: ChannelAdapter, carga: CargaDeEnvio): Promise<ResultadoDeEnvio> {
+async function entregar(
+  adaptador: ChannelAdapter,
+  carga: CargaDeEnvio,
+  bytes: BytesDeMedio | null,
+): Promise<ResultadoDeEnvio> {
   const destino = {
     externalUserId: carga.externalUserId,
     channelAccountId: carga.channelAccountId,
@@ -218,7 +259,9 @@ async function entregar(adaptador: ChannelAdapter, carga: CargaDeEnvio): Promise
       return adaptador.sendMedia({
         ...destino,
         tipo: p.tipo,
-        origen: { tipo: 'url', url: p.url ?? '' },
+        origen: bytes
+          ? { tipo: 'buffer', datos: bytes.datos, mime: bytes.mime }
+          : { tipo: 'url', url: p.url ?? '' },
         pieDeFoto: p.pieDeFoto,
       });
   }

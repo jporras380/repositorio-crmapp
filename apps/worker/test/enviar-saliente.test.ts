@@ -220,25 +220,65 @@ describe('medio propio', () => {
     });
   }
 
-  it('firma la URL en el momento del envío y la entrega al canal', async () => {
+  it('a WhatsApp le van los BYTES, no una URL: Meta no puede entrar en nuestro almacén', async () => {
+    // El fallo real que esto arregla: se mandaba siempre una URL firmada. En
+    // desarrollo apunta a MinIO en `localhost`, así que Meta aceptaba el
+    // mensaje, devolvía su `wamid` y fallaba DESPUÉS al descargarla
+    // («131053 Media upload error»). El cliente no recibía nada y el CRM
+    // seguía diciendo «Enviado».
     const mediaAssetId = await medio('stored');
+    const clave = `tenants/${tenantId}/media/${mediaAssetId}.jpg`;
     const base = await encolado();
     const carga: CargaDeEnvio = {
       ...base,
       peticion: { tipo: 'image', url: null, mediaAssetId, pieDeFoto: 'foto' },
     };
-    const firmadas: string[] = [];
     const almacen = new AlmacenEnMemoria();
-    const original = almacen.urlDeLectura.bind(almacen);
-    almacen.urlDeLectura = async (clave, ttl) => {
-      firmadas.push(clave);
-      return original(clave, ttl);
+    await almacen.guardar(clave, Buffer.from('los bytes de la foto'), 'image/jpeg');
+    const firmadas: string[] = [];
+    almacen.urlDeLectura = async (c) => {
+      firmadas.push(c);
+      return 'no-deberia-usarse';
     };
+
     expect(
       await enviarMensajeSaliente({ pool: app, canales: canales(), almacen }, tenantId, carga),
     ).toBe('enviado');
-    expect(firmadas).toEqual([`tenants/${tenantId}/media/${mediaAssetId}.jpg`]);
-    expect(sandbox.enviados[0]!.contenido).toMatchObject({ origen: 'url', pieDeFoto: 'foto' });
+    expect(sandbox.enviados[0]!.contenido).toMatchObject({ origen: 'buffer', pieDeFoto: 'foto' });
+    // Y no se firma ninguna URL: el bucket no tiene por qué ser accesible.
+    expect(firmadas).toEqual([]);
+  });
+
+  it('un canal que SÍ exige URL pública la sigue recibiendo firmada', async () => {
+    // Instagram descarga el medio de una URL; ahí no hay alternativa, y por
+    // eso la decisión es por capacidad del canal y no un `if` por nombre.
+    const mediaAssetId = await medio('stored');
+    const clave = `tenants/${tenantId}/media/${mediaAssetId}.jpg`;
+    const base = await encolado();
+    const ig = new AdaptadorSandbox({ canal: 'instagram' });
+    const carga: CargaDeEnvio = {
+      ...base,
+      canal: 'instagram',
+      peticion: { tipo: 'image', url: null, mediaAssetId },
+    };
+    const almacen = new AlmacenEnMemoria();
+    await almacen.guardar(clave, Buffer.from('foto'), 'image/jpeg');
+    const firmadas: string[] = [];
+    const original = almacen.urlDeLectura.bind(almacen);
+    almacen.urlDeLectura = async (c, ttl) => {
+      firmadas.push(c);
+      return original(c, ttl);
+    };
+
+    expect(
+      await enviarMensajeSaliente(
+        { pool: app, canales: new Map([['instagram', ig]]), almacen },
+        tenantId,
+        carga,
+      ),
+    ).toBe('enviado');
+    expect(firmadas).toEqual([clave]);
+    expect(ig.enviados[0]!.contenido).toMatchObject({ origen: 'url' });
   });
 
   it('medio no almacenado → failed, no reintentable', async () => {

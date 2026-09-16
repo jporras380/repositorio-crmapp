@@ -79,3 +79,52 @@ Sale de la lista de MIME del servidor y de las capacidades que declara cada adap
 4. Elegir un vídeo de más de 16 MB: se marca en rojo con el peso y el máximo, y «Enviar» no lo deja pasar.
 
 Cubierto por 5 tests de la bandeja (`Compositor.test.tsx`) y 4 de servidor (`medios.e2e.test.ts`), incluido el del vídeo de 30 MB que no llega a encolarse.
+
+## Las imágenes salían y no llegaban (PR-57, 2026-09-16)
+
+El usuario mandó cuatro fotos y un texto desde la bandeja. Llegó **solo el texto**. En la base de datos las cuatro imágenes estaban en `sent`, con su `wamid` de Meta y **sin error**: para el CRM se habían enviado.
+
+### La causa
+
+El worker mandaba **siempre** una URL firmada del almacén, aunque el canal declarase que no la necesita. En desarrollo esa URL es `http://localhost:9000/...` (MinIO), y **los servidores de Meta no pueden entrar en el ordenador de nadie**. Meta acepta la llamada, devuelve un `wamid`, y falla *después*, al ir a descargar el archivo: `131053 Media upload error`. Ese fallo llega por webhook, que es justo lo que estaba caído (abajo), así que los mensajes se quedaron en «Enviado» para siempre.
+
+Una imagen anterior, del mismo día a las 17:36, **sí tiene registrado ese error**: es la misma causa con el webhook todavía vivo.
+
+### El arreglo
+
+`requiereUrlPublicaParaMedios` está en el contrato desde PR-7 —WhatsApp `false`, Instagram y Facebook `true`— y **no lo miraba nadie**. Es el mismo tipo de fallo que `limitesDeMedios` en PR-54: una capacidad declarada que no se usaba.
+
+Ahora el worker decide por capacidad:
+
+- **WhatsApp**: se leen los bytes del almacén y se suben a Meta (`POST /{phone_number_id}/media`), que devuelve un id. **El almacén no tiene que ser accesible desde internet**, ni en desarrollo ni en producción.
+- **Instagram y Facebook**: siguen recibiendo una URL firmada, porque descargan el medio ellos. Ahí no hay alternativa — y por eso la decisión es por capacidad del canal y no un `if` por nombre.
+
+Hizo falta `Almacen.leer()`, que no existía.
+
+**El precio, dicho:** subir por bytes son dos viajes en vez de uno, y el archivo entero pasa por la memoria del worker. Con el tope de 100 MB por documento y el semáforo de concurrencia por inquilino es asumible; si algún día se nota, la salida es enviar en flujo en lugar de en un buffer.
+
+### Lo que este arreglo NO cubre
+
+**Instagram y Facebook siguen sin poder enviar medios en desarrollo**, porque necesitan una URL pública de verdad y MinIO es local. Para probarlos hace falta exponer el bucket o usar un S3 real.
+
+### Deuda que salió mirando esto
+
+El nombre del archivo no viaja: un PDF llega al cliente como «archivo». `prepararSubida` ya recibe el nombre; falta guardarlo y pasarlo como `filename`.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Levantar túnel, API, worker y web, y **actualizar la URL del webhook en Meta** (ver abajo).
+2. Mandar dos fotos desde la bandeja.
+3. Llegan al WhatsApp del cliente, y en el hilo pasan de «Enviado» a «Entregado» y «Leído».
+
+## Por qué «no llega nada a la bandeja»: el túnel
+
+Comprobado el 16/09/2026: el último webhook recibido fue a las **17:36:52**, y los mensajes de las 20:39 y 20:40 no tienen estado de entrega. `cloudflared` estaba **vivo pero recién arrancado** (8 peticiones servidas en total), es decir, **con una URL nueva que Meta no conocía**.
+
+Es el primero de los tres motivos de [[whatsapp]] §Aprendizajes con tráfico REAL, y se repite en cada reinicio porque un túnel rápido de Cloudflare cambia de URL cada vez. Mientras no haya un túnel con nombre fijo, después de cada reinicio hay que:
+
+1. Mirar la ventana de `cloudflared` y copiar la URL `https://…trycloudflare.com`.
+2. Pegarla en Meta → WhatsApp → Configuración → Webhook, con el mismo token de verificación.
+3. Comprobar que entra algo: escribir al número y ver el mensaje en la bandeja.
+
+**Síntoma que lo delata sin mirar nada más:** los mensajes que salen se quedan en «Enviado» y nunca pasan a «Entregado».

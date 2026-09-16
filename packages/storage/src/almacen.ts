@@ -25,6 +25,17 @@ export interface Almacen {
   guardar(clave: string, datos: Buffer, mime: string): Promise<void>;
   /** URL de lectura firmada. Por defecto cinco minutos. */
   urlDeLectura(clave: string, ttlSegundos?: number): Promise<string>;
+  /**
+   * Los bytes, para el canal que los sube él mismo al proveedor.
+   *
+   * WhatsApp acepta subida directa y por eso declara
+   * `requiereUrlPublicaParaMedios: false`: se le mandan los bytes y devuelve un
+   * id. Así el almacén **no tiene que ser accesible desde internet**, que es lo
+   * que arregla el caso de desarrollo (MinIO en `localhost`, al que los
+   * servidores de Meta no pueden entrar) y de paso evita exponer el bucket en
+   * producción.
+   */
+  leer(clave: string): Promise<{ datos: Buffer; mime: string | null }>;
   /** URL para que el navegador suba directamente, sin pasar por la API. */
   urlDeSubida(clave: string, mime: string, ttlSegundos?: number): Promise<string>;
   existe(clave: string): Promise<boolean>;
@@ -70,6 +81,17 @@ export class AlmacenS3 implements Almacen {
     });
   }
 
+  async leer(clave: string): Promise<{ datos: Buffer; mime: string | null }> {
+    const r = await this.#cliente.send(new GetObjectCommand({ Bucket: this.#bucket, Key: clave }));
+    const partes: Buffer[] = [];
+    // El cuerpo llega como flujo; se junta entero porque el límite de un medio
+    // son 100 MB y el proveedor los quiere de una pieza.
+    for await (const trozo of r.Body as AsyncIterable<Uint8Array>) {
+      partes.push(Buffer.from(trozo));
+    }
+    return { datos: Buffer.concat(partes), mime: r.ContentType ?? null };
+  }
+
   urlDeSubida(clave: string, mime: string, ttlSegundos = TTL_SUBIDA): Promise<string> {
     return getSignedUrl(
       this.#cliente,
@@ -113,6 +135,11 @@ export class AlmacenEnMemoria implements Almacen {
   }
   async urlDeLectura(clave: string, ttlSegundos = TTL_LECTURA): Promise<string> {
     return `memoria://lectura/${clave}?ttl=${ttlSegundos}`;
+  }
+  async leer(clave: string): Promise<{ datos: Buffer; mime: string | null }> {
+    const o = this.objetos.get(clave);
+    if (!o) throw new Error(`No existe el objeto "${clave}".`);
+    return { datos: o.datos, mime: o.mime };
   }
   async urlDeSubida(clave: string, _mime: string, ttlSegundos = TTL_SUBIDA): Promise<string> {
     return `memoria://subida/${clave}?ttl=${ttlSegundos}`;
