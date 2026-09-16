@@ -260,8 +260,9 @@ async function procesarMensaje(
   const mediaAssetId = evento.mediaId && esTipoDeMedio(evento.tipo) ? await nuevoId(c) : null;
   if (mediaAssetId) {
     await c.query(
-      `INSERT INTO media_assets (id, tenant_id, kind, status) VALUES ($1, $2, $3, 'pending')`,
-      [mediaAssetId, fila.tenant_id, evento.tipo],
+      `INSERT INTO media_assets (id, tenant_id, kind, filename, status)
+       VALUES ($1, $2, $3, $4, 'pending')`,
+      [mediaAssetId, fila.tenant_id, evento.tipo, evento.nombreDeArchivo ?? null],
     );
   }
 

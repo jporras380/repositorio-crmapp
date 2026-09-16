@@ -80,13 +80,8 @@ export async function enviarMensajeSaliente(
   //    todo el tiempo que tarde Meta.
   let resultado: ResultadoDeEnvio;
   try {
-    const { carga: cargaResuelta, bytes } = await resolverMedioPropio(
-      deps,
-      tenantId,
-      carga,
-      adaptador,
-    );
-    resultado = await entregar(adaptador, cargaResuelta, bytes);
+    const resuelto = await resolverMedioPropio(deps, tenantId, carga, adaptador);
+    resultado = await entregar(adaptador, resuelto);
   } catch (error) {
     if (error instanceof ErrorDeCanal && !error.reintentable) {
       await withTenant(deps.pool, tenantId, async (c) => {
@@ -173,6 +168,14 @@ interface BytesDeMedio {
   mime: string;
 }
 
+/** Lo que se resuelve de un medio propio antes de entregarlo. */
+interface MedioResuelto {
+  carga: CargaDeEnvio;
+  bytes: BytesDeMedio | null;
+  /** Cómo se llama el fichero. WhatsApp lo enseña en los documentos. */
+  nombre: string | null;
+}
+
 /**
  * Deja el medio propio listo para el canal, de una de dos formas.
  *
@@ -193,17 +196,20 @@ async function resolverMedioPropio(
   tenantId: string,
   carga: CargaDeEnvio,
   adaptador: ChannelAdapter,
-): Promise<{ carga: CargaDeEnvio; bytes: BytesDeMedio | null }> {
+): Promise<MedioResuelto> {
   const p = carga.peticion;
   if (p.tipo === 'text' || p.tipo === 'template' || p.tipo === 'comment_reply' || !p.mediaAssetId)
-    return { carga, bytes: null };
+    return { carga, bytes: null, nombre: null };
   if (!deps.almacen) throw new Error('Medio propio sin almacén configurado.');
   const medio = await withTenant(deps.pool, tenantId, async (c) => {
     const { rows } = await c.query<{
       storage_key: string | null;
       status: string;
       mime: string | null;
-    }>(`SELECT storage_key, status, mime FROM media_assets WHERE id = $1`, [p.mediaAssetId]);
+      filename: string | null;
+    }>(`SELECT storage_key, status, mime, filename FROM media_assets WHERE id = $1`, [
+      p.mediaAssetId,
+    ]);
     const m = rows[0];
     if (!m || m.status !== 'stored' || !m.storage_key) {
       // No reintentable: el medio no va a aparecer por esperar.
@@ -213,7 +219,7 @@ async function resolverMedioPropio(
         false,
       );
     }
-    return { clave: m.storage_key, mime: m.mime };
+    return { clave: m.storage_key, mime: m.mime, filename: m.filename };
   });
 
   if (!adaptador.capacidades().requiereUrlPublicaParaMedios) {
@@ -221,17 +227,17 @@ async function resolverMedioPropio(
     return {
       carga,
       bytes: { datos, mime: medio.mime ?? mime ?? 'application/octet-stream' },
+      nombre: medio.filename,
     };
   }
 
   const url = await deps.almacen.urlDeLectura(medio.clave, 60 * 60);
-  return { carga: { ...carga, peticion: { ...p, url } }, bytes: null };
+  return { carga: { ...carga, peticion: { ...p, url } }, bytes: null, nombre: medio.filename };
 }
 
 async function entregar(
   adaptador: ChannelAdapter,
-  carga: CargaDeEnvio,
-  bytes: BytesDeMedio | null,
+  { carga, bytes, nombre }: MedioResuelto,
 ): Promise<ResultadoDeEnvio> {
   const destino = {
     externalUserId: carga.externalUserId,
@@ -263,6 +269,9 @@ async function entregar(
           ? { tipo: 'buffer', datos: bytes.datos, mime: bytes.mime }
           : { tipo: 'url', url: p.url ?? '' },
         pieDeFoto: p.pieDeFoto,
+        // Solo en documentos: es donde WhatsApp lo enseña. En una foto, el
+        // nombre del fichero no le dice nada a nadie.
+        ...(nombre ? { nombreDeArchivo: nombre } : {}),
       });
   }
 }

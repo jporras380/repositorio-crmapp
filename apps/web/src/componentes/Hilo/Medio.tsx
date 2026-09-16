@@ -7,6 +7,8 @@ interface Props {
   tipo: string;
   medioId: string;
   estado: 'pending' | 'stored' | 'failed' | null;
+  /** Cómo se llama el fichero, cuando se sabe. Solo lo traen los documentos. */
+  nombre?: string | null;
 }
 
 /**
@@ -14,7 +16,7 @@ interface Props {
  * minutos; si el usuario deja el hilo abierto más tiempo, la imagen ya
  * cargada sigue en pantalla y el siguiente sondeo no la vuelve a pedir.
  */
-export function Medio({ api, tipo, medioId, estado }: Props) {
+export function Medio({ api, tipo, medioId, estado, nombre }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [mime, setMime] = useState<string | null>(null);
   const [fallo, setFallo] = useState(false);
@@ -47,8 +49,16 @@ export function Medio({ api, tipo, medioId, estado }: Props) {
   if (tipo === 'audio')
     return <audio className={estilos.audio} src={url} controls preload="metadata" />;
   return (
-    <a className={estilos.documento} href={url} target="_blank" rel="noreferrer">
-      Abrir documento{mime ? ` (${mime.split('/')[1]})` : ''}
+    // Con nombre se enseña el nombre: «boleta_reserva.pdf» dice qué es, y
+    // «Abrir documento (pdf)» no dice nada. Sin nombre, lo de antes.
+    <a
+      className={estilos.documento}
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      download={nombre ?? undefined}
+    >
+      {nombre ?? `Abrir documento${mime ? ` (${mime.split('/')[1]})` : ''}`}
     </a>
   );
 }

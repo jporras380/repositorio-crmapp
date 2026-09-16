@@ -315,6 +315,7 @@ export class BandejaService {
         `SELECT m.id, m.direction AS direccion, m.type AS tipo, m.body AS texto, m.status AS estado,
                 m.sent_by AS origen, m.ai_generated AS generado_por_ia, m.created_at AS creado_en,
                 m.error, m.media_asset_id AS medio_id, ma.status AS medio_estado,
+                ma.filename AS medio_nombre,
                 m.sent_by_user_id AS autor_id, u.full_name AS autor
            FROM messages m
            LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
@@ -1002,6 +1003,8 @@ export interface MensajeDeConversacion {
   /** Medio propio; la URL se pide aparte en GET /v1/medios/:id/url. */
   medio_id: string | null;
   medio_estado: string | null;
+  /** Cómo se llama el fichero. Solo los documentos suelen traerlo. */
+  medio_nombre: string | null;
 }
 
 function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {

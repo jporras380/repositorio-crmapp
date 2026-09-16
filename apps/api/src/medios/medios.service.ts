@@ -51,6 +51,33 @@ export interface LimitesDeMedios {
   porCanal: Record<string, { tipos: string[]; limites: Record<string, number> }>;
 }
 
+/** Lo que WhatsApp ensena de un nombre antes de recortarlo el. */
+const LARGO_MAXIMO_DE_NOMBRE = 120;
+
+/**
+ * El nombre del fichero, en condiciones de guardarlo y de ensenarselo a un
+ * cliente.
+ *
+ * Se queda con la ultima parte de la ruta -un navegador puede mandar
+ * `C:\fakepath\foto.jpg`- para que el nombre no arrastre el disco de quien
+ * lo subio, y se quitan los caracteres de control, que no se ven y ensucian
+ * cualquier sitio donde se pinten despues.
+ *
+ * Se filtra por codigo de caracter y no con una expresion regular a
+ * proposito: una clase con rangos de control es justo el sitio donde un
+ * caracter invisible acaba colandose en el propio codigo fuente.
+ */
+function nombreLimpio(nombre: string | undefined): string | null {
+  if (!nombre) return null;
+  const partes = nombre.split('/').flatMap((parte) => parte.split('\\'));
+  const solo = partes[partes.length - 1] ?? '';
+  const limpio = [...solo]
+    .filter((caracter) => caracter.charCodeAt(0) > 31)
+    .join('')
+    .trim();
+  return limpio ? limpio.slice(0, LARGO_MAXIMO_DE_NOMBRE) : null;
+}
+
 export class MediosService {
   readonly #db: BaseDeDatos;
   readonly #almacen: Almacen | null;
@@ -147,9 +174,9 @@ export class MediosService {
       const id = await this.#db.nuevoId(c);
       const clave = claveDeMedio(ctx.tenantId, id, mime);
       await c.query(
-        `INSERT INTO media_assets (id, tenant_id, kind, storage_key, mime, bytes, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
-        [id, ctx.tenantId, tipoDeMedio(mime), clave, mime, datos.bytes],
+        `INSERT INTO media_assets (id, tenant_id, kind, storage_key, mime, bytes, filename, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
+        [id, ctx.tenantId, tipoDeMedio(mime), clave, mime, datos.bytes, nombreLimpio(datos.nombre)],
       );
       const urlDeSubida = await almacen.urlDeSubida(clave, mime);
       return { mediaAssetId: id, urlDeSubida, expiraEnSegundos: 10 * 60 };

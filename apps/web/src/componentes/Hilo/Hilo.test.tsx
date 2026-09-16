@@ -49,6 +49,7 @@ function mensaje(m: Partial<Mensaje>): Mensaje {
     error: null,
     medio_id: null,
     medio_estado: null,
+    medio_nombre: null,
     ...m,
   };
 }
@@ -117,5 +118,43 @@ describe('Hilo', () => {
   it('quien ya no está en el equipo deja su mensaje, sin fingir que no lo escribió nadie', async () => {
     pintar([mensaje({ texto: 'Se lo reservo', autor: null, autor_id: 'u9' })]);
     expect(await screen.findByText('Un agente')).toBeTruthy();
+  });
+
+  it('un documento se enseña con su nombre, no como «Abrir documento»', async () => {
+    const api = {
+      mensajes: vi.fn().mockResolvedValue({
+        items: [
+          mensaje({
+            direccion: 'inbound',
+            origen: 'contact',
+            tipo: 'document',
+            texto: null,
+            medio_id: 'md1',
+            medio_estado: 'stored',
+            medio_nombre: 'boleta_reserva.pdf',
+          }),
+        ],
+        siguienteCursor: null,
+      }),
+      urlDeMedio: vi
+        .fn()
+        .mockResolvedValue({ url: 'blob:x', expiraEnSegundos: 300, mime: 'application/pdf' }),
+      iaAjustes: vi.fn().mockResolvedValue({ activa: false }),
+      respuestasRapidas: vi.fn().mockResolvedValue([]),
+      limitesDeMedios: vi
+        .fn()
+        .mockResolvedValue({ mimesPermitidos: [], tamanoMaximo: 1, porCanal: {} }),
+    } as unknown as Api;
+    render(
+      <Hilo
+        api={api}
+        conversacion={conversacion}
+        fichaAbierta={false}
+        alAlternarFicha={vi.fn()}
+        alVolver={vi.fn()}
+        alCambiar={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText('boleta_reserva.pdf')).toBeTruthy();
   });
 });

@@ -100,6 +100,8 @@ export interface Mensaje {
   error: { tipo?: string; mensaje?: string } | null;
   medio_id: string | null;
   medio_estado: 'pending' | 'stored' | 'failed' | null;
+  /** Nombre del fichero, cuando lo hay (documentos). */
+  medio_nombre: string | null;
 }
 
 /**

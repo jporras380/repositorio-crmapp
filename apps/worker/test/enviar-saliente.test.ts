@@ -281,6 +281,33 @@ describe('medio propio', () => {
     expect(ig.enviados[0]!.contenido).toMatchObject({ origen: 'url' });
   });
 
+  it('un documento viaja con su nombre: el cliente ve «tarifario.pdf», no «archivo»', async () => {
+    const id = await withTenant(app, tenantId, async (c) => {
+      const nuevo = (await c.query<{ id: string }>('SELECT uuidv7() AS id')).rows[0]!.id;
+      await c.query(
+        `INSERT INTO media_assets (id, tenant_id, kind, status, storage_key, mime, filename)
+         VALUES ($1, $2, 'document', 'stored', $3, 'application/pdf', 'tarifario.pdf')`,
+        [nuevo, tenantId, `tenants/${tenantId}/media/${nuevo}.pdf`],
+      );
+      return nuevo;
+    });
+    const base = await encolado();
+    const almacen = new AlmacenEnMemoria();
+    await almacen.guardar(
+      `tenants/${tenantId}/media/${id}.pdf`,
+      Buffer.from('%PDF'),
+      'application/pdf',
+    );
+
+    expect(
+      await enviarMensajeSaliente({ pool: app, canales: canales(), almacen }, tenantId, {
+        ...base,
+        peticion: { tipo: 'document', url: null, mediaAssetId: id },
+      }),
+    ).toBe('enviado');
+    expect(sandbox.enviados[0]!.contenido).toMatchObject({ nombreDeArchivo: 'tarifario.pdf' });
+  });
+
   it('medio no almacenado → failed, no reintentable', async () => {
     const mediaAssetId = await medio('pending');
     const base = await encolado();

@@ -174,6 +174,9 @@ function mensaje(
           ? `${contenido['latitude']},${contenido['longitude']}`
           : str(contenido['caption']);
 
+  // Solo los documentos traen nombre; en una foto, Meta no manda ninguno.
+  const nombreDeArchivo = str(contenido['filename']);
+
   // `referral` aparece cuando el contacto llegó desde un anuncio
   // Click-to-WhatsApp: abre la ventana gratuita de 72 h.
   const referral = obj(m['referral']);
@@ -196,6 +199,7 @@ function mensaje(
     tipo,
     texto,
     mediaId: tipo === 'text' || tipo === 'location' ? undefined : str(contenido['id']),
+    nombreDeArchivo,
     entradaGratuita,
     respondeA: str(obj(m['context'])['id']),
   };

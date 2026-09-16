@@ -1,0 +1,14 @@
+-- 0031 · El nombre del archivo.
+--
+-- `media_assets` guardaba el tipo y el peso, pero no cómo se llama el fichero.
+-- Se perdía en los dos sentidos:
+--
+-- - **Al enviar**: la API ya recibía el nombre en `POST /v1/medios/subidas` y
+--   lo tiraba, así que un PDF le llegaba al cliente como «archivo».
+-- - **Al recibir**: WhatsApp manda `filename` en los documentos y no se leía,
+--   así que el agente veía «Abrir documento (pdf)» en vez de
+--   «boleta_reserva.pdf».
+--
+-- Nulable porque una foto no tiene nombre que enseñar, y porque todo lo que ya
+-- está guardado no lo tiene.
+ALTER TABLE media_assets ADD COLUMN filename text;

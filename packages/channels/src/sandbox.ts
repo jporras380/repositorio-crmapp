@@ -151,6 +151,9 @@ export class AdaptadorSandbox implements ChannelAdapter {
     return this.#registrar(envio.tipo, envio.externalUserId, {
       origen: envio.origen.tipo,
       pieDeFoto: envio.pieDeFoto,
+      // Se registra para que los tests puedan comprobar que el nombre del
+      // fichero llega hasta el canal, que es lo que ve el cliente.
+      nombreDeArchivo: envio.nombreDeArchivo,
     });
   }
 

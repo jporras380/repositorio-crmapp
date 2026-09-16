@@ -308,3 +308,52 @@ describe('los límites del canal se comprueban ANTES de salir', () => {
     await http.get('/v1/medios/limites').expect(401);
   });
 });
+
+describe('el nombre del archivo (0031)', () => {
+  it('se guarda al preparar la subida, sin la ruta que mete el navegador', async () => {
+    const r = await http
+      .post('/v1/medios/subidas')
+      .set(auth())
+      .send({ mime: 'application/pdf', bytes: 2048, nombre: 'C:\\fakepath\\boleta reserva.pdf' })
+      .expect(201);
+    const { rows } = await admin.query<{ filename: string }>(
+      `SELECT filename FROM media_assets WHERE id = $1`,
+      [r.body.mediaAssetId],
+    );
+    // Se queda el nombre, no la ruta: lo que se enseña a un cliente no lleva
+    // encima el disco de quien lo subió.
+    expect(rows[0]!.filename).toBe('boleta reserva.pdf');
+  });
+
+  it('sin nombre se guarda nulo: una foto no tiene nombre que enseñar', async () => {
+    const r = await http
+      .post('/v1/medios/subidas')
+      .set(auth())
+      .send({ mime: 'image/jpeg', bytes: 1024 })
+      .expect(201);
+    const { rows } = await admin.query<{ filename: string | null }>(
+      `SELECT filename FROM media_assets WHERE id = $1`,
+      [r.body.mediaAssetId],
+    );
+    expect(rows[0]!.filename).toBeNull();
+  });
+
+  it('el listado de mensajes lo devuelve, para enseñarlo en el hilo', async () => {
+    const { rows } = await admin.query<{ id: string }>(
+      `INSERT INTO media_assets (tenant_id, kind, mime, filename, storage_key, status)
+       VALUES ($1, 'document', 'application/pdf', 'tarifario.pdf', 'k', 'stored') RETURNING id`,
+      [tenantId],
+    );
+    await http
+      .post(`/v1/conversaciones/${conversationId}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'document', mediaAssetId: rows[0]!.id })
+      .expect(202);
+
+    const lista = await http
+      .get(`/v1/conversaciones/${conversationId}/mensajes`)
+      .set(auth())
+      .expect(200);
+    expect(lista.body.items[0].medio_nombre).toBe('tarifario.pdf');
+  });
+});

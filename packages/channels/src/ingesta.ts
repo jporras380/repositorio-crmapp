@@ -54,6 +54,11 @@ export interface EventoDeMensaje extends EventoBase {
   texto?: string | undefined;
   /** Identificador del medio en el proveedor, a descargar antes de que caduque. */
   mediaId?: string | undefined;
+  /**
+   * Cómo se llama el fichero que mandan. Solo los documentos lo traen, y es lo
+   * único que distingue «boleta_reserva.pdf» de «Abrir documento (pdf)».
+   */
+  nombreDeArchivo?: string | undefined;
   /** Si llegó por anuncio Click-to-WhatsApp: abre ventana de 72 h. */
   entradaGratuita?: boolean | undefined;
   respondeA?: string | undefined;

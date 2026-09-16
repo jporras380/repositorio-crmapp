@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-60, el archivo llega con su nombre** ([[medios]] §El archivo llega con su nombre): un PDF le llegaba al cliente como «archivo», y uno que entraba se veía «Abrir documento (pdf)». El nombre se recibía y se tiraba en los dos sentidos. Migración 0031.
 - **PR-59, «hoy» es el día del hotel** ([[panel]] §«Hoy» es el día del hotel): `cerradasHoy` y `actividadHoy` cortaban el día en UTC, así que en Perú el panel se ponía a cero a las 19:00 de la tarde y decía que no se había atendido a nadie. El comentario del código decía que no se hacía «porque la zona horaria no se guarda»: dejó de ser verdad en PR-47 y nadie volvió a mirarlo.
 - **PR-58, los servicios de desarrollo recargan solos** ([[web]] §Los servicios de desarrollo recargan solos): `dev:api` y `dev:worker` corrían sin `watch`, así que seguían con el código de cuando arrancaron. Costó una ronda entera de depuración en PR-57.
 - **PR-57, las imágenes salían y no llegaban** ([[medios]] §Las imágenes salían y no llegaban): el worker mandaba a Meta una URL de MinIO en `localhost`, donde Meta no puede entrar; el mensaje se aceptaba con su `wamid` y fallaba después, en silencio. Ahora se decide por la capacidad `requiereUrlPublicaParaMedios`, que estaba declarada desde PR-7 y no miraba nadie: a WhatsApp se le suben los bytes; Instagram y Facebook siguen con URL firmada. Nuevo `Almacen.leer()`.

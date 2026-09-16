@@ -302,6 +302,77 @@ describe('syncTemplates', () => {
   });
 });
 
+describe('ingesta: el nombre del documento que entra', () => {
+  const ingesta = new IngestaWhatsapp();
+
+  const conDocumento = (documento: Record<string, unknown>) => ({
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: 'WABA9',
+        changes: [
+          {
+            field: 'messages',
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: { display_phone_number: '15550001111', phone_number_id: 'PN123' },
+              contacts: [{ profile: { name: 'Rosa' }, wa_id: '51999888777' }],
+              messages: [
+                {
+                  from: '51999888777',
+                  id: 'wamid.D1',
+                  timestamp: '1757440000',
+                  type: 'document',
+                  document: documento,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  it('se lee `filename`: el agente ve el nombre, no «Abrir documento»', () => {
+    const [e] = ingesta.parsearEventos(
+      conDocumento({ id: 'MEDIA9', mime_type: 'application/pdf', filename: 'boleta_reserva.pdf' }),
+    );
+    expect(e).toMatchObject({ tipo: 'document', nombreDeArchivo: 'boleta_reserva.pdf' });
+  });
+
+  it('una foto no trae nombre, y no se inventa ninguno', () => {
+    const [e] = ingesta.parsearEventos({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: 'WABA9',
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: { display_phone_number: '15550001111', phone_number_id: 'PN123' },
+                contacts: [{ profile: { name: 'Rosa' }, wa_id: '51999888777' }],
+                messages: [
+                  {
+                    from: '51999888777',
+                    id: 'wamid.F1',
+                    timestamp: '1757440000',
+                    type: 'image',
+                    image: { id: 'MEDIA8', mime_type: 'image/jpeg' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(e).toMatchObject({ tipo: 'image' });
+    expect((e as { nombreDeArchivo?: string }).nombreDeArchivo).toBeUndefined();
+  });
+});
+
 describe('ingesta: payload con la forma real de Meta', () => {
   const ingesta = new IngestaWhatsapp();
 

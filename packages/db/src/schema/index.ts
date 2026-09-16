@@ -267,6 +267,8 @@ export const mediaAssets = pgTable('media_assets', {
   kind: text('kind').notNull(),
   storageKey: text('storage_key'),
   mime: text('mime'),
+  /** Cómo se llama el fichero, para enseñarlo y para mandarlo (0031). */
+  filename: text('filename'),
   bytes: bigint('bytes', { mode: 'number' }),
   width: integer('width'),
   height: integer('height'),

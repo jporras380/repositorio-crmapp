@@ -222,7 +222,15 @@ function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean
     <article
       className={`${estilos.burbuja} ${saliente ? estilos.saliente : estilos.entrante} ${agrupado ? estilos.agrupado : ''} ${m.estado === 'failed' ? estilos.fallido : ''}`}
     >
-      {m.medio_id && <Medio api={api} tipo={m.tipo} medioId={m.medio_id} estado={m.medio_estado} />}
+      {m.medio_id && (
+        <Medio
+          api={api}
+          tipo={m.tipo}
+          medioId={m.medio_id}
+          estado={m.medio_estado}
+          nombre={m.medio_nombre}
+        />
+      )}
       {m.tipo === 'template' && <span className={estilos.tipo}>Plantilla</span>}
       {m.texto && <p className={estilos.texto}>{m.texto}</p>}
       <footer className={estilos.meta}>

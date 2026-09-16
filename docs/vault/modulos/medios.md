@@ -134,3 +134,29 @@ Es el primero de los tres motivos de [[whatsapp]] §Aprendizajes con tráfico RE
 Se leyó del almacén una imagen de **1 097 KB**, se subió a Meta por bytes y se envió al número de pruebas. Los webhooks la marcaron **`sent` → `delivered` → `read`**, y el usuario confirmó haberla recibido. Es la misma imagen que minutos antes había fallado cinco veces con `131053` por el camino de la URL.
 
 El guion de comprobación se borró después: mandaba mensajes de verdad y no tiene sitio en `src/`.
+
+## El archivo llega con su nombre (PR-60, 2026-09-16)
+
+`media_assets` guardaba tipo y peso, pero no cómo se llama el fichero. Se perdía en los dos sentidos, y los dos se notaban:
+
+- **Al enviar**, la API ya recibía el nombre en `POST /v1/medios/subidas` y lo tiraba: un PDF le llegaba al cliente como «archivo».
+- **Al recibir**, WhatsApp manda `filename` en los documentos y no se leía: el agente veía «Abrir documento (pdf)» en vez de «boleta_reserva.pdf».
+
+Migración 0031 (`media_assets.filename`, nulable porque una foto no tiene nombre que enseñar).
+
+### Decisiones
+
+- **El nombre se limpia al guardarlo, no al pintarlo.** Se queda la última parte de la ruta —un navegador manda `C:akepathoto.jpg`— y se quitan los caracteres de control. Limpiar en el borde de entrada es limpiar una vez; hacerlo en cada sitio donde se pinta es olvidarlo en uno.
+- **Solo va a WhatsApp en documentos.** En una foto, el nombre del fichero no le dice nada a nadie y ensuciaría la burbuja.
+- **El nombre del entrante también se guarda**, y para eso hizo falta un campo opcional en el evento de ingesta (`nombreDeArchivo`). Es aditivo y **no toca `ChannelAdapter`**, que está en la lista de parada: `EnvioDeMedia` ya tenía `nombreDeArchivo` desde PR-7 y nadie lo rellenaba.
+
+### Una lección de la que dejo constancia
+
+El filtro de caracteres de control se escribió primero como expresión regular con rangos ` -`. Al pasar por el shell, los escapes se resolvieron y el archivo acabó con **bytes de control de verdad dentro del código fuente** — Git lo marcó como binario. Ahora se filtra por código de carácter, que es más largo de leer y no puede volver a pasar. Queda escrito en el propio comentario de la función.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Enviar un PDF desde la bandeja: al cliente le llega con su nombre, no como «archivo».
+2. Que el cliente mande un PDF: en el hilo se lee su nombre, y al pulsarlo se descarga con él.
+
+9 tests nuevos entre ingesta, API, worker y web.
