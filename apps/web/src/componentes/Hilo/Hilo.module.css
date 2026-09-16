@@ -284,3 +284,15 @@
     font-weight: 700;
   }
 }
+
+@layer components {
+  /* Quién lo escribió, delante de la hora y más apagado que el texto. */
+  .autor {
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+
+  .autor::after {
+    content: ' ·';
+  }
+}

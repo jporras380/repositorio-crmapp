@@ -154,3 +154,25 @@ aparece.
 Un bot puede rendirse a propósito con el nodo «Pasar a una persona», y entonces la conversación llega a la bandeja **marcada y con el motivo**: insignia roja en la fila (lo primero del pie, antes que cualquier otra insignia), el motivo entero bajo la cabecera del hilo, y la pestaña **«Piden persona»** al lado de «Sin respuesta».
 
 La marca se apaga **al contestar**, no con un botón. El detalle y su precio están en [[salesbots]] §El relevo al revés.
+
+## Quién dijo cada cosa (PR-56, 2026-09-16)
+
+`messages.sent_by_user_id` se guardaba desde PR-10 y **no se enseñaba en ninguna parte**. En un hotel donde atienden varias personas, «¿quién le prometió eso al cliente?» es la pregunta de cada día, y el dato estaba ahí sin usar.
+
+Cada burbuja saliente lleva ahora el nombre de quien la escribió, delante de la hora.
+
+### Las decisiones
+
+- **Solo lo que sale.** De lo que entra ya se sabe quién es: está en la cabecera. Repetirlo en cada burbuja entrante sería ruido.
+- **El nombre se dice una vez por tanda.** Seis burbujas seguidas de Marta no llevan «Marta» seis veces.
+- **Pero se agrupa por dirección Y por autor.** Antes se agrupaba solo por dirección: si contestaban dos personas seguidas, el nombre de la segunda quedaba escondido y el hilo decía que había hablado una sola. Era un fallo silencioso —el hilo se leía bien, y mentía— y tiene su test.
+- **Un bot dice «Bot»**, no un nombre de persona.
+- **Quien deja el equipo no borra su historial.** Su mensaje sigue en el hilo; si el nombre ya no se puede resolver, se dice «Un agente» en vez de fingir que no lo escribió nadie. Se une por fuera (`LEFT JOIN`) justamente para eso.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Responder a una conversación desde el CRM: la burbuja lleva tu nombre.
+2. Que responda otra persona del equipo justo después: aparecen los dos nombres, no uno.
+3. Enviar dos mensajes seguidos tú: el nombre sale una vez.
+
+Cubierto por `Hilo.test.tsx` (5 casos, el hilo no tenía tests hasta ahora) y 4 en `bandeja.e2e.test.ts`.

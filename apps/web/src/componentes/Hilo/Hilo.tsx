@@ -158,7 +158,16 @@ export function Hilo({
               <Burbuja
                 m={m}
                 api={api}
-                agrupado={!nuevoDia && anterior?.direccion === m.direccion}
+                /*
+                  Se agrupa por dirección Y por quién escribe: si contestan dos
+                  personas seguidas, agrupar escondería el nombre de la
+                  segunda y el hilo diría que habló una sola.
+                */
+                agrupado={
+                  !nuevoDia &&
+                  anterior?.direccion === m.direccion &&
+                  autorDe(anterior) === autorDe(m)
+                }
               />
             </Fragment>
           );
@@ -189,8 +198,26 @@ export function Hilo({
   );
 }
 
+/**
+ * Quién lo dijo, en una palabra.
+ *
+ * Solo para lo que SALE: quién escribió del lado del hotel es la pregunta
+ * diaria de un equipo —«¿quién le dijo eso al cliente?»— y hasta ahora el dato
+ * se guardaba y no se enseñaba. De lo que entra ya se sabe: el contacto, que
+ * está en la cabecera.
+ */
+function autorDe(m: Mensaje): string | null {
+  if (m.direccion !== 'outbound') return null;
+  if (m.origen === 'bot') return 'Bot';
+  // Una persona borrada del equipo deja su mensaje, pero ya no su nombre: se
+  // dice «un agente» en vez de fingir que no lo escribió nadie.
+  if (m.origen === 'human') return m.autor ?? 'Un agente';
+  return null;
+}
+
 function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean }) {
   const saliente = m.direccion === 'outbound';
+  const autor = autorDe(m);
   return (
     <article
       className={`${estilos.burbuja} ${saliente ? estilos.saliente : estilos.entrante} ${agrupado ? estilos.agrupado : ''} ${m.estado === 'failed' ? estilos.fallido : ''}`}
@@ -199,6 +226,11 @@ function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean
       {m.tipo === 'template' && <span className={estilos.tipo}>Plantilla</span>}
       {m.texto && <p className={estilos.texto}>{m.texto}</p>}
       <footer className={estilos.meta}>
+        {/*
+          Solo en el primero de una tanda: repetir «Marta» en seis burbujas
+          seguidas es ruido, y el agrupado ya dice que son del mismo.
+        */}
+        {autor && !agrupado && <span className={estilos.autor}>{autor}</span>}
         <time dateTime={m.creado_en}>{horaDeMensaje(m.creado_en)}</time>
         {m.generado_por_ia && (
           <span className={estilos.ia} title="Redactado con IA y revisado por una persona">

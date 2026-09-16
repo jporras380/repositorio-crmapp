@@ -93,6 +93,9 @@ export interface Mensaje {
   estado: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | string;
   origen: string;
   generado_por_ia: boolean;
+  /** Quién lo escribió, si fue una persona. `null` en entrantes y bots. */
+  autor_id: string | null;
+  autor: string | null;
   creado_en: string;
   error: { tipo?: string; mensaje?: string } | null;
   medio_id: string | null;

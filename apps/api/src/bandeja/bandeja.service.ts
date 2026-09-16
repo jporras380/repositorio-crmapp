@@ -314,9 +314,14 @@ export class BandejaService {
       const { rows } = await c.query<MensajeDeConversacion>(
         `SELECT m.id, m.direction AS direccion, m.type AS tipo, m.body AS texto, m.status AS estado,
                 m.sent_by AS origen, m.ai_generated AS generado_por_ia, m.created_at AS creado_en,
-                m.error, m.media_asset_id AS medio_id, ma.status AS medio_estado
+                m.error, m.media_asset_id AS medio_id, ma.status AS medio_estado,
+                m.sent_by_user_id AS autor_id, u.full_name AS autor
            FROM messages m
            LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
+           -- Quién lo escribió. Se une por fuera porque lo entrante y lo que
+           -- manda un bot no tienen persona detrás, y porque alguien que ya no
+           -- está en el equipo no debe borrar su mensaje del hilo.
+           LEFT JOIN users u ON u.id = m.sent_by_user_id
           WHERE m.conversation_id = $1 ${condicionCursor}
           ORDER BY m.created_at DESC, m.id DESC
           LIMIT $2`,
@@ -989,6 +994,9 @@ export interface MensajeDeConversacion {
   estado: string;
   origen: string;
   generado_por_ia: boolean;
+  /** Quién lo escribió, si fue una persona. `null` para entrantes y bots. */
+  autor_id: string | null;
+  autor: string | null;
   creado_en: Date;
   error: unknown;
   /** Medio propio; la URL se pide aparte en GET /v1/medios/:id/url. */

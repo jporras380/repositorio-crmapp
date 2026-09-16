@@ -1036,3 +1036,71 @@ describe('cuando un bot pide una persona (0029)', () => {
     expect(otras.every((c) => c.relevo === null)).toBe(true);
   });
 });
+
+describe('quién dijo cada cosa', () => {
+  let conv: string;
+
+  beforeAll(async () => {
+    conv = await conversacion('Julia Testigo', { haceHoras: 2 });
+  });
+
+  const mensajes = async () =>
+    (await http.get(`/v1/conversaciones/${conv}/mensajes`).set(auth()).expect(200)).body.items as {
+      direccion: string;
+      origen: string;
+      autor: string | null;
+      autor_id: string | null;
+    }[];
+
+  it('lo que escribe una persona lleva su nombre', async () => {
+    await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'text', texto: 'Buenas, le confirmo el bungalow' })
+      .expect(202);
+
+    const ultimo = (await mensajes())[0]!;
+    expect(ultimo).toMatchObject({ direccion: 'outbound', origen: 'human', autor: 'Jefe' });
+    expect(ultimo.autor_id).toBe(userId);
+  });
+
+  it('lo que entra no tiene autor del lado del hotel', async () => {
+    const entrante = (await mensajes()).find((m) => m.direccion === 'inbound')!;
+    expect(entrante.autor).toBeNull();
+    expect(entrante.autor_id).toBeNull();
+  });
+
+  it('lo que manda un bot tampoco tiene persona detrás', async () => {
+    await admin.query(
+      `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, status, sent_by)
+       VALUES ($1, $2, $3, 'outbound', 'text', 'Soy un bot', 'sent', 'bot')`,
+      [tenantId, conv, channelAccountId],
+    );
+    const delBot = (await mensajes()).find((m) => m.origen === 'bot')!;
+    expect(delBot.autor).toBeNull();
+  });
+
+  it('el mensaje sobrevive a que su autor deje el equipo', async () => {
+    // La membresía se va; el mensaje se queda. Borrar el historial porque
+    // alguien se fue sería perder lo que se le dijo al cliente.
+    const otro = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Vecina',
+        slug: 'vecina-autores',
+        email: 'vecina-autores@test.test',
+        contrasena: 'contrasena-muy-larga',
+        nombreCompleto: 'Vecina',
+      })
+      .expect(201);
+    await admin.query(
+      `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, status, sent_by, sent_by_user_id)
+       VALUES ($1, $2, $3, 'outbound', 'text', 'De alguien de fuera', 'sent', 'human', $4)`,
+      [tenantId, conv, channelAccountId, otro.body.userId],
+    );
+    // RLS: un usuario de otra cuenta no se resuelve aquí, así que el hilo
+    // sigue entero y sin nombre, en vez de romperse.
+    const huerfano = (await mensajes()).find((m) => m.direccion === 'outbound')!;
+    expect(huerfano).toBeTruthy();
+  });
+});
