@@ -243,8 +243,8 @@ export async function enviarPorConversacion(
       throw new ErrorDeNegocio('medio_requerido', 'Indica url o mediaAssetId.', 400);
     }
     if (peticion.mediaAssetId) {
-      const { rows } = await c.query<{ status: string }>(
-        `SELECT status FROM media_assets WHERE id = $1`,
+      const { rows } = await c.query<{ status: string; bytes: number | null }>(
+        `SELECT status, bytes FROM media_assets WHERE id = $1`,
         [peticion.mediaAssetId],
       );
       if (!rows[0]) throw new ErrorDeNegocio('medio_no_encontrado', 'El medio no existe.', 404);
@@ -254,6 +254,18 @@ export async function enviarPorConversacion(
           'El medio todavía no está almacenado.',
           409,
         );
+      }
+      // El tamaño solo se conoce AQUÍ, después de cargar el medio, así que la
+      // comprobación del paso 5 no pudo hacerla. Sin esto, `limitesDeMedios`
+      // era una promesa que nadie cumplía: un vídeo de 38 MB viajaba entero
+      // hasta Meta para fallar allí con un error que no dice el tamaño.
+      const bytes = rows[0].bytes;
+      if (bytes !== null) {
+        const porTamano = validarContraCapacidades(capacidades, {
+          tipo: peticion.tipo as TipoDeMensaje,
+          bytes: Number(bytes),
+        });
+        if (porTamano) throw new ErrorDeNegocio(`canal_${porTamano.tipo}`, porTamano.message, 422);
       }
       mediaAssetId = peticion.mediaAssetId;
     }

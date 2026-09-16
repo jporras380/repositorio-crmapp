@@ -39,6 +39,12 @@ type Req = { contexto?: unknown };
 export class MediosController {
   constructor(@Inject(TOKEN_MEDIOS) private readonly medios: MediosService) {}
 
+  /** Antes de `:id/url` a propósito: si no, «limites» entraría como un id. */
+  @Get('limites')
+  limites(@Req() req: Req) {
+    return conContextoDePeticion(req, async () => this.medios.limites());
+  }
+
   @Get(':id/url')
   url(@Req() req: Req, @Param('id') id: string) {
     return conContextoDePeticion(req, () => this.medios.urlDeLectura(id));

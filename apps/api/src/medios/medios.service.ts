@@ -9,6 +9,7 @@
  */
 import { registrarUso } from '@crmapp/db';
 import { claveDeMedio, tipoDeMedio, type Almacen } from '@crmapp/storage';
+import type { ChannelAdapter } from '@crmapp/channels';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 
@@ -33,15 +34,56 @@ export interface OpcionesDeMedios {
   db: BaseDeDatos;
   /** `null` si el almacenamiento no está configurado: las rutas responden 503. */
   almacen: Almacen | null;
+  /** Para publicar los límites de cada canal antes de subir nada. */
+  canales?: Map<string, Pick<ChannelAdapter, 'capacidades'>>;
+}
+
+/**
+ * Lo que se puede subir y lo que cada canal admite enviar.
+ *
+ * Existe para que el agente NO descubra el límite después de subir 38 MB por
+ * una red móvil. El servidor sigue comprobándolo al enviar —la puerta es la
+ * que manda—, pero avisar antes ahorra el viaje entero.
+ */
+export interface LimitesDeMedios {
+  mimesPermitidos: string[];
+  tamanoMaximo: number;
+  porCanal: Record<string, { tipos: string[]; limites: Record<string, number> }>;
 }
 
 export class MediosService {
   readonly #db: BaseDeDatos;
   readonly #almacen: Almacen | null;
+  readonly #canales: Map<string, Pick<ChannelAdapter, 'capacidades'>>;
 
   constructor(o: OpcionesDeMedios) {
     this.#db = o.db;
     this.#almacen = o.almacen;
+    this.#canales = o.canales ?? new Map();
+  }
+
+  /**
+   * Qué se puede subir y qué admite cada canal. No toca la base de datos: sale
+   * de la lista de MIME de aquí y de las capacidades que declara cada
+   * adaptador, que es donde ya vive esa verdad (ARCH §8).
+   */
+  limites(): LimitesDeMedios {
+    this.#exigirContexto();
+    const porCanal: LimitesDeMedios['porCanal'] = {};
+    for (const [canal, adaptador] of this.#canales) {
+      const cap = adaptador.capacidades();
+      porCanal[canal] = {
+        tipos: [...cap.tiposSoportados],
+        limites: Object.fromEntries(
+          Object.entries(cap.limitesDeMedios).filter(([, v]) => v !== undefined),
+        ) as Record<string, number>,
+      };
+    }
+    return {
+      mimesPermitidos: [...MIMES_PERMITIDOS],
+      tamanoMaximo: TAMANO_MAXIMO_SUBIDA,
+      porCanal,
+    };
   }
 
   /** URL firmada de lectura de un medio ya almacenado. */

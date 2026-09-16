@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
-import type { PlantillaSugerida, RespuestaRapida, ResumenDeConversacion } from '../../api/tipos.ts';
+import type {
+  LimitesDeMedios,
+  PlantillaSugerida,
+  RespuestaRapida,
+  ResumenDeConversacion,
+} from '../../api/tipos.ts';
+import {
+  Adjuntos,
+  problemaDelArchivo,
+  tipoDeArchivo,
+  useObjectUrls,
+  type Adjunto,
+} from './Adjuntos.tsx';
 import estilos from './Compositor.module.css';
 
 interface Props {
@@ -21,6 +33,10 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
   const [sugeridas, setSugeridas] = useState<PlantillaSugerida[]>([]);
   const [rapidas, setRapidas] = useState<RespuestaRapida[] | null>(null);
   const [subiendo, setSubiendo] = useState(false);
+  /** Archivos elegidos y todavía no enviados. Elegir ya NO envía. */
+  const [adjuntos, setAdjuntos] = useState<Adjunto[]>([]);
+  const [subiendoId, setSubiendoId] = useState<string | null>(null);
+  const [limites, setLimites] = useState<LimitesDeMedios | null>(null);
   const [iaActiva, setIaActiva] = useState(false);
   const [sugiriendo, setSugiriendo] = useState(false);
   /**
@@ -31,6 +47,21 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
   const [deIa, setDeIa] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const archivo = useRef<HTMLInputElement>(null);
+
+  useObjectUrls(adjuntos);
+
+  useEffect(() => {
+    let vigente = true;
+    // Si falla, se sigue pudiendo adjuntar: el servidor valida igual, solo se
+    // pierde el aviso temprano.
+    api
+      .limitesDeMedios()
+      .then((l) => vigente && setLimites(l))
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, [api]);
 
   useEffect(() => {
     let vigente = true;
@@ -120,35 +151,89 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
   const enviarRapida = (r: RespuestaRapida) =>
     void intentar(() => api.enviar(conversacion.id, { tipo: 'quick_reply', quickReplyId: r.id }));
 
-  async function adjuntar(f: File) {
+  /** Elegir archivos los pone en la bandeja. No envía nada. */
+  function elegir(archivos: FileList) {
+    const nuevos: Adjunto[] = [...archivos].map((f) => ({
+      id: `${f.name}-${f.size}-${f.lastModified}-${Math.random().toString(36).slice(2, 7)}`,
+      archivo: f,
+      vista: URL.createObjectURL(f),
+      tipo: tipoDeArchivo(f.type),
+      problema: problemaDelArchivo(f, conversacion.canal, limites),
+    }));
+    setAdjuntos((a) => [...a, ...nuevos]);
+    setError(null);
+    if (archivo.current) archivo.current.value = '';
+  }
+
+  function quitar(id: string) {
+    setAdjuntos((a) => {
+      const fuera = a.find((x) => x.id === id);
+      if (fuera) URL.revokeObjectURL(fuera.vista);
+      return a.filter((x) => x.id !== id);
+    });
+  }
+
+  /** Sube uno y lo envía. Devuelve el id del medio ya enviado. */
+  async function enviarAdjunto(a: Adjunto, pie: string) {
+    const { mediaAssetId, urlDeSubida } = await api.prepararSubida(
+      a.archivo.type,
+      a.archivo.size,
+      a.archivo.name,
+    );
+    const r = await fetch(urlDeSubida, {
+      method: 'PUT',
+      body: a.archivo,
+      headers: { 'content-type': a.archivo.type },
+    });
+    if (!r.ok) throw new Error('subida');
+    await api.confirmarSubida(mediaAssetId);
+    await api.enviar(conversacion.id, {
+      tipo: a.tipo,
+      mediaAssetId,
+      ...(pie ? { pieDeFoto: pie } : {}),
+    });
+  }
+
+  /**
+   * Manda la tanda en orden, uno por uno.
+   *
+   * De uno en uno y no en paralelo a propósito: el orden en que los ve el
+   * cliente es el orden en que se eligieron, y tres subidas a la vez por una
+   * red móvil tardan más que tres seguidas.
+   *
+   * El pie va **solo en el primero**, como hace WhatsApp con una tanda;
+   * repetirlo sería el mismo texto tres veces.
+   *
+   * Si uno falla, los que ya salieron NO se deshacen —un mensaje enviado no se
+   * puede retirar— y los que faltan se quedan en la bandeja con el error a la
+   * vista, para reintentar solo esos.
+   */
+  async function enviarAdjuntos() {
+    if (adjuntos.some((a) => a.problema)) {
+      setError('Quita los archivos marcados en rojo para poder enviar.');
+      return;
+    }
     setSubiendo(true);
+    setError(null);
+    let pie = texto.trim();
     try {
-      await intentar(async () => {
-        const { mediaAssetId, urlDeSubida } = await api.prepararSubida(f.type, f.size, f.name);
-        const r = await fetch(urlDeSubida, {
-          method: 'PUT',
-          body: f,
-          headers: { 'content-type': f.type },
-        });
-        if (!r.ok) throw new Error('subida');
-        await api.confirmarSubida(mediaAssetId);
-        const tipo = f.type.startsWith('image/')
-          ? 'image'
-          : f.type.startsWith('video/')
-            ? 'video'
-            : f.type.startsWith('audio/')
-              ? 'audio'
-              : 'document';
-        const pie = texto.trim();
-        await api.enviar(conversacion.id, {
-          tipo,
-          mediaAssetId,
-          ...(pie ? { pieDeFoto: pie } : {}),
-        });
-      });
+      for (const a of adjuntos) {
+        setSubiendoId(a.id);
+        await enviarAdjunto(a, pie);
+        pie = '';
+        quitar(a.id);
+        alEnviado();
+      }
+      setTexto('');
+      setDeIa(false);
+      area.current?.focus();
+    } catch (e) {
+      setError(
+        e instanceof ErrorDeApi ? e.message : 'No se pudo enviar el archivo. Revisa tu conexión.',
+      );
     } finally {
+      setSubiendoId(null);
       setSubiendo(false);
-      if (archivo.current) archivo.current.value = '';
     }
   }
 
@@ -156,6 +241,8 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (coincidencias.length === 1 && buscandoRapida) enviarRapida(coincidencias[0]!);
+      // Con archivos en la bandeja, Enter manda la tanda: el área es su pie.
+      else if (adjuntos.length > 0) void enviarAdjuntos();
       else enviarTexto();
     }
   }
@@ -203,6 +290,8 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
         </p>
       )}
 
+      <Adjuntos adjuntos={adjuntos} subiendoId={subiendoId} alQuitar={quitar} />
+
       <div className={`${estilos.caja} ${iaActiva ? estilos.cajaConIa : ''}`}>
         <button
           type="button"
@@ -218,17 +307,26 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
           ref={archivo}
           type="file"
           className="visually-hidden"
-          accept="image/*,video/mp4,audio/*,application/pdf"
+          multiple
+          /*
+            `video/*` y no `video/mp4`: un vídeo del iPhone es `quicktime` y
+            con el filtro estrecho aparecía en gris, sin explicación. Ahora se
+            puede elegir y la ficha dice que hay que convertirlo a MP4.
+          */
+          accept="image/*,video/*,audio/*,application/pdf"
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void adjuntar(f);
+            if (e.target.files?.length) elegir(e.target.files);
           }}
         />
         <textarea
           ref={area}
           className={estilos.area}
           rows={1}
-          placeholder="Escribe un mensaje. «/» para respuestas rápidas."
+          placeholder={
+            adjuntos.length > 0
+              ? 'Pie de foto (opcional). Va solo en el primero.'
+              : 'Escribe un mensaje. «/» para respuestas rápidas.'
+          }
           value={texto}
           disabled={enviando}
           onChange={(e) => {
@@ -256,10 +354,16 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
         <button
           type="button"
           className={estilos.enviar}
-          onClick={enviarTexto}
-          disabled={enviando || subiendo || !texto.trim()}
+          onClick={adjuntos.length > 0 ? () => void enviarAdjuntos() : enviarTexto}
+          disabled={enviando || subiendo || (adjuntos.length === 0 && !texto.trim())}
         >
-          {subiendo ? 'Subiendo…' : enviando ? 'Enviando…' : 'Enviar'}
+          {subiendo
+            ? `Enviando ${adjuntos.length > 1 ? `(${adjuntos.length})` : ''}…`
+            : enviando
+              ? 'Enviando…'
+              : adjuntos.length > 1
+                ? `Enviar ${adjuntos.length}`
+                : 'Enviar'}
         </button>
       </div>
     </div>

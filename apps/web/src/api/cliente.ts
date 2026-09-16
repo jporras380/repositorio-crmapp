@@ -46,6 +46,7 @@ import type {
   EjecucionDeFlujo,
   GrafoDeFlujo,
   HorasActivasDeFlujo,
+  LimitesDeMedios,
   Miembro,
   ResumenDeFlujo,
   ResumenDeSuscripcion,
@@ -198,6 +199,7 @@ export function crearApi(token: string | null) {
         `/v1/medios/${mediaAssetId}/url`,
         t,
       ),
+    limitesDeMedios: () => peticion<LimitesDeMedios>('/v1/medios/limites', t),
     prepararSubida: (mime: string, bytes: number, nombre?: string) =>
       peticion<{ mediaAssetId: string; urlDeSubida: string }>('/v1/medios/subidas', {
         ...t,

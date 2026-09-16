@@ -255,3 +255,56 @@ describe('subida directa y envío', () => {
     await http.get(`/v1/medios/${mediaAssetId}/url`).expect(401);
   });
 });
+
+describe('los límites del canal se comprueban ANTES de salir', () => {
+  /** Un medio ya almacenado con el peso que se le diga. */
+  const medioDe = async (bytes: number, mime = 'video/mp4', kind = 'video') => {
+    const { rows } = await admin.query<{ id: string }>(
+      `INSERT INTO media_assets (tenant_id, kind, mime, bytes, storage_key, status)
+       VALUES ($1, $2, $3, $4, 'k', 'stored') RETURNING id`,
+      [tenantId, kind, mime, bytes],
+    );
+    return rows[0]!.id;
+  };
+
+  it('un vídeo de 30 MB no viaja hasta Meta: lo para la puerta, diciendo el tamaño', async () => {
+    const id = await medioDe(30 * 1024 * 1024);
+    const r = await http
+      .post(`/v1/conversaciones/${conversationId}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'video', mediaAssetId: id })
+      .expect(422);
+    expect(r.body.codigo).toBe('canal_medio_demasiado_grande');
+    // El mensaje dice lo que pesa y lo que cabe: sin eso, el agente no sabe
+    // qué hacer con el archivo.
+    expect(r.body.mensaje).toMatch(/KB/);
+
+    // Y no queda nada encolado: parar es parar.
+    const { rows } = await admin.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM messages WHERE media_asset_id = $1`,
+      [id],
+    );
+    expect(rows[0]!.n).toBe(0);
+  });
+
+  it('el mismo vídeo dentro del límite sale sin problema', async () => {
+    const id = await medioDe(10 * 1024 * 1024);
+    await http
+      .post(`/v1/conversaciones/${conversationId}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'video', mediaAssetId: id })
+      .expect(202);
+  });
+
+  it('GET /v1/medios/limites dice qué se admite, para avisar antes de subir', async () => {
+    const r = await http.get('/v1/medios/limites').set(auth()).expect(200);
+    expect(r.body.mimesPermitidos).toContain('video/mp4');
+    expect(r.body.mimesPermitidos).not.toContain('video/quicktime');
+    expect(r.body.porCanal.whatsapp.limites.video).toBe(16 * 1024 * 1024);
+    expect(r.body.porCanal.whatsapp.tipos).toContain('image');
+  });
+
+  it('sin sesión no se publican los límites', async () => {
+    await http.get('/v1/medios/limites').expect(401);
+  });
+});

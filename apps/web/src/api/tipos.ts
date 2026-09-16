@@ -99,6 +99,16 @@ export interface Mensaje {
   medio_estado: 'pending' | 'stored' | 'failed' | null;
 }
 
+/**
+ * Qué se puede subir y qué admite cada canal. Se pregunta ANTES de subir: el
+ * agente no debería descubrir el límite después de mandar 38 MB por datos.
+ */
+export interface LimitesDeMedios {
+  mimesPermitidos: string[];
+  tamanoMaximo: number;
+  porCanal: Record<string, { tipos: string[]; limites: Record<string, number> }>;
+}
+
 export interface PlantillaSugerida {
   id: string;
   nombre: string;

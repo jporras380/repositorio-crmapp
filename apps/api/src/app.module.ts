@@ -291,11 +291,12 @@ export class AppModule {
         },
         {
           provide: TOKEN_MEDIOS,
-          inject: [TOKEN_DB],
-          useFactory: (db: BaseDeDatos) =>
+          inject: [TOKEN_DB, TOKEN_ADAPTADORES],
+          useFactory: (db: BaseDeDatos, canales: Map<string, ChannelAdapter>) =>
             new MediosService({
               db,
               almacen: opciones.almacen ?? (opciones.s3 ? new AlmacenS3(opciones.s3) : null),
+              canales,
             }),
         },
         {
