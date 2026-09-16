@@ -26,6 +26,7 @@ const base: ResumenDeConversacion = {
   vistaPrevia: 'Tiene el filtro GA16?',
   atencion: 'nueva',
   aplazadaHasta: null,
+  relevo: null,
 };
 
 afterEach(cleanup);
@@ -92,5 +93,27 @@ describe('ListaDeConversaciones', () => {
       />,
     );
     expect(screen.getByRole('alert').textContent).toContain('Sin conexión');
+  });
+
+  it('la fila que pidió una persona lo dice, con el motivo a mano', () => {
+    render(
+      <ListaDeConversaciones
+        items={[
+          { ...base, relevo: { motivo: 'pregunta por un grupo de 20', en: null } },
+          { ...base, id: 'c2', relevo: null },
+        ]}
+        seleccionadaId={null}
+        cargando={false}
+        error={null}
+        hayMas={false}
+        alSeleccionar={vi.fn()}
+        alCargarMas={vi.fn()}
+      />,
+    );
+    const insignias = screen.getAllByText('Pide una persona');
+    // Solo la que lo pidió: marcarlas todas sería no marcar ninguna.
+    expect(insignias).toHaveLength(1);
+    // El motivo no cabe en la fila, pero está al pasar el ratón.
+    expect(insignias[0]!.getAttribute('title')).toBe('pregunta por un grupo de 20');
   });
 });

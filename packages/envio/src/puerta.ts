@@ -327,6 +327,11 @@ export async function enviarPorConversacion(
             -- Ha respondido una persona: el hilo pasa a ser suyo y ningún bot
             -- arranca aquí hasta que se cierre la conversación (ver relevo.ts).
             human_reply_at = CASE WHEN $4::boolean THEN $2 ELSE human_reply_at END,
+            -- Si el bot había pedido una persona, ya la tiene: el aviso se
+            -- apaga solo. Que lo apague el propio hecho de contestar evita el
+            -- botón «marcar como visto» que nadie pulsa.
+            handoff_reason = CASE WHEN $4::boolean THEN NULL ELSE handoff_reason END,
+            handoff_at = CASE WHEN $4::boolean THEN NULL ELSE handoff_at END,
             unread_count = 0,
             updated_at = now()
       WHERE id = $1`,

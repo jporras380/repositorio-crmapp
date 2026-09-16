@@ -52,15 +52,18 @@ export function Filtros({
       ? 'cerradas'
       : filtros.tipo === 'comment_thread'
         ? 'comentarios'
-        : filtros.sinRespuesta
-          ? 'sinRespuesta'
-          : filtros.agenteId
-            ? 'mias'
-            : 'todas';
+        : filtros.relevo
+          ? 'relevo'
+          : filtros.sinRespuesta
+            ? 'sinRespuesta'
+            : filtros.agenteId
+              ? 'mias'
+              : 'todas';
 
   function verVista(v: typeof vista) {
     const base: FiltrosDeBandeja = { canal: filtros.canal, etiquetaId: filtros.etiquetaId };
     if (v === 'sinRespuesta') base.sinRespuesta = true;
+    if (v === 'relevo') base.relevo = true;
     if (v === 'mias') base.agenteId = userId;
     if (v === 'cerradas') base.estado = 'closed';
     if (v === 'comentarios') base.tipo = 'comment_thread';
@@ -148,6 +151,7 @@ export function Filtros({
           [
             ['todas', 'Todas'],
             ['sinRespuesta', 'Sin respuesta'],
+            ['relevo', 'Piden persona'],
             ['mias', 'Mías'],
             ['comentarios', 'Comentarios'],
             ['cerradas', 'Cerradas'],

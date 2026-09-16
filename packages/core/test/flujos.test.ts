@@ -131,6 +131,21 @@ describe('validarGrafo', () => {
   });
 });
 
+describe('el relevo se valida antes de publicar', () => {
+  const conRelevo = (motivo: string): Grafo => ({
+    inicio: 'r',
+    nodos: [{ id: 'r', tipo: 'relevo', motivo }],
+  });
+
+  it('un relevo sin motivo no se publica: el agente vería un aviso vacío', () => {
+    expect(validarGrafo(conRelevo('   ')).map((p) => p.codigo)).toEqual(['motivo_vacio']);
+  });
+
+  it('con motivo, el grafo es válido aunque el relevo no lleve a ningún sitio', () => {
+    expect(validarGrafo(conRelevo('no entendí su respuesta'))).toEqual([]);
+  });
+});
+
 describe('decidirPaso', () => {
   const nodo = (id: string): Nodo => CALIFICAR.nodos.find((n) => n.id === id)!;
 
@@ -166,6 +181,17 @@ describe('decidirPaso', () => {
 
   it('sin respuesta que evaluar, la condición cae por la rama de escape', () => {
     expect(decidirPaso(nodo('ramas'), { tipo: 'entrar' }).siguiente).toBe('humano');
+  });
+
+  it('el relevo pide una persona con su motivo y NO deja seguir al bot', () => {
+    const paso = decidirPaso(
+      { id: 'r', tipo: 'relevo', motivo: 'pide hablar con alguien' },
+      { tipo: 'entrar' },
+    );
+    expect(paso.efectos).toEqual([{ tipo: 'pedir_humano', motivo: 'pide hablar con alguien' }]);
+    // Terminar aquí es la regla: un bot que pide ayuda y sigue hablando por
+    // encima del agente es justo lo que el relevo evita.
+    expect(paso.siguiente).toBeNull();
   });
 
   it('el fin puede cerrar la conversación, y solo si se le pide', () => {

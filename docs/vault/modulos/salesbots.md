@@ -15,14 +15,15 @@ Fase 3. El motor está en `apps/worker/src/flujos.ts`, el dominio del grafo en `
 
 Eso no es purismo: es lo que hace que el **modo prueba sin envío real** que pedía el requisito salga gratis y, sobre todo, seguro. Simular es llamar a las mismas funciones y no ejecutar los efectos. La alternativa —una bandera `prueba` repartida por el motor con un `if` en cada envío— es exactamente la clase de bandera que un día se queda a `false` en producción y le manda un mensaje de prueba a un cliente real.
 
-## Los siete nodos, y por qué solo siete
+## Los ocho nodos, y por qué solo ocho
 
-`mensaje`, `esperar_respuesta`, `pausa`, `condicion`, `etiquetar`, `asignar`, `fin`. Con eso se cumple el criterio de salida de la fase —calificar un lead sin humano— y se amplía cuando un flujo real lo pida. Un constructor visual con cuarenta tipos de nodo es un lenguaje de programación mal hecho, y cada nodo nuevo es superficie que hay que validar, versionar y explicar.
+`mensaje`, `esperar_respuesta`, `pausa`, `condicion`, `etiquetar`, `asignar`, `relevo`, `fin`. Con eso se cumple el criterio de salida de la fase —calificar un lead sin humano— y se amplía cuando un flujo real lo pida. Un constructor visual con cuarenta tipos de nodo es un lenguaje de programación mal hecho, y cada nodo nuevo es superficie que hay que validar, versionar y explicar.
 
 Dos detalles que parecen menores y no lo son:
 
 - **`esperar_respuesta` tiene dos salidas**: contestó y no contestó. Mezclarlas obliga al siguiente paso a adivinar cuál fue, y «no contestó» casi siempre merece otro trato que «contestó».
 - **`pausa` no es una espera corta.** Duerme sin escuchar: un entrante no la adelanta, y mientras dura, esa conversación no puede disparar ningún otro bot. Por eso el tope es **24 horas** y no 30 días como la espera — el costo de una pausa es tiempo sordo, y conviene que sea poco. Sirve para lo que parece una tontería y no lo es: no soltar dos mensajes en el mismo segundo, que es lo que delata a una máquina.
+- **`relevo` termina siempre.** No tiene salida: un bot que pide ayuda y sigue hablando por encima del agente es exactamente lo que el relevo existe para evitar. Si el flujo tiene que etiquetar o asignar además, esos pasos van *antes*.
 - **`condicion` lee la respuesta del CONTEXTO, no del suceso.** La condición llega un paso después de la espera, ya con la entrada «entrar». Si solo mirara el suceso, *todas* las condiciones caerían siempre por la rama de escape: un bug silencioso que ningún error revela, solo un bot que nunca acierta. Hay un test que lo fija.
 
 ## Lo que se valida al publicar, y el problema que de verdad importa
@@ -103,9 +104,35 @@ Se intentó primero sin columna, deduciendo el estado de `messages` y `closed_at
 
 El despertador de Redis de una ejecución cancelada seguirá sonando a su hora y no hay que borrarlo: cuando suene, no encontrará la ejecución en `waiting` y se retirará. Hay test.
 
+## El relevo al revés: cuando el bot se rinde (PR-52, 2026-09-16)
+
+El relevo de PR-32 solo funcionaba en una dirección. Cuando entraba una persona, el bot se callaba; cuando el bot **no sabía seguir**, terminaba sin decir nada y la conversación quedaba en la bandeja igual que las demás. El agente tenía que abrirla para descubrir que le estaban esperando.
+
+El nodo **«Pasar a una persona»** escribe el motivo en la conversación (`conversations.handoff_reason` y `handoff_at`, migración 0029). La bandeja lo enseña en tres sitios:
+
+- **insignia roja «Pide una persona»** en la fila, lo primero del pie, con el motivo en el `title`;
+- **aviso con el motivo entero** bajo la cabecera del hilo (`role="status"`, no `alert`: informa de algo que ya pasó, no interrumpe);
+- **pestaña «Piden persona»** junto a «Sin respuesta».
+
+### Las decisiones y su precio
+
+- **Dos columnas en `conversations`, no una tabla.** Es el estado ACTUAL («pide una persona»), no un historial; el historial ya existe y es `flow_run_steps`, con su paso y su hora. Precio: si alguien quiere contar cuántos relevos hubo el mes pasado, la cuenta sale de `flow_run_steps`, no de aquí.
+- **Se apaga solo al contestar**, en la misma sentencia de la puerta de envío que ya marcaba `human_reply_at`. La alternativa era un botón «marcar como visto», que es trabajo para el agente y acaba sin pulsarse: la bandeja se llenaría de avisos viejos y la insignia dejaría de significar nada.
+- **El motivo lo escribe quien hace el bot, no el motor.** Nada de motivos automáticos tipo «el bot no entendió»: quien monta el flujo sabe qué caso está cubriendo y lo escribe para el agente que lo va a leer. Máximo 120 caracteres, lo que se lee de un vistazo.
+- **Índice parcial** `WHERE handoff_reason IS NOT NULL`: son pocas filas entre muchas, y un índice completo ocuparía por cada conversación que no interesa.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Bots → editar un flujo → insertar el paso «Pasar a una persona» y escribir el motivo.
+2. Publicar y escribir al número desde WhatsApp.
+3. La conversación aparece en la bandeja con la insignia roja; abrirla enseña el motivo entero.
+4. Contestar: la insignia y el aviso desaparecen solos.
+
+Cubierto por tests en los tres niveles: dominio puro (`packages/core/test/flujos.test.ts`), motor y puerta (`apps/worker/test/flujos.test.ts` → «deja escrito el motivo … y contestar lo borra») y API (`apps/api/test/bandeja.e2e.test.ts` → «cuando un bot pide una persona»).
+
 ## Lo que falta
 
-- **Horas activas.** El bot de Kommo tiene horario; el nuestro contesta a las 4 de la mañana.
+- **Horas activas.** El bot de Kommo tiene horario; el nuestro contesta a las 4 de la mañana. (El aviso de fuera de horario de PR-47 no es lo mismo: ese lo manda el worker, no el bot.)
 - **Nodos que Kommo tiene y nosotros no:** nota interna, reacción, lista de WhatsApp, Round Robin, «ir a otro paso».
 - **Disparadores.** Dos frente a los ~10 de Kommo, pero la mitad de los suyos dependen de un **embudo de leads** que aquí no existe.
 - **Enforcement.** El uso de bots ya se mide contra `bot_runs_mes`, pero pasarse no tiene consecuencia: qué ocurre al superar un límite es parte de P-21.

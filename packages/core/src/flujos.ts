@@ -25,6 +25,7 @@
  *   condicion          bifurca según lo que dijo el contacto
  *   etiquetar          pone una etiqueta (el filtro de primer nivel de la bandeja)
  *   asignar            pasa la conversación a una persona
+ *   relevo             se rinde y pide una persona, diciendo por qué
  *   fin                termina, opcionalmente cerrando la conversación
  */
 
@@ -67,6 +68,16 @@ export type Nodo =
     }
   | { id: string; tipo: 'etiquetar'; etiquetaId: string; siguiente: string | null }
   | { id: string; tipo: 'asignar'; usuarioId: string; siguiente: string | null }
+  | {
+      id: string;
+      tipo: 'relevo';
+      /**
+       * Por qué hace falta una persona. Lo lee el agente en la bandeja antes de
+       * abrir el hilo, así que se escribe para él: «pide hablar con alguien»,
+       * «pregunta por un grupo grande», «no entendí su respuesta».
+       */
+      motivo: string;
+    }
   | { id: string; tipo: 'fin'; cerrarConversacion?: boolean };
 
 export interface Grafo {
@@ -88,6 +99,7 @@ export interface ProblemaDelGrafo {
     | 'espera_invalida'
     | 'pausa_invalida'
     | 'condicion_vacia'
+    | 'motivo_vacio'
     | 'bucle_sin_espera'
     | 'inalcanzable';
   mensaje: string;
@@ -193,6 +205,15 @@ export function validarGrafo(g: Grafo): ProblemaDelGrafo[] {
       case 'asignar':
         destino(n.siguiente, n.id);
         break;
+      case 'relevo':
+        if (!n.motivo.trim()) {
+          problemas.push({
+            codigo: 'motivo_vacio',
+            mensaje: 'Hay un paso que pide una persona sin decir por qué.',
+            nodoId: n.id,
+          });
+        }
+        break;
       case 'fin':
         break;
     }
@@ -222,6 +243,7 @@ function salidas(n: Nodo): (string | null)[] {
       return [n.siguiente, n.alExpirar];
     case 'condicion':
       return [...n.casos.map((c) => c.siguiente), n.siNo];
+    case 'relevo':
     case 'fin':
       return [];
   }
@@ -297,6 +319,7 @@ export type Efecto =
   | { tipo: 'enviar_texto'; texto: string }
   | { tipo: 'etiquetar'; etiquetaId: string }
   | { tipo: 'asignar'; usuarioId: string }
+  | { tipo: 'pedir_humano'; motivo: string }
   | { tipo: 'cerrar_conversacion' };
 
 /**
@@ -342,6 +365,13 @@ export function decidirPaso(
         efectos: [{ tipo: 'asignar', usuarioId: nodo.usuarioId }],
         siguiente: nodo.siguiente,
       };
+
+    case 'relevo':
+      // Termina siempre, y no es una limitación: un bot que pide ayuda y
+      // sigue hablando por encima del agente es justo lo que el relevo
+      // existe para evitar. Si el flujo tiene que hacer algo más —etiquetar,
+      // asignar—, va ANTES de este paso.
+      return { efectos: [{ tipo: 'pedir_humano', motivo: nodo.motivo }], siguiente: null };
 
     case 'fin':
       return {

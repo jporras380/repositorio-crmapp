@@ -128,6 +128,18 @@ export function Hilo({
         </button>
       </header>
 
+      {/*
+        El motivo, entero y debajo de la cabecera: en la fila solo cabía la
+        insignia. Es `role="status"` y no `alert` porque informa de algo que ya
+        pasó; un `alert` interrumpiría al agente cada vez que abre el hilo.
+      */}
+      {conversacion.relevo && (
+        <p className={estilos.relevo} role="status">
+          <strong className={estilos.relevoTitulo}>El bot pidió una persona:</strong>{' '}
+          {conversacion.relevo.motivo}
+        </p>
+      )}
+
       <div className={estilos.mensajes} role="log" aria-live="polite" aria-busy={cargando}>
         {!cargando && mensajes.length === 0 && (
           <p className={estilos.sinMensajes}>Todavía no hay mensajes.</p>

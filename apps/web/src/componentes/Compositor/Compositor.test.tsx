@@ -22,6 +22,7 @@ const conversacion: ResumenDeConversacion = {
   vistaPrevia: null,
   atencion: 'nueva',
   aplazadaHasta: null,
+  relevo: null,
 };
 
 function apiFalsa(enviar: Api['enviar'], extra: Record<string, unknown> = {}): Api {

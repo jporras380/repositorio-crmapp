@@ -377,6 +377,48 @@ describe('criterio de salida de la fase 3', () => {
   });
 });
 
+describe('cuando el bot se rinde y pide una persona', () => {
+  /** Saluda y se rinde: es el caso real del bot que no sabe seguir. */
+  const PIDE_AYUDA: Grafo = {
+    inicio: 'saludo',
+    nodos: [
+      { id: 'saludo', tipo: 'mensaje', texto: 'Hola, soy el asistente.', siguiente: 'ayuda' },
+      { id: 'ayuda', tipo: 'relevo', motivo: 'pregunta por un grupo de 20 personas' },
+    ],
+  };
+
+  const relevoDeLaConversacion = async () =>
+    (
+      await admin.query<{ handoff_reason: string | null; handoff_at: Date | null }>(
+        `SELECT handoff_reason, handoff_at FROM conversations WHERE id = $1`,
+        [conversationId],
+      )
+    ).rows[0]!;
+
+  it('deja escrito el motivo en la conversación, y contestar lo borra', async () => {
+    await crearFlujo(PIDE_AYUDA, 'conversacion_abierta');
+    const id = await entrante('Hola');
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'r1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+
+    // El aviso está puesto y la ejecución terminó: el relevo no deja cola.
+    const pedida = await relevoDeLaConversacion();
+    expect(pedida.handoff_reason).toBe('pregunta por un grupo de 20 personas');
+    expect(pedida.handoff_at).not.toBeNull();
+    expect((await ejecucion())[0]!.status).toBe('done');
+
+    // Y se apaga solo al atenderlo. Sin esto haría falta un botón «visto» que
+    // nadie pulsa, y la bandeja acabaría llena de avisos viejos.
+    await respondeUnAgente('Claro, para 20 personas te preparo presupuesto.');
+    const atendida = await relevoDeLaConversacion();
+    expect(atendida.handoff_reason).toBeNull();
+    expect(atendida.handoff_at).toBeNull();
+  });
+});
+
 describe('el bot se aparta cuando entra una persona', () => {
   it('un agente responde y el bot dormido se apaga, con el motivo escrito', async () => {
     await crearFlujo(CALIFICAR(), 'conversacion_abierta');

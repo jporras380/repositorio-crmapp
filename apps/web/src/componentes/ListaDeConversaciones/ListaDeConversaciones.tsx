@@ -114,6 +114,14 @@ function Fila({
             )}
           </span>
           <span className={estilos.pie}>
+            {/* Lo primero del pie: si un bot pidió ayuda, eso manda sobre
+                cualquier otra insignia. El motivo va en el título porque en
+                una fila no cabe, y en la cabecera del hilo se lee entero. */}
+            {c.relevo && (
+              <span className={estilos.relevo} title={c.relevo.motivo}>
+                Pide una persona
+              </span>
+            )}
             {/* El estado de atención lo calcula el servidor; aquí solo se
                 pinta. «Esperando cliente» no se marca porque es el estado
                 normal tras responder: señalarlo sería ruido en cada fila. */}

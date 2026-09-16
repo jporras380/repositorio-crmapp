@@ -148,3 +148,9 @@ Cubierto por `apps/api/test/bandeja.e2e.test.ts` → «buscar dentro de los
 mensajes (0028)»: por palabra dicha, por otra forma de la palabra
 («reservas» → «reserva»), por nombre del contacto, y lo que nadie dijo no
 aparece.
+
+## «Pide una persona» (PR-52, 2026-09-16)
+
+Un bot puede rendirse a propósito con el nodo «Pasar a una persona», y entonces la conversación llega a la bandeja **marcada y con el motivo**: insignia roja en la fila (lo primero del pie, antes que cualquier otra insignia), el motivo entero bajo la cabecera del hilo, y la pestaña **«Piden persona»** al lado de «Sin respuesta».
+
+La marca se apaga **al contestar**, no con un botón. El detalle y su precio están en [[salesbots]] §El relevo al revés.

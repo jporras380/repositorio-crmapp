@@ -301,6 +301,9 @@ export const conversations = pgTable(
     outOfHoursReplyAt: timestamp('out_of_hours_reply_at', { withTimezone: true }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
     humanReplyAt: timestamp('human_reply_at', { withTimezone: true }),
+    /** El bot se rindió y pidió una persona, y por qué (0029). */
+    handoffReason: text('handoff_reason'),
+    handoffAt: timestamp('handoff_at', { withTimezone: true }),
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
     unreadCount: integer('unread_count').notNull().default(0),
     createdAt: creado,

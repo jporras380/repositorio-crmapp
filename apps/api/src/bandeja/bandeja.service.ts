@@ -52,6 +52,8 @@ export interface FiltrosDeBandeja {
   etiquetaId?: string | undefined;
   /** Espera a una persona del equipo: estado de atención `nueva` o `por_responder`. */
   sinRespuesta?: boolean | undefined;
+  /** Solo las que un bot dejó pidiendo una persona (0029). */
+  relevo?: boolean | undefined;
   cursor?: string | undefined;
   limite?: number | undefined;
 }
@@ -80,6 +82,11 @@ export interface ResumenDeConversacion {
   ventanaAbierta: boolean;
   etiquetas: { id: string; nombre: string; color: string | null }[];
   vistaPrevia: string | null;
+  /**
+   * El bot se rindió aquí y dijo por qué. `null` mientras nadie lo pida o en
+   * cuanto una persona conteste: contestar ES atender el aviso.
+   */
+  relevo: { motivo: string; en: Date | null } | null;
 }
 
 export interface OpcionesDeBandeja {
@@ -212,6 +219,7 @@ export class BandejaService {
     if (filtros.estado) condiciones.push(`c.status = ${p(filtros.estado)}`);
     if (filtros.agenteId) condiciones.push(`c.assignee_user_id = ${p(filtros.agenteId)}`);
     if (filtros.tipo) condiciones.push(`c.kind = ${p(filtros.tipo)}`);
+    if (filtros.relevo) condiciones.push(`c.handoff_reason IS NOT NULL`);
     if (filtros.etiquetaId) {
       condiciones.push(
         `EXISTS (SELECT 1 FROM conversation_tags ct WHERE ct.conversation_id = c.id AND ct.tag_id = ${p(filtros.etiquetaId)})`,
@@ -246,6 +254,7 @@ export class BandejaService {
                 ${ESTADO_DE_ATENCION} AS atencion,
                 c.unread_count, c.last_inbound_at, c.last_outbound_at,
                 c.session_expires_at, c.created_at,
+                c.handoff_reason, c.handoff_at,
                 co.id AS contact_id, co.display_name, ci.handle,
                 COALESCE(t.etiquetas, '[]'::json) AS etiquetas,
                 m.body AS vista_previa
@@ -968,6 +977,8 @@ interface FilaResumen {
   vista_previa: string | null;
   atencion: EstadoDeAtencion;
   snoozed_until: Date | null;
+  handoff_reason: string | null;
+  handoff_at: Date | null;
 }
 
 export interface MensajeDeConversacion {
@@ -1005,6 +1016,7 @@ function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
     vistaPrevia: f.vista_previa,
     atencion: f.atencion,
     aplazadaHasta: f.snoozed_until,
+    relevo: f.handoff_reason ? { motivo: f.handoff_reason, en: f.handoff_at } : null,
   };
 }
 

@@ -268,3 +268,19 @@
     }
   }
 }
+
+@layer components {
+  /* Aviso del relevo: se lee antes del primer mensaje y desaparece al contestar. */
+  .relevo {
+    margin: 0;
+    padding: 0.5rem 1rem;
+    font-size: var(--text-sm);
+    color: var(--fg);
+    background: var(--danger-soft);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .relevoTitulo {
+    color: var(--danger);
+    font-weight: 700;
+  }
+}

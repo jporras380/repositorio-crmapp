@@ -381,6 +381,17 @@ async function ejecutarEfecto(
         [ejecucion.conversation_id, efecto.usuarioId],
       );
       return null;
+    case 'pedir_humano':
+      // Queda escrito EN la conversación porque lo lee el agente en la
+      // bandeja, antes de abrir el hilo. La marca se borra sola cuando alguien
+      // contesta (ver `puerta.ts`): haberla atendido es lo que pedía el aviso.
+      await c.query(
+        `UPDATE conversations
+            SET handoff_reason = $2, handoff_at = now(), updated_at = now()
+          WHERE id = $1`,
+        [ejecucion.conversation_id, efecto.motivo],
+      );
+      return null;
     case 'cerrar_conversacion':
       await c.query(
         `UPDATE conversations

@@ -66,7 +66,9 @@ export function Simulador({
                   ? `Pone la etiqueta «${nombreDeEtiqueta(efecto.etiquetaId)}»`
                   : efecto.tipo === 'asignar'
                     ? `Asigna la conversación a ${nombreDeUsuario(efecto.usuarioId)}`
-                    : 'Cierra la conversación';
+                    : efecto.tipo === 'pedir_humano'
+                      ? `Pide una persona: «${efecto.motivo}»`
+                      : 'Cierra la conversación';
               return (
                 <p key={j} className={estilos.accion}>
                   {texto}

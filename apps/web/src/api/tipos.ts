@@ -76,6 +76,8 @@ export interface ResumenDeConversacion {
   ventanaAbierta: boolean;
   etiquetas: Etiqueta[];
   vistaPrevia: string | null;
+  /** El bot pidió una persona y dejó dicho por qué. Se apaga al contestar. */
+  relevo: { motivo: string; en: string | null } | null;
 }
 
 export interface Pagina<T> {
@@ -257,6 +259,8 @@ export interface FiltrosDeBandeja {
   agenteId?: string | undefined;
   etiquetaId?: string | undefined;
   sinRespuesta?: boolean | undefined;
+  /** Solo las que un bot dejó pidiendo una persona. */
+  relevo?: boolean | undefined;
   /** Estado de atención, deducido por el servidor (0020). */
   atencion?: string | undefined;
   /** Busca por el contacto (nombre, @ o teléfono) y por lo que se dijo en la conversación. */
@@ -308,6 +312,8 @@ export type NodoDeFlujo =
   | { id: string; tipo: 'pausa'; segundos: number; siguiente: string | null }
   | { id: string; tipo: 'etiquetar'; etiquetaId: string; siguiente: string | null }
   | { id: string; tipo: 'asignar'; usuarioId: string; siguiente: string | null }
+  /** Se rinde y pide una persona. Termina siempre: el bot no habla después. */
+  | { id: string; tipo: 'relevo'; motivo: string }
   | { id: string; tipo: 'fin'; cerrarConversacion?: boolean };
 
 export interface GrafoDeFlujo {
@@ -347,6 +353,7 @@ export type EfectoDeFlujo =
   | { tipo: 'enviar_texto'; texto: string }
   | { tipo: 'etiquetar'; etiquetaId: string }
   | { tipo: 'asignar'; usuarioId: string }
+  | { tipo: 'pedir_humano'; motivo: string }
   | { tipo: 'cerrar_conversacion' };
 
 export interface SimulacionDeFlujo {

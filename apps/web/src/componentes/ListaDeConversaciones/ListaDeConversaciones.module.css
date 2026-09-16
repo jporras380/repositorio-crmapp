@@ -240,3 +240,20 @@
     background: var(--warn-soft);
   }
 }
+
+@layer components {
+  /*
+   * «Pide una persona»: el bot se rindió aquí. Va en rojo suave y delante del
+   * resto del pie porque es la fila a la que hay que entrar antes que a
+   * ninguna; pintarla igual que las demás sería no haberla marcado.
+   */
+  .relevo {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--radius-pill);
+    color: var(--danger);
+    background: var(--danger-soft);
+    white-space: nowrap;
+  }
+}

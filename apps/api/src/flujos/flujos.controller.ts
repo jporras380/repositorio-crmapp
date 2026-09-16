@@ -56,6 +56,13 @@ const NodoSchema = z.discriminatedUnion('tipo', [
   }),
   z.object({
     id: z.string().min(1).max(64),
+    tipo: z.literal('relevo'),
+    // 120 es lo que cabe de un vistazo en la cabecera del hilo. Un motivo más
+    // largo no lo lee nadie con una conversación esperando.
+    motivo: z.string().min(1).max(120),
+  }),
+  z.object({
+    id: z.string().min(1).max(64),
     tipo: z.literal('fin'),
     cerrarConversacion: z.boolean().optional(),
   }),

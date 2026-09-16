@@ -29,6 +29,10 @@ const Filtros = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
+  relevo: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
   atencion: z
     .enum(['nueva', 'por_responder', 'esperando_cliente', 'seguimiento', 'cerrada'])
     .optional(),

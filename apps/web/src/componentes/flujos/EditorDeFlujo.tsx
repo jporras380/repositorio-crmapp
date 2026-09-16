@@ -29,6 +29,7 @@ const NOMBRES: Record<Tipo, string> = {
   condicion: 'Según lo que responda',
   etiquetar: 'Poner etiqueta',
   asignar: 'Asignar a alguien',
+  relevo: 'Pasar a una persona',
   fin: 'Terminar',
 };
 
@@ -520,6 +521,23 @@ function Paso({
         </>
       )}
 
+      {nodo.tipo === 'relevo' && (
+        <>
+          <input
+            className={estilos.palabras}
+            value={nodo.motivo}
+            maxLength={120}
+            aria-label="Por qué hace falta una persona"
+            placeholder="Pide hablar con alguien"
+            onChange={(e) => alCambiar({ ...nodo, motivo: e.target.value })}
+          />
+          <p className={estilos.pista}>
+            Este motivo lo lee el agente en la bandeja antes de abrir la conversación. El bot
+            termina aquí: lo que haya que hacer además —etiquetar, asignar— va antes.
+          </p>
+        </>
+      )}
+
       {nodo.tipo === 'asignar' && (
         <>
           <select
@@ -768,7 +786,7 @@ function borrar(g: GrafoDeFlujo, id: string): GrafoDeFlujo {
       if (n.tipo === 'esperar_respuesta') {
         return { ...n, siguiente: repuntar(n.siguiente), alExpirar: repuntar(n.alExpirar) };
       }
-      if (n.tipo === 'fin') return n;
+      if (n.tipo === 'fin' || n.tipo === 'relevo') return n;
       return { ...n, siguiente: repuntar(n.siguiente) };
     });
   const inicio = g.inicio === id ? (heredero ?? nodos[0]?.id ?? '') : g.inicio;
@@ -808,6 +826,8 @@ function crearNodo(id: string, tipo: Tipo, siguiente: string | null): NodoDeFluj
       return { id, tipo, etiquetaId: '', siguiente };
     case 'asignar':
       return { id, tipo, usuarioId: '', siguiente };
+    case 'relevo':
+      return { id, tipo, motivo: '' };
     case 'fin':
       return { id, tipo };
   }
@@ -838,6 +858,6 @@ function ordenar(g: GrafoDeFlujo): { camino: NodoDeFlujo[]; sueltos: NodoDeFlujo
 function salidas(n: NodoDeFlujo): (string | null)[] {
   if (n.tipo === 'condicion') return [...n.casos.map((c) => c.siguiente), n.siNo];
   if (n.tipo === 'esperar_respuesta') return [n.siguiente, n.alExpirar];
-  if (n.tipo === 'fin') return [];
+  if (n.tipo === 'fin' || n.tipo === 'relevo') return [];
   return [n.siguiente];
 }

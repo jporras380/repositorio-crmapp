@@ -27,6 +27,7 @@ const NOMBRES: Record<NodoDeFlujo['tipo'], string> = {
   condicion: 'Condición',
   etiquetar: 'Etiqueta',
   asignar: 'Asignar',
+  relevo: 'A una persona',
   fin: 'Fin',
 };
 
@@ -263,6 +264,7 @@ function salidas(n: NodoDeFlujo): { hasta: string | null; etiqueta: string | nul
         })),
         { hasta: n.siNo, etiqueta: 'si no' },
       ];
+    case 'relevo':
     case 'fin':
       return [];
   }
@@ -290,6 +292,8 @@ function resumen(n: NodoDeFlujo): string {
       return n.etiquetaId ? 'etiqueta elegida' : 'sin elegir';
     case 'asignar':
       return n.usuarioId ? 'persona elegida' : 'sin elegir';
+    case 'relevo':
+      return recortar(n.motivo || 'sin motivo', 18);
     case 'fin':
       return n.cerrarConversacion ? 'y cierra' : 'termina';
   }

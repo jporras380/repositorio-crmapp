@@ -999,3 +999,40 @@ describe('buscar dentro de los mensajes (0028)', () => {
     expect(await buscar('helicoptero')).not.toContain(conv);
   });
 });
+
+describe('cuando un bot pide una persona (0029)', () => {
+  let conv: string;
+
+  beforeAll(async () => {
+    conv = await conversacion('Tomás Relevado', { haceHoras: 4 });
+    await admin.query(
+      `UPDATE conversations SET handoff_reason = $2, handoff_at = now() WHERE id = $1`,
+      [conv, 'pregunta por un grupo de 20 personas'],
+    );
+  });
+
+  const listar = async (q: Record<string, unknown> = {}) =>
+    (
+      await http
+        .get('/v1/conversaciones')
+        .query({ limite: 100, ...q })
+        .set(auth())
+        .expect(200)
+    ).body.items as { id: string; relevo: { motivo: string } | null }[];
+
+  it('el motivo viaja en el listado, para que se vea sin abrir el hilo', async () => {
+    const fila = (await listar()).find((c) => c.id === conv);
+    expect(fila?.relevo?.motivo).toBe('pregunta por un grupo de 20 personas');
+  });
+
+  it('el filtro «piden persona» deja solo esas', async () => {
+    const ids = (await listar({ relevo: 'true' })).map((c) => c.id);
+    expect(ids).toContain(conv);
+    expect(ids).toHaveLength(1);
+  });
+
+  it('las demás conversaciones no traen relevo', async () => {
+    const otras = (await listar()).filter((c) => c.id !== conv);
+    expect(otras.every((c) => c.relevo === null)).toBe(true);
+  });
+});

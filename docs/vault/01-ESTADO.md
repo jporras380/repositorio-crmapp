@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-52, el bot dice por qué necesita una persona** ([[salesbots]] §El relevo al revés, [[bandeja]]): nodo «Pasar a una persona» que termina el flujo y deja el motivo escrito en la conversación; insignia en la fila, aviso en la cabecera del hilo y pestaña «Piden persona». Se apaga solo al contestar. Migración 0029. Cierra la deuda «`handoff_reason` en el relevo».
 - **PR-51, buscar dentro de los mensajes** ([[bandeja]] §Buscar dentro de los mensajes): la misma caja de búsqueda encuentra por quién es (nombre, @, teléfono) y por lo que se dijo. Columna generada `tsvector` en español + índice GIN con `btree_gin` (migración 0028). Cierra la deuda «buscar en el contenido, con su índice».
 - **PR-50, aviso de mensaje nuevo** ([[web]] §Avisar): contador en el título de la pestaña y notificación del navegador, solo cuando el agente no está mirando y solo para lo que entra. El permiso se pide con un botón, nunca al cargar.
 - **PR-49, la bandeja se actualiza sola** ([[web]] §Tiempo real): `pg_notify` en la transacción del outbox, una escucha por proceso y flujo SSE por inquilino. El sondeo baja a respaldo (60 s). Sin dependencias nuevas y sin WebSocket. Cierra la deuda «WebSocket en vez de sondeo».
@@ -110,9 +111,9 @@ Nada.
 
 1. **Conectar Instagram de verdad** para ver entrar un comentario: hace falta un token con permisos de Instagram y páginas. El número de WhatsApp de prueba ya usa un token de usuario del sistema (caduca el 2026-11-13).
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
-3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **enviar** mensajes interactivos de WhatsApp (botones y listas) desde bots y compositor; recibirlos ya funciona.
+3. Del estudio de los repos de referencia: **enviar** mensajes interactivos de WhatsApp (botones y listas) desde bots y compositor; recibirlos ya funciona. **Cambiaría el contrato `ChannelAdapter`, que está en la lista de parada: hace falta el visto bueno del usuario.**
 
-Deuda con nombre: equipos (el horario ya es de la cuenta) y `handoff_reason` en el relevo. TikTok sigue bloqueado por falta de API pública de mensajería.
+Deuda con nombre: equipos (`teams` y `team_members` siguen sin usarse; el horario y el reparto ya son de la cuenta). TikTok sigue bloqueado por falta de API pública de mensajería.
 
 ## Cambio propuesto al plan de fases
 

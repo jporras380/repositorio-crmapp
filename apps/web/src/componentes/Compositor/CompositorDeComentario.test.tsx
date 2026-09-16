@@ -22,6 +22,7 @@ const hilo: ResumenDeConversacion = {
   vistaPrevia: 'Precio?',
   atencion: 'nueva',
   aplazadaHasta: null,
+  relevo: null,
 };
 
 const api = (enviar: unknown) => ({ enviar }) as unknown as Api;
