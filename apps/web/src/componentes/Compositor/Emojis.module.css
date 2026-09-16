@@ -1,0 +1,55 @@
+/* Panel de emojis: flota sobre el hilo, anclado al botón del compositor. */
+@layer components {
+  .panel {
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    right: 0.75rem;
+    z-index: 20;
+    width: min(21rem, calc(100vw - 2rem));
+    max-height: 17rem;
+    overflow-y: auto;
+    padding: 0.5rem 0.75rem 0.75rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--hairline);
+    box-shadow: var(--sombra-flotante, 0 12px 32px rgb(0 0 0 / 0.18));
+  }
+
+  .grupo + .grupo {
+    margin-top: 0.5rem;
+  }
+
+  .titulo {
+    position: sticky;
+    top: 0;
+    margin: 0 0 0.25rem;
+    padding: 0.25rem 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--fg-muted);
+    background: inherit;
+  }
+
+  .rejilla {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(2rem, 1fr));
+    gap: 0.15rem;
+  }
+
+  .emoji {
+    /* 2rem de lado: el mínimo con el que un dedo acierta en un móvil. */
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .emoji:hover,
+  .emoji:focus-visible {
+    background: var(--hairline);
+  }
+}

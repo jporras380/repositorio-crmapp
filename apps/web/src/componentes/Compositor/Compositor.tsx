@@ -13,6 +13,7 @@ import {
   useObjectUrls,
   type Adjunto,
 } from './Adjuntos.tsx';
+import { Emojis } from './Emojis.tsx';
 import estilos from './Compositor.module.css';
 
 interface Props {
@@ -37,6 +38,7 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
   const [adjuntos, setAdjuntos] = useState<Adjunto[]>([]);
   const [subiendoId, setSubiendoId] = useState<string | null>(null);
   const [limites, setLimites] = useState<LimitesDeMedios | null>(null);
+  const [emojis, setEmojis] = useState(false);
   const [iaActiva, setIaActiva] = useState(false);
   const [sugiriendo, setSugiriendo] = useState(false);
   /**
@@ -237,6 +239,25 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
     }
   }
 
+  /**
+   * Mete el emoji donde está el cursor, no al final. Escribir «Gracias» y que
+   * el emoji aparezca pegado a la primera letra es lo que hace que estos
+   * paneles acaben sin usarse.
+   */
+  function ponerEmoji(emoji: string) {
+    const caja = area.current;
+    const inicio = caja?.selectionStart ?? texto.length;
+    const fin = caja?.selectionEnd ?? texto.length;
+    const nuevo = texto.slice(0, inicio) + emoji + texto.slice(fin);
+    setTexto(nuevo);
+    // El foco vuelve al área con el cursor detrás del emoji, para poder seguir
+    // escribiendo sin tocar el ratón.
+    requestAnimationFrame(() => {
+      caja?.focus();
+      caja?.setSelectionRange(inicio + emoji.length, inicio + emoji.length);
+    });
+  }
+
   function teclas(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -290,6 +311,8 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
         </p>
       )}
 
+      {emojis && <Emojis alElegir={ponerEmoji} alCerrar={() => setEmojis(false)} />}
+
       <Adjuntos adjuntos={adjuntos} subiendoId={subiendoId} alQuitar={quitar} />
 
       <div className={`${estilos.caja} ${iaActiva ? estilos.cajaConIa : ''}`}>
@@ -336,6 +359,19 @@ export function Compositor({ api, conversacion, alEnviado }: Props) {
           onKeyDown={teclas}
           aria-label="Mensaje"
         />
+        <button
+          type="button"
+          className={estilos.icono}
+          title="Emojis"
+          aria-expanded={emojis}
+          onClick={() => setEmojis((v) => !v)}
+          disabled={enviando || subiendo}
+        >
+          <span aria-hidden="true" className={estilos.caraEmoji}>
+            🙂
+          </span>
+          <span className="visually-hidden">Emojis</span>
+        </button>
         {iaActiva && (
           <button
             type="button"

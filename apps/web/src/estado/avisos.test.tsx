@@ -7,10 +7,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useAvisos } from './avisos.ts';
+import * as sonido from './sonido.ts';
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  localStorage.clear();
   document.title = 'Bandeja';
 });
 
@@ -28,6 +30,8 @@ function Pantalla() {
         simular
       </button>
       <button onClick={() => void avisos.pedirPermiso()}>pedir</button>
+      <span data-testid="sonido">{avisos.sonido ? 'on' : 'off'}</span>
+      <button onClick={avisos.alternarSonido}>alternar</button>
     </div>
   );
 }
@@ -81,5 +85,42 @@ describe('useAvisos', () => {
     expect(creadas[0]![0]).toBe('Mensaje nuevo');
     // Mismo `tag`: cinco mensajes seguidos no apilan cinco ventanas.
     expect(creadas[0]![1].tag).toBe('crmapp-mensaje');
+  });
+
+  it('SÍ suena aunque el agente esté mirando: puede estar en otra conversación', async () => {
+    const sonar = vi.spyOn(sonido, 'sonarAvisoDeMensaje').mockImplementation(() => undefined);
+    visibilidad('visible');
+    render(<Pantalla />);
+    await userEvent.click(screen.getByText('simular'));
+    // El título no se toca —eso sí respeta la visibilidad— pero el sonido va.
+    expect(document.title).not.toContain('(');
+    expect(sonar).toHaveBeenCalledTimes(1);
+  });
+
+  it('silenciado no suena, y se recuerda para la próxima vez', async () => {
+    const sonar = vi.spyOn(sonido, 'sonarAvisoDeMensaje').mockImplementation(() => undefined);
+    visibilidad('hidden');
+    render(<Pantalla />);
+    expect(screen.getByTestId('sonido').textContent).toBe('on');
+
+    await userEvent.click(screen.getByText('alternar'));
+    expect(screen.getByTestId('sonido').textContent).toBe('off');
+    expect(localStorage.getItem('crmapp.avisos.sonido')).toBe('off');
+
+    sonar.mockClear();
+    await userEvent.click(screen.getByText('simular'));
+    expect(sonar).not.toHaveBeenCalled();
+    // Y el aviso del título sigue funcionando: silenciar no es apagar.
+    expect(document.title).toContain('(1)');
+  });
+
+  it('encender el sonido lo deja oír: encenderlo ES el gesto que el navegador exige', async () => {
+    const sonar = vi.spyOn(sonido, 'sonarAvisoDeMensaje').mockImplementation(() => undefined);
+    const preparar = vi.spyOn(sonido, 'prepararSonido').mockImplementation(() => undefined);
+    localStorage.setItem('crmapp.avisos.sonido', 'off');
+    render(<Pantalla />);
+    await userEvent.click(screen.getByText('alternar'));
+    expect(preparar).toHaveBeenCalled();
+    expect(sonar).toHaveBeenCalledTimes(1);
   });
 });

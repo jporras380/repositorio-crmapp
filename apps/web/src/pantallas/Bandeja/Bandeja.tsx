@@ -231,6 +231,22 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
             Avisarme de los mensajes nuevos
           </button>
         )}
+        {/*
+          Silenciar, sin entrar en Ajustes: quien atiende con el CRM al lado de
+          una recepción llena necesita poder callarlo en un clic, y volver a
+          encenderlo igual de rápido.
+        */}
+        <button
+          className={estilos.sonido}
+          onClick={avisos.alternarSonido}
+          aria-pressed={avisos.sonido}
+          title={avisos.sonido ? 'Silenciar los mensajes nuevos' : 'Sonar con los mensajes nuevos'}
+        >
+          <span aria-hidden="true">{avisos.sonido ? '🔔' : '🔕'}</span>
+          <span className="visually-hidden">
+            {avisos.sonido ? 'Silenciar el aviso' : 'Activar el aviso con sonido'}
+          </span>
+        </button>
         <ListaDeConversaciones
           items={items}
           seleccionadaId={seleccionadaId}

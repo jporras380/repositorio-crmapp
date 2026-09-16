@@ -123,3 +123,35 @@ Con los eventos en vivo ya se sabe al instante que entró un mensaje; faltaba qu
 - **El permiso se pide con un botón** y solo mientras no se haya decidido. Un navegador que pregunta solo se contesta «bloquear», y de ahí no se vuelve.
 - **Solo avisa lo que ENTRA** (`mensaje.recibido`, `comentario.recibido`). Avisar de lo que enviamos despertaría a todo el equipo con cada respuesta.
 - Todas las notificaciones comparten `tag`: cinco mensajes seguidos reemplazan un aviso en vez de apilar cinco ventanas.
+
+## Emojis y sonido (PR-55, 2026-09-16)
+
+Dos huecos que el usuario nombró: «no hay la sección de emojis en el chat» y «si me llegara un mensaje nuevo el sonido que debe emitir no llega».
+
+### Emojis: a mano, sin dependencia
+
+Las librerías de emoji pesan entre 300 KB y 1,5 MB porque traen **todos** con sus nombres en varios idiomas, sus tonos de piel y a menudo sus imágenes. Un agente de hotel usa treinta. Cargar un megabyte en cada apertura del CRM para eso lo paga el cliente en cada visita.
+
+El panel son cuatro grupos elegidos para un hotel —gestos, hotel y viaje, comida, trato y pagos— pintados **con la fuente del sistema**: así se ven como los ve el cliente en su móvil, que es más honesto que un set propio de imágenes que no se parece a lo que llega.
+
+- **El emoji entra donde está el cursor**, no al final. Escribir «Gracias!» y que el emoji salga pegado a la G es lo que hace que estos paneles acaben sin usarse.
+- **Los más usados suben arriba**, guardados en `localStorage` por navegador.
+- Se cierra con Escape o pulsando fuera.
+- **Lo que se pierde:** no hay buscador ni tonos de piel. Quien necesite otro emoji sigue teniendo el teclado del sistema (Win+. en Windows).
+
+### El sonido, y por qué no llegaba
+
+Dos notas cortas sintetizadas con la Web Audio API: sin archivo que descargar, sin licencia que comprobar y funciona sin conexión. Volumen bajo y menos de medio segundo — quien recibe cien mensajes al día no puede oír cien campanas.
+
+**La causa de que no sonara nunca no es que faltara el sonido, es la política de los navegadores:** desde 2018 ninguno reproduce audio hasta que la persona ha interactuado con la página. Un CRM que se abre y se deja quieto es exactamente el caso que bloquean. Por eso el contexto de audio se crea con el **primer gesto** del agente —un clic o una tecla, los que sean— y no al cargar.
+
+- **El sonido suena aunque la pestaña esté a la vista**, y ahí se separa de las otras dos reglas de [[web]] §Avisar. El agente puede estar leyendo OTRA conversación del mismo CRM: lo que entra es tan nuevo para él como si estuviera en otra pestaña. El contador del título sigue respetando la visibilidad.
+- **Campana para silenciar** en la cabecera de la lista, no enterrada en Ajustes: quien atiende con una recepción llena necesita callarlo en un clic. Se recuerda por navegador, y **encenderlo suena una vez** — porque encenderlo *es* el gesto que el navegador exige, y de paso deja oír cómo suena.
+- Si el navegador lo bloquea de todos modos, no se rompe nada: el título de la pestaña no necesita permiso de nadie.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Abrir una conversación, pulsar 🙂 y elegir un emoji: entra donde estaba el cursor.
+2. Volver a abrir el panel: el que se usó está arriba, en «Los que más usas».
+3. Pulsar la campana de la cabecera: suena una vez. Pedirle a alguien que escriba al WhatsApp del hotel: suena al llegar.
+4. Pulsar la campana otra vez (🔕) y repetir: ya no suena, pero el título sigue contando.

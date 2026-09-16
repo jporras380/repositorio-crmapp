@@ -239,4 +239,44 @@ describe('Compositor', () => {
       expect(screen.getByText('dos.jpg')).toBeTruthy();
     });
   });
+
+  describe('emojis', () => {
+    afterEach(() => localStorage.clear());
+
+    const abrir = async () => {
+      render(
+        <Compositor api={apiFalsa(vi.fn())} conversacion={conversacion} alEnviado={vi.fn()} />,
+      );
+      await screen.findByLabelText('Mensaje');
+      await userEvent.click(screen.getByRole('button', { name: 'Emojis' }));
+    };
+
+    it('el emoji entra donde está el cursor, no al final', async () => {
+      await abrir();
+      const area = screen.getByLabelText('Mensaje') as HTMLTextAreaElement;
+      await userEvent.type(area, 'Gracias!');
+      area.setSelectionRange(7, 7); // entre «Gracias» y «!»
+
+      await userEvent.click(screen.getByRole('button', { name: 'Emojis' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Emoji 🙏' }));
+      expect(area.value).toBe('Gracias🙏!');
+    });
+
+    it('los que se usan se recuerdan para la próxima vez', async () => {
+      await abrir();
+      await userEvent.click(screen.getByRole('button', { name: 'Emoji 🏨' }));
+      // Se guarda fuera del componente: al volver a abrir el CRM siguen ahí.
+      expect(JSON.parse(localStorage.getItem('crmapp.emojis.recientes')!)).toEqual(['🏨']);
+
+      await userEvent.click(screen.getByRole('button', { name: 'Emojis' }));
+      expect(screen.getByText('Los que más usas')).toBeTruthy();
+    });
+
+    it('se cierra con Escape, sin tapar el hilo', async () => {
+      await abrir();
+      expect(screen.getByRole('dialog', { name: 'Emojis' })).toBeTruthy();
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog', { name: 'Emojis' })).toBeNull();
+    });
+  });
 });

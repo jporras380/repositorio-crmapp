@@ -130,3 +130,30 @@
     font-weight: 600;
   }
 }
+
+@layer components {
+  /* Campana de silencio: pequeña y a mano, arriba de la lista. */
+  .sonido {
+    justify-self: end;
+    margin: 0 var(--space-3) var(--space-1);
+    padding: 0.2rem 0.4rem;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.75;
+  }
+
+  .sonido:hover,
+  .sonido:focus-visible {
+    background: var(--hairline);
+    opacity: 1;
+  }
+
+  /* Silenciado se ve apagado: el estado tiene que leerse de un vistazo. */
+  .sonido[aria-pressed='false'] {
+    opacity: 0.45;
+  }
+}
