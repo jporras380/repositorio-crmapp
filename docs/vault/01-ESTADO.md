@@ -1,11 +1,11 @@
 ---
 estado: vivo
-fecha: 2026-09-15
+fecha: 2026-09-16
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 15 de septiembre de 2026
+# Estado — 16 de septiembre de 2026
 
 **El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
 
@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-47, horario de atención y aviso fuera de horario** ([[bandeja]] §Horario): Ajustes → Horario con los tramos por día en la hora del hotel, y respuesta automática apagada por defecto para quien escribe de madrugada. Regla pura en `core` con `Intl`; el worker la envía por la puerta de siempre, una vez cada seis horas. Migración 0027.
 - **PR-46, reparto automático** ([[bandeja]] §Reparto automático): las conversaciones nuevas se asignan solas al miembro con menos abiertas, entre quienes están marcados; quien vuelve sigue con su responsable, y el lead va con la conversación. Apagado por defecto. Migración 0026.
 - **PR-45, botones y listas de WhatsApp ya no se pierden** ([[whatsapp]] §Botones y listas): pulsar un botón de plantilla o elegir de una lista llegaba como `button`/`interactive` y se descartaba. Ahora entra como texto con lo elegido, y dispara bots.
 - **PR-44, administrar etiquetas** ([[bandeja]] §Administrar etiquetas): Ajustes → Etiquetas para crear, renombrar, recolorear y borrar, con dónde se usa cada una. No se borra la que usa un bot vigente, y el worker ya no falla si un bot en vuelo apunta a una borrada. Cierra la deuda «etiquetas editables».
@@ -107,7 +108,7 @@ Nada.
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
 3. Del estudio de los repos de referencia: `handoff_reason` en el relevo, y **enviar** mensajes interactivos de WhatsApp (botones y listas) desde bots y compositor; recibirlos ya funciona.
 
-Deuda con nombre: WebSocket en vez de sondeo, equipos y horario comercial, editor de plantillas HSM. TikTok sigue bloqueado por falta de API pública de mensajería.
+Deuda con nombre: WebSocket en vez de sondeo, equipos (el horario ya es de la cuenta), editor de plantillas HSM. TikTok sigue bloqueado por falta de API pública de mensajería.
 
 ## Cambio propuesto al plan de fases
 

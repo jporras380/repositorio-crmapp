@@ -789,3 +789,111 @@ describe('reparto automático (0026)', () => {
     expect(await asignadoDe('wamid.r4')).toBe(ana);
   });
 });
+
+describe('aviso fuera de horario (0027)', () => {
+  const HORARIO = { '1': [['09:00', '18:00']], '2': [['09:00', '18:00']] };
+  /** Martes 11:00 y 23:00 en Lima (UTC−5). */
+  const abierto = new Date('2026-09-15T16:00:00Z');
+  const cerrado = new Date('2026-09-16T04:00:00Z');
+
+  const configurar = async (opciones: { encendido: boolean; texto?: string; tz?: string }) => {
+    await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+    await admin.query(
+      `INSERT INTO business_hours (tenant_id, timezone, schedule, auto_reply_enabled, auto_reply_text)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        tenantId,
+        opciones.tz ?? 'America/Lima',
+        JSON.stringify(HORARIO),
+        opciones.encendido,
+        opciones.texto ??
+          'Gracias por escribir. Atendemos de 9:00 a 18:00 y te respondemos mañana.',
+      ],
+    );
+  };
+  const salientes = async () =>
+    (
+      await admin.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM messages WHERE direction = 'outbound'`,
+      )
+    ).rows[0]!.n;
+
+  afterAll(async () => {
+    await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+  });
+
+  it('dentro del horario no dice nada', async () => {
+    await configurar({ encendido: true });
+    ahora = abierto;
+    const r = await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.h1')]));
+    expect(r.avisosFueraDeHorario).toBe(0);
+    expect(await salientes()).toBe(0);
+  });
+
+  it('fuera del horario responde una vez, con el texto del hotel y como bot', async () => {
+    ahora = cerrado;
+    const r = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.h2', { externalUserId: 'noche' })]),
+    );
+    expect(r.avisosFueraDeHorario).toBe(1);
+    const { rows } = await admin.query<{ body: string; sent_by: string; status: string }>(
+      `SELECT body, sent_by, status FROM messages WHERE direction = 'outbound'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sent_by: 'bot', status: 'queued' });
+    expect(rows[0]!.body).toContain('Atendemos de 9:00 a 18:00');
+  });
+
+  it('no repite el aviso con cada mensaje de la misma noche, pero sí a las seis horas', async () => {
+    await configurar({ encendido: true });
+    ahora = cerrado;
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.h3a', { externalUserId: 'noche' })]),
+    );
+    // Sigue escribiendo a los dos minutos: ya se le avisó.
+    ahora = new Date(cerrado.getTime() + 120_000);
+    const seguido = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.h3b', { externalUserId: 'noche' })]),
+    );
+    expect(seguido.avisosFueraDeHorario).toBe(0);
+    expect(await salientes()).toBe(1);
+
+    // Siete horas después (sigue de madrugada) se le vuelve a avisar.
+    ahora = new Date(cerrado.getTime() + 7 * 3_600_000);
+    const luego = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.h4', { externalUserId: 'noche' })]),
+    );
+    expect(luego.avisosFueraDeHorario).toBe(1);
+    expect(await salientes()).toBe(2);
+  });
+
+  it('apagado no envía nada, aunque esté cerrado', async () => {
+    await configurar({ encendido: false });
+    ahora = cerrado;
+    const r = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.h5', { externalUserId: 'otra-noche' })]),
+    );
+    expect(r.avisosFueraDeHorario).toBe(0);
+  });
+
+  it('una zona horaria que no se entiende no dispara avisos a deshora', async () => {
+    await configurar({ encendido: true, tz: 'Marte/Olympus' });
+    ahora = cerrado;
+    const r = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.h6', { externalUserId: 'marciano' })]),
+    );
+    expect(r.avisosFueraDeHorario).toBe(0);
+  });
+});

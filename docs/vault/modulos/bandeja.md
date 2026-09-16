@@ -92,3 +92,13 @@ Ajustes → Reparto. **Apagado por defecto**: encenderlo cambia quién ve qué c
 - Se aplica en el worker, en la misma transacción del entrante que abre o reabre la conversación, y **el lead abierto va con ella** si nadie lo lleva.
 - Por defecto entran todos los miembros activos, también la dueña en un hotel pequeño; se desmarca a quien no deba recibir. Si está encendido y nadie está marcado, la pantalla lo avisa: las conversaciones quedarían sin asignar.
 - Migración 0026: `tenants.auto_assignment` y `memberships.accepts_assignments`.
+
+## Horario de atención y aviso fuera de horario (PR-47, 2026-09-16)
+
+Ajustes → Horario. `business_hours` existía desde la fase 0 sin usarla nadie; ahora tiene dueño y contrato: `{"1": [["09:00","13:00"],["15:00","20:00"]]}`, día ISO y **hora del hotel**.
+
+- **La hora es la del hotel, no la del servidor.** La conversión la hace `core/horario.ts` con `Intl`, sin dependencia de zonas horarias. Una zona que no se entiende devuelve `null` y **no se avisa**: suponer «cerrado» escribiría a deshora a todo el mundo.
+- **Un tramo al revés es un error, no «cruza la medianoche».** Para trasnochar se pone un tramo en cada día. Se valida al guardar, con el día en castellano en el mensaje.
+- **El aviso es lo ÚNICO que el CRM envía por su cuenta** sin bot ni agente: apagado por defecto, con el texto que escribe el hotel, y **una vez cada seis horas por conversación** (`conversations.out_of_hours_reply_at`). Sin ese límite, diez mensajes de madrugada serían diez avisos.
+- Sale por la misma puerta que todo, con `origen: 'bot'`; si la ventana está cerrada o la suscripción no deja, no se fuerza nada y el mensaje del cliente ya quedó guardado.
+- Migración 0027.

@@ -15,6 +15,7 @@ import type { Pool, PoolClient } from 'pg';
 import { registrarUso, withTenant } from '@crmapp/db';
 import { asegurarLead } from './leads.js';
 import { repartirSiToca } from './reparto.js';
+import { avisarSiEstaCerrado } from './fuera-de-horario.js';
 import {
   capacidades,
   expiracionTrasMensaje,
@@ -35,8 +36,11 @@ import { escribirEnOutbox } from '@crmapp/queue';
 export interface Dependencias {
   pool: Pool;
   ingesta: Map<string, AdaptadorDeIngesta>;
-  /** Para la política de ventana. Se pregunta, no se asume (ARCH §8). */
-  canales: Map<string, Pick<ChannelAdapter, 'politicaDeVentana'>>;
+  /**
+   * Para la política de ventana y, en el aviso de fuera de horario, para las
+   * capacidades del canal. Se pregunta, no se asume (ARCH §8).
+   */
+  canales: Map<string, Pick<ChannelAdapter, 'politicaDeVentana' | 'capacidades'>>;
   ahora?: () => Date;
 }
 
@@ -45,6 +49,8 @@ export interface ResultadoDeProcesamiento {
   /** Comentarios públicos nuevos (Instagram): abren o continúan un hilo `comment_thread`. */
   comentariosNuevos: number;
   duplicados: number;
+  /** Avisos automáticos de «estamos cerrados» enviados (0027). */
+  avisosFueraDeHorario: number;
   estadosAplicados: number;
   /** Cambios de estado de plantillas HSM reflejados desde Meta. */
   plantillasActualizadas: number;
@@ -91,6 +97,7 @@ export async function procesarEventoEntrante(
       duplicados: 0,
       estadosAplicados: 0,
       plantillasActualizadas: 0,
+      avisosFueraDeHorario: 0,
       ignorados: 0,
       omitidoPorSuspension: false,
     };
@@ -123,8 +130,17 @@ export async function procesarEventoEntrante(
     for (const evento of eventos) {
       if (evento.clase === 'mensaje') {
         const nuevo = await procesarMensaje(c, fila, evento, politica, ahora());
-        if (nuevo) resultado.mensajesNuevos += 1;
-        else resultado.duplicados += 1;
+        if (nuevo) {
+          resultado.mensajesNuevos += 1;
+          // Aviso de «estamos cerrados», si el hotel lo tiene encendido. Va
+          // después de guardar el mensaje: primero se registra lo del cliente.
+          const avisado = await avisarSiEstaCerrado(
+            c,
+            { canales: deps.canales, ...(deps.ahora ? { ahora: deps.ahora } : {}) },
+            { tenantId, conversationId: nuevo.conversationId, ahora: ahora() },
+          );
+          if (avisado) resultado.avisosFueraDeHorario += 1;
+        } else resultado.duplicados += 1;
       } else if (evento.clase === 'estado') {
         const aplicado = await procesarEstado(c, fila, evento);
         if (aplicado) resultado.estadosAplicados += 1;
@@ -216,7 +232,7 @@ async function procesarMensaje(
   evento: EventoDeMensaje,
   politica: PoliticaDeVentana,
   ahora: Date,
-): Promise<boolean> {
+): Promise<{ conversationId: string } | null> {
   const messageId = await nuevoId(c);
 
   // `created_at` es el momento de RECEPCIÓN, no el del proveedor. El
@@ -233,7 +249,7 @@ async function procesarMensaje(
      ON CONFLICT (channel_account_id, external_message_id) DO NOTHING`,
     [fila.tenant_id, fila.channel_account_id, evento.externalMessageId, messageId, createdAt],
   );
-  if (reserva.rowCount === 0) return false; // duplicado: gana el primero (ARCH §7)
+  if (reserva.rowCount === 0) return null; // duplicado: gana el primero (ARCH §7)
 
   const contacto = await resolverIdentidad(c, fila, evento);
   const conversacion = await resolverConversacion(c, fila, contacto);
@@ -358,7 +374,7 @@ async function procesarMensaje(
     },
   });
 
-  return true;
+  return { conversationId: conversacion.id };
 }
 
 interface Identidad {

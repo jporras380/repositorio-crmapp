@@ -10,6 +10,7 @@ import { Suscripcion } from '../../componentes/ajustes/Suscripcion.tsx';
 import { Ia } from '../../componentes/ajustes/Ia.tsx';
 import { Etiquetas } from '../../componentes/ajustes/Etiquetas.tsx';
 import { Reparto } from '../../componentes/ajustes/Reparto.tsx';
+import { Horario } from '../../componentes/ajustes/Horario.tsx';
 import { irA, type Ruta } from '../../estado/ruta.ts';
 import estilos from './Ajustes.module.css';
 
@@ -25,6 +26,7 @@ const SECCIONES: [Seccion, string, string][] = [
   ['canales', 'Canales', 'Números y cuentas conectadas'],
   ['etiquetas', 'Etiquetas', 'Crear, renombrar, cambiar de color y borrar'],
   ['reparto', 'Reparto', 'Asignar solas las conversaciones nuevas'],
+  ['horario', 'Horario', 'Cuándo atiende el equipo y qué responder fuera'],
   ['plantillas', 'Plantillas', 'Mensajes aprobados por Meta para escribir primero'],
   ['respuestas', 'Respuestas rápidas', 'Atajos con «/» en el compositor'],
   ['ia', 'IA asistida', 'Borradores de respuesta con la clave del hotel'],
@@ -67,6 +69,9 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
       <main className={`glass ${estilos.contenido}`}>
         {seccion === 'canales' && <Canales api={api} gestor={gestor} />}
         {seccion === 'etiquetas' && <Etiquetas api={api} gestor={gestor} />}
+        {seccion === 'horario' && (
+          <Horario api={api} administra={sesion.rol === 'owner' || sesion.rol === 'admin'} />
+        )}
         {seccion === 'reparto' && (
           <Reparto api={api} administra={sesion.rol === 'owner' || sesion.rol === 'admin'} />
         )}

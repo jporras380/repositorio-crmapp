@@ -33,6 +33,7 @@ import {
   TOKEN_HOTEL,
   TOKEN_RESERVAS,
   TOKEN_IA,
+  TOKEN_HORARIO,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -73,6 +74,8 @@ import { ReservasService } from './reservas/reservas.service.js';
 import { ReservasController } from './reservas/reservas.controller.js';
 import { IaService } from './ia/ia.service.js';
 import { IaController } from './ia/ia.controller.js';
+import { HorarioService } from './horario/horario.service.js';
+import { HorarioController } from './horario/horario.controller.js';
 import { clienteAnthropic, type ClienteDeIa } from './ia/cliente-de-ia.js';
 
 export interface OpcionesDeApp {
@@ -143,6 +146,7 @@ export class AppModule {
         HotelController,
         ReservasController,
         IaController,
+        HorarioController,
       ],
       providers: [
         {
@@ -310,6 +314,11 @@ export class AppModule {
           provide: TOKEN_RESERVAS,
           inject: [TOKEN_DB, TOKEN_HOTEL],
           useFactory: (db: BaseDeDatos, hotel: HotelService) => new ReservasService({ db, hotel }),
+        },
+        {
+          provide: TOKEN_HORARIO,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) => new HorarioService({ db }),
         },
         {
           provide: TOKEN_IA,

@@ -107,6 +107,9 @@ export const businessHours = pgTable('business_hours', {
   teamId: uuid('team_id'),
   timezone: text('timezone').notNull(),
   schedule: jsonb('schedule').notNull().default({}),
+  /** Aviso automático fuera de horario (0027). */
+  autoReplyEnabled: boolean('auto_reply_enabled').notNull().default(false),
+  autoReplyText: text('auto_reply_text').notNull().default(''),
   createdAt: creado,
   updatedAt: actualizado,
 });
@@ -289,6 +292,8 @@ export const conversations = pgTable(
     lastOutboundAt: timestamp('last_outbound_at', { withTimezone: true }),
     sessionExpiresAt: timestamp('session_expires_at', { withTimezone: true }),
     firstResponseAt: timestamp('first_response_at', { withTimezone: true }),
+    /** Última vez que se avisó de que estamos cerrados (0027). */
+    outOfHoursReplyAt: timestamp('out_of_hours_reply_at', { withTimezone: true }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
     humanReplyAt: timestamp('human_reply_at', { withTimezone: true }),
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),

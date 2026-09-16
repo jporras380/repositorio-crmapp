@@ -39,6 +39,18 @@ export interface ConfiguracionDeReparto {
   }[];
 }
 
+/** Un tramo abierto del horario: `["09:00", "13:00"]`, hora del hotel. */
+export type TramoDeHorario = [string, string];
+
+export interface HorarioDeAtencion {
+  zonaHoraria: string;
+  /** Día ISO (1 = lunes … 7 = domingo) → tramos. Un día ausente está cerrado. */
+  horario: Record<string, TramoDeHorario[]>;
+  avisoActivo: boolean;
+  avisoTexto: string;
+  configurado: boolean;
+}
+
 export interface Etiqueta {
   id: string;
   nombre: string;

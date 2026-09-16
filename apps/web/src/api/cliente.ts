@@ -14,6 +14,7 @@ import type {
   AjustesDeIa,
   EtiquetaConUso,
   ConfiguracionDeReparto,
+  HorarioDeAtencion,
   DescubrimientoWhatsapp,
   AccionDeReserva,
   CatalogoDeHotel,
@@ -170,6 +171,13 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { nombre, color },
       }),
+    horario: () => peticion<HorarioDeAtencion>('/v1/cuenta/horario', t),
+    guardarHorario: (d: {
+      zonaHoraria?: string;
+      horario?: Record<string, [string, string][]>;
+      avisoActivo?: boolean;
+      avisoTexto?: string;
+    }) => peticion<HorarioDeAtencion>('/v1/cuenta/horario', { ...t, metodo: 'PUT', cuerpo: d }),
     reparto: () => peticion<ConfiguracionDeReparto>('/v1/cuenta/reparto', t),
     guardarReparto: (d: {
       modo?: 'off' | 'least_busy';
