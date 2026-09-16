@@ -95,6 +95,8 @@ Ajustes → Reparto. **Apagado por defecto**: encenderlo cambia quién ve qué c
 
 ## Horario de atención y aviso fuera de horario (PR-47, 2026-09-16)
 
+![[2026-09-16-horario.png]]
+
 Ajustes → Horario. `business_hours` existía desde la fase 0 sin usarla nadie; ahora tiene dueño y contrato: `{"1": [["09:00","13:00"],["15:00","20:00"]]}`, día ISO y **hora del hotel**.
 
 - **La hora es la del hotel, no la del servidor.** La conversión la hace `core/horario.ts` con `Intl`, sin dependencia de zonas horarias. Una zona que no se entiende devuelve `null` y **no se avisa**: suponer «cerrado» escribiría a deshora a todo el mundo.
