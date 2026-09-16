@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-50, aviso de mensaje nuevo** ([[web]] §Avisar): contador en el título de la pestaña y notificación del navegador, solo cuando el agente no está mirando y solo para lo que entra. El permiso se pide con un botón, nunca al cargar.
 - **PR-49, la bandeja se actualiza sola** ([[web]] §Tiempo real): `pg_notify` en la transacción del outbox, una escucha por proceso y flujo SSE por inquilino. El sondeo baja a respaldo (60 s). Sin dependencias nuevas y sin WebSocket. Cierra la deuda «WebSocket en vez de sondeo».
 - **PR-48, editor de plantillas de WhatsApp** ([[plantillas]] §Editor): crear una plantilla y mandarla a revisión desde el CRM, con botones de respuesta rápida y ejemplos de cada variable, y borrarla en Meta. Valida antes de gastar un intento de revisión: error lo que Meta rechaza siempre, aviso lo que suele rechazar. Sin tocar el contrato de canales. Cierra la deuda «editor de plantillas HSM».
 - **PR-47, horario de atención y aviso fuera de horario** ([[bandeja]] §Horario): Ajustes → Horario con los tramos por día en la hora del hotel, y respuesta automática apagada por defecto para quien escribe de madrugada. Regla pura en `core` con `Intl`; el worker la envía por la puerta de siempre, una vez cada seis horas. Migración 0027.

@@ -113,3 +113,13 @@ La bandeja preguntaba cada 10 s y el hilo cada 5 s. Ahora se entera en el moment
 - **Se sirve como SSE y no WebSocket**: no añade dependencias, atraviesa proxies y túneles, y el navegador reconecta solo. La web usa `fetch` en vez de `EventSource` porque `EventSource` no admite cabeceras y el token acabaría en la URL —y de ahí a los registros y al historial—.
 - **El aviso no lleva datos**: tipo, id y conversación. La pantalla vuelve a pedir por los endpoints de siempre, con los permisos de siempre; el flujo no puede enseñar nada que el agente no pudiera ver.
 - Latido cada 25 s para que ningún proxy corte la conexión por inactividad, y reconexión con esperas crecientes hasta un minuto.
+
+## Avisar de un mensaje nuevo (PR-50, 2026-09-16)
+
+Con los eventos en vivo ya se sabe al instante que entró un mensaje; faltaba que el agente se enterara cuando no está mirando el CRM.
+
+- **Solo si la pestaña no está a la vista.** Avisar de lo que se está leyendo es ruido. Volver a la pestaña cuenta como visto y limpia el contador.
+- **El contador va en el título** (`(3) CRM`): se ve desde otra pestaña y no necesita permiso de nadie. La notificación del navegador es el extra.
+- **El permiso se pide con un botón** y solo mientras no se haya decidido. Un navegador que pregunta solo se contesta «bloquear», y de ahí no se vuelve.
+- **Solo avisa lo que ENTRA** (`mensaje.recibido`, `comentario.recibido`). Avisar de lo que enviamos despertaría a todo el equipo con cada respuesta.
+- Todas las notificaciones comparten `tag`: cinco mensajes seguidos reemplazan un aviso en vez de apilar cinco ventanas.

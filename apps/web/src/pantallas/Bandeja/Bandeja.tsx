@@ -23,6 +23,7 @@ import {
   type EstadoDePaneles,
 } from '../../estado/paneles.ts';
 import { useEventos } from '../../estado/eventos.ts';
+import { useAvisos } from '../../estado/avisos.ts';
 import estilos from './Bandeja.module.css';
 
 interface Props {
@@ -142,9 +143,19 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
   // Eventos en vivo: el aviso solo dice «algo cambió»; los datos se vuelven a
   // pedir por los endpoints de siempre, con los permisos de siempre.
   const [senalDelHilo, setSenalDelHilo] = useState(0);
+  const avisos = useAvisos();
   useEventos(sesion.token, (e) => {
     if (!e.tipo.startsWith('mensaje.') && !e.tipo.startsWith('comentario.')) return;
     void cargarLista(true);
+    // Solo lo que ENTRA avisa: lo que enviamos nosotros no es una novedad para
+    // quien lo envió, y avisaría a todo el equipo de cada respuesta.
+    if (e.tipo === 'mensaje.recibido' || e.tipo === 'comentario.recibido') {
+      avisos.avisar({
+        titulo: 'Mensaje nuevo',
+        cuerpo: 'Un cliente escribió al hotel.',
+        ...(e.conversacionId ? { alPulsar: () => setSeleccionadaId(e.conversacionId!) } : {}),
+      });
+    }
     // Solo se recarga el hilo abierto si el evento es suyo: un mensaje en otra
     // conversación no tiene por qué mover lo que el agente está leyendo.
     if (e.conversacionId && e.conversacionId === seleccionadaId) {
@@ -210,6 +221,16 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
           alGuardarVista={guardarVista}
           alBorrarVista={borrarVista}
         />
+        {/*
+          El permiso se pide con un botón y solo mientras no se haya decidido:
+          un navegador que pregunta solo se contesta «bloquear» y ya no hay
+          vuelta atrás.
+        */}
+        {avisos.permiso === 'default' && (
+          <button className={estilos.pedirAviso} onClick={() => void avisos.pedirPermiso()}>
+            Avisarme de los mensajes nuevos
+          </button>
+        )}
         <ListaDeConversaciones
           items={items}
           seleccionadaId={seleccionadaId}
