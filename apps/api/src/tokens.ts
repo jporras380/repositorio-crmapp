@@ -38,3 +38,4 @@ export const TOKEN_HOTEL = Symbol('HotelService');
 export const TOKEN_RESERVAS = Symbol('ReservasService');
 export const TOKEN_IA = Symbol('IaService');
 export const TOKEN_HORARIO = Symbol('HorarioService');
+export const TOKEN_EVENTOS = Symbol('EventosService');

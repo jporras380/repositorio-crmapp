@@ -103,3 +103,13 @@ Un `display: grid` sin `grid-template-columns` usa una columna implícita `auto`
 
 - WebSocket para no sondear; virtualización de la lista si pasa de ~200 filas.
 - Campos configurables en la ficha (P-25). Playwright para el recorrido completo.
+
+## Tiempo real sin WebSocket (PR-49, 2026-09-16)
+
+La bandeja preguntaba cada 10 s y el hilo cada 5 s. Ahora se entera en el momento y la recarga periódica queda de respaldo (60 s y 30 s).
+
+- **`pg_notify` desde `escribirEnOutbox`**, en la MISMA transacción del hecho: PostgreSQL lo entrega al confirmar, así que nadie recibe el aviso de algo que se deshizo. Va ahí y no en el relay porque es un aviso, no una entrega: quien no esté conectado se lo pierde y da igual. Lo que no se puede perder sigue yendo por el outbox.
+- **Una sola conexión `LISTEN` por proceso de API**, y el reparto a las pantallas en memoria filtrando por inquilino. Una conexión por pantalla agotaría el pool con veinte agentes. Hay test de que una cuenta no recibe los eventos de otra.
+- **Se sirve como SSE y no WebSocket**: no añade dependencias, atraviesa proxies y túneles, y el navegador reconecta solo. La web usa `fetch` en vez de `EventSource` porque `EventSource` no admite cabeceras y el token acabaría en la URL —y de ahí a los registros y al historial—.
+- **El aviso no lleva datos**: tipo, id y conversación. La pantalla vuelve a pedir por los endpoints de siempre, con los permisos de siempre; el flujo no puede enseñar nada que el agente no pudiera ver.
+- Latido cada 25 s para que ningún proxy corte la conexión por inactividad, y reconexión con esperas crecientes hasta un minuto.

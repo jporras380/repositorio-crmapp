@@ -13,12 +13,15 @@ interface Props {
   /** Si la ficha del contacto esta a la vista; el boton la alterna. */
   fichaAbierta: boolean;
   alAlternarFicha: () => void;
+  /** Cambia cuando llega un evento en vivo de ESTA conversación: toca recargar. */
+  senalDeRecarga?: number;
   /** Volver a la lista. Solo se ve en movil, donde no caben las dos. */
   alVolver: () => void;
   alCambiar: () => void;
 }
 
-const CADA_MS = 5_000;
+/** Respaldo: con eventos en vivo ya no hace falta preguntar cada 5 segundos. */
+const CADA_MS = 30_000;
 const CANAL: Record<string, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
@@ -40,6 +43,7 @@ export function Hilo({
   alAlternarFicha,
   alVolver,
   alCambiar,
+  senalDeRecarga,
 }: Props) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -63,6 +67,11 @@ export function Hilo({
       clearInterval(reloj);
     };
   }, [cargar]);
+
+  // Un evento en vivo de esta conversación: se recarga al momento.
+  useEffect(() => {
+    if (senalDeRecarga) void cargar();
+  }, [senalDeRecarga, cargar]);
 
   // Baja al final solo cuando llega algo nuevo, no en cada sondeo.
   useEffect(() => {

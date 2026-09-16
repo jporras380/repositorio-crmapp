@@ -22,6 +22,7 @@ import {
   LIMITES,
   type EstadoDePaneles,
 } from '../../estado/paneles.ts';
+import { useEventos } from '../../estado/eventos.ts';
 import estilos from './Bandeja.module.css';
 
 interface Props {
@@ -31,11 +32,17 @@ interface Props {
   alSalir: () => void;
 }
 
-const CADA_MS = 10_000;
+/**
+ * Respaldo del flujo en vivo (PR-49). Con eventos ya no hace falta preguntar
+ * cada diez segundos; esto cubre el rato en que el flujo esté caído y los
+ * cambios que no pasan por el outbox (asignar, etiquetar desde otra pestaña).
+ */
+const CADA_MS = 60_000;
 
 /**
  * Tres paneles (Kommo): lista, hilo, contacto. La bandeja no decide nada:
- * pide, pinta y vuelve a pedir. Sondeo cada 10 s hasta que exista WebSocket.
+ * pide, pinta y vuelve a pedir. Lo que le dice cuándo volver a pedir es el
+ * flujo de eventos en vivo, con una recarga de respaldo cada minuto.
  *
  * El reparto del espacio lo manda el agente: los separadores se arrastran y
  * los paneles laterales se pliegan (ver `estado/paneles.ts`).
@@ -132,6 +139,19 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
     return () => clearInterval(id);
   }, [cargarLista]);
 
+  // Eventos en vivo: el aviso solo dice «algo cambió»; los datos se vuelven a
+  // pedir por los endpoints de siempre, con los permisos de siempre.
+  const [senalDelHilo, setSenalDelHilo] = useState(0);
+  useEventos(sesion.token, (e) => {
+    if (!e.tipo.startsWith('mensaje.') && !e.tipo.startsWith('comentario.')) return;
+    void cargarLista(true);
+    // Solo se recarga el hilo abierto si el evento es suyo: un mensaje en otra
+    // conversación no tiene por qué mover lo que el agente está leyendo.
+    if (e.conversacionId && e.conversacionId === seleccionadaId) {
+      setSenalDelHilo((n) => n + 1);
+    }
+  });
+
   async function cargarMas() {
     if (!cursor) return;
     const p = await api.conversaciones({ ...filtros, cursor });
@@ -223,6 +243,7 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
             alAlternarFicha={() => cambiarPaneles({ fichaAbierta: !paneles.fichaAbierta })}
             alVolver={() => setSeleccionadaId(null)}
             alCambiar={() => void cargarLista(true)}
+            senalDeRecarga={senalDelHilo}
           />
         ) : (
           <div className={estilos.vacio}>

@@ -34,6 +34,7 @@ import {
   TOKEN_RESERVAS,
   TOKEN_IA,
   TOKEN_HORARIO,
+  TOKEN_EVENTOS,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
 import { AuthController } from './auth/auth.controller.js';
@@ -76,6 +77,8 @@ import { IaService } from './ia/ia.service.js';
 import { IaController } from './ia/ia.controller.js';
 import { HorarioService } from './horario/horario.service.js';
 import { HorarioController } from './horario/horario.controller.js';
+import { EventosService } from './eventos/eventos.service.js';
+import { EventosController } from './eventos/eventos.controller.js';
 import { clienteAnthropic, type ClienteDeIa } from './ia/cliente-de-ia.js';
 import type { EditorDePlantillasDeMeta } from './plantillas/editor-de-meta.js';
 
@@ -152,6 +155,7 @@ export class AppModule {
         ReservasController,
         IaController,
         HorarioController,
+        EventosController,
       ],
       providers: [
         {
@@ -326,6 +330,12 @@ export class AppModule {
           provide: TOKEN_RESERVAS,
           inject: [TOKEN_DB, TOKEN_HOTEL],
           useFactory: (db: BaseDeDatos, hotel: HotelService) => new ReservasService({ db, hotel }),
+        },
+        {
+          // Una sola escucha de PostgreSQL por proceso, compartida por todas
+          // las pantallas abiertas.
+          provide: TOKEN_EVENTOS,
+          useFactory: () => new EventosService({ databaseUrl: opciones.databaseUrl }),
         },
         {
           provide: TOKEN_HORARIO,

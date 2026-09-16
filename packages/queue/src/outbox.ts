@@ -117,6 +117,32 @@ export async function escribirEnOutbox(
       JSON.stringify(evento.payload),
     ],
   );
+
+  // Aviso en vivo para las pantallas abiertas (PR-49). `pg_notify` se entrega
+  // **al confirmar** la transacción: si esta se deshace, nadie recibe nada.
+  //
+  // Va aquí y no en el relay porque esto es una notificación, no una entrega:
+  // quien no esté escuchando en ese instante se la pierde, y da igual — la
+  // pantalla se recarga sola de todas formas. El trabajo de verdad lo sigue
+  // garantizando el outbox.
+  //
+  // La carga se recorta a ids: el límite de `NOTIFY` son 8000 bytes y un
+  // payload grande tumbaría el INSERT, que sí importa.
+  await client.query(`SELECT pg_notify('crmapp_eventos', $1)`, [
+    JSON.stringify({
+      t: evento.tenantId,
+      e: evento.eventType,
+      a: evento.aggregateId,
+      c: conversacionDe(evento.payload),
+    }),
+  ]);
+}
+
+/** Id de conversación dentro de la carga, si lo lleva. Evita recargar de más. */
+function conversacionDe(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const c = (payload as Record<string, unknown>)['conversationId'];
+  return typeof c === 'string' ? c : null;
 }
 
 /**
