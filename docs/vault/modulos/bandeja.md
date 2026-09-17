@@ -202,3 +202,20 @@ Dos cosas que ya estaban y nadie había visto:
 ### Cómo comprobarlo en menos de 5 minutos
 
 Abrir un hilo de comentarios, responder en privado, y mirar el compositor: el botón «En privado» queda desactivado y el texto explica por qué. «En público» sigue disponible.
+
+## Aplazar una conversación (PR-65, 2026-09-17)
+
+Otra pieza completa sin puerta de entrada, encontrada en el mismo barrido que PR-64: el endpoint `PATCH /v1/conversaciones/:id/aplazar` existía, `snoozed_until` se guardaba, el estado de atención tenía su valor «seguimiento» y la lista sabía pintar la insignia **«Aplazada»**… y **no había ningún botón que lo llamara**. Se podía ver una conversación aplazada y no se podía aplazar ninguna. Incluso el método estaba en el cliente web, sin que ningún componente lo usara.
+
+Ahora hay un botón en la cabecera del hilo con tres plazos y el deshacer.
+
+### Decisiones
+
+- **Plazos fijos, no un calendario.** Quien atiende una recepción no quiere elegir día y hora: quiere quitarse algo de encima ahora y que vuelva luego. Tres opciones cubren el día de trabajo. Precio: para «el lunes que viene» hay que aplazar dos veces.
+- **«Mañana a las 9:00» usa la hora de quien mira**, no UTC ni la del hotel. El agente piensa en su reloj, y el que abre el CRM es quien va a volver a ver la conversación.
+- **Deshacer está donde se hizo.** Buscar el «quitar» en otro sitio es lo que hace que estas funciones dejen de usarse.
+- **Un aplazamiento vencido no cuenta como aplazada.** El botón vuelve a decir «Aplazar» solo, sin que nadie tenga que limpiarlo.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Abrir una conversación → «Aplazar» → «En 1 hora». El botón pasa a «Aplazada» y la fila de la lista muestra la insignia. Volver a pulsarlo y elegir «Volver a verla ahora» lo deshace.

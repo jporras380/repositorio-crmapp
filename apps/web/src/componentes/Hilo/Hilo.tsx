@@ -4,6 +4,7 @@ import type { Mensaje, ResumenDeConversacion } from '../../api/tipos.ts';
 import { diaDeMensaje, horaDeMensaje, inicial, ventana } from '../../vista/tiempo.ts';
 import { Compositor } from '../Compositor/Compositor.tsx';
 import { CompositorDeComentario } from '../Compositor/CompositorDeComentario.tsx';
+import { Aplazar } from './Aplazar.tsx';
 import { Medio } from './Medio.tsx';
 import estilos from './Hilo.module.css';
 
@@ -116,6 +117,12 @@ export function Hilo({
             {v.texto}
           </span>
         )}
+        <Aplazar
+          api={api}
+          conversacionId={conversacion.id}
+          aplazadaHasta={conversacion.aplazadaHasta}
+          alCambiar={alCambiar}
+        />
         <button
           className={`${estilos.detalles} ${fichaAbierta ? estilos.detallesActivo : ''}`}
           aria-pressed={fichaAbierta}

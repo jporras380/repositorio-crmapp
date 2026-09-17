@@ -1,0 +1,85 @@
+/* Aplazar: un botón en la cabecera del hilo y su menú de plazos. */
+@layer components {
+  .caja {
+    position: relative;
+  }
+
+  .boton {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+
+  .boton:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+
+  /* Aplazada de verdad: se ve sin leer, igual que en la lista. */
+  .activo {
+    color: var(--warn);
+    background: var(--warn-soft);
+    border-color: transparent;
+  }
+
+  .menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    z-index: 20;
+    display: grid;
+    min-width: 12rem;
+    padding: 0.25rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    box-shadow: var(--sombra-flotante, 0 12px 32px rgb(0 0 0 / 0.18));
+  }
+
+  .opcion {
+    padding: 0.4rem 0.6rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--fg);
+    font-size: var(--text-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .opcion:hover:not(:disabled) {
+    background: var(--hairline);
+  }
+
+  .opcion:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .quitar {
+    margin-top: 0.15rem;
+    border-top: 1px solid var(--hairline);
+    border-radius: 0;
+    color: var(--fg-muted);
+  }
+
+  .error {
+    margin: 0.25rem 0.6rem;
+    font-size: 0.7rem;
+    color: var(--danger);
+  }
+
+  /* En móvil no cabe la palabra al lado del reloj. */
+  @media (width < 40rem) {
+    .texto {
+      display: none;
+    }
+  }
+}
