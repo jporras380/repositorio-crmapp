@@ -230,3 +230,24 @@ PR-56 puso el nombre de quien escribió; el usuario pidió también la cara: «n
 - **Una caché por id de medio, compartida por el módulo.** Las fotos se firman por cinco minutos, así que hay que pedirlas; en un hilo de cincuenta mensajes de la misma persona, pedirla cincuenta veces sería absurdo. Se pide una vez por agente y por carga de página.
 
 Hizo falta un contenedor de fila: la burbuja se alineaba sola con `align-self`, y una cara «al lado» necesita que algo las ponga en la misma línea.
+
+## Teléfono y usuario, separados y copiables (PR-74, 2026-09-17)
+
+La ficha enseñaba **una sola línea**: «+51925300224 · @joperami1». El usuario la señaló en una captura y pidió dos líneas con su copiar.
+
+La causa estaba en el servidor: el worker une los dos datos en `contact_identities.handle` desde PR-41, y la API los mandaba ya pegados. Partir esa cadena en la web habría sido adivinar dónde acaba uno. Ahora el resumen de conversación trae `telefono` y `usuario` **separados**, y `handle` se queda solo para la fila de la lista.
+
+### Decisiones
+
+- **Copiar, no seleccionar.** El número se usa fuera del CRM —para llamar, para pegarlo en una reserva, en un grupo del hotel— y seleccionar catorce dígitos con el ratón sin llevarse un espacio de más es más difícil de lo que parece, varias veces al día.
+- **Botones transparentes**, como pidió el usuario: al lado de un dato, un botón sólido pesaría más que el dato. Se ven al pasar por encima y siempre para el teclado.
+- **El texto cambia a «Copiado» un momento.** Sin eso, pulsar no se nota y la gente pulsa dos veces por si acaso.
+- **Solo aparece lo que existe.** Si la conversación llegó sin número, no hay línea de teléfono vacía.
+- **Se puede añadir el número.** WhatsApp ya deja escribir solo con nombre de usuario; si el agente lo consigue hablando, tiene que poder guardarlo o se queda en su cabeza. Va a `contacts.phone`, que es el dato del negocio.
+- **El teléfono de la ficha manda sobre el del canal** (`COALESCE(co.phone, ci.phone_e164)`): si alguien lo corrigió a mano, esa corrección vale.
+
+### Un detalle de accesibilidad que salió al probar
+
+La primera versión ponía el nombre del botón en un texto oculto **además** del visible, y un lector de pantalla leía «Copiar Copiar teléfono». Ahora va en `aria-label` y el texto visible dice solo «Copiar», porque al lado ya se ve qué se copia.
+
+6 tests.

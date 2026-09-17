@@ -11,7 +11,7 @@ const hilo: ResumenDeConversacion = {
   estado: 'open',
   tipo: 'comment_thread',
   publicacionId: 'post.7',
-  contacto: { id: 'p1', nombre: 'caro.rp', handle: 'caro.rp' },
+  contacto: { id: 'p1', nombre: 'caro.rp', handle: 'caro.rp', telefono: null, usuario: null },
   agenteId: null,
   noLeidos: 1,
   ultimoEntranteEn: null,

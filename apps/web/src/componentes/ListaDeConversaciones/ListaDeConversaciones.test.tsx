@@ -11,7 +11,7 @@ const base: ResumenDeConversacion = {
   estado: 'open',
   tipo: 'dm',
   publicacionId: null,
-  contacto: { id: 'p1', nombre: 'Ana Pérez', handle: '+51999' },
+  contacto: { id: 'p1', nombre: 'Ana Pérez', handle: '+51999', telefono: null, usuario: null },
   agenteId: null,
   noLeidos: 3,
   ultimoEntranteEn: new Date().toISOString(),
@@ -41,7 +41,7 @@ describe('ListaDeConversaciones', () => {
           {
             ...base,
             id: 'c2',
-            contacto: { id: 'p2', nombre: 'Beto', handle: null },
+            contacto: { id: 'p2', nombre: 'Beto', handle: null, telefono: null, usuario: null },
             noLeidos: 0,
             ventanaExpiraEn: en(-1),
             etiquetas: [],

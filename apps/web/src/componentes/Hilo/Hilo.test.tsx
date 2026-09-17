@@ -19,7 +19,7 @@ const conversacion: ResumenDeConversacion = {
   estado: 'open',
   tipo: 'dm',
   publicacionId: null,
-  contacto: { id: 'p1', nombre: 'Rosa', handle: null },
+  contacto: { id: 'p1', nombre: 'Rosa', handle: null, telefono: null, usuario: null },
   agenteId: null,
   noLeidos: 0,
   ultimoEntranteEn: null,

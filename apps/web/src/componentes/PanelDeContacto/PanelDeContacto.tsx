@@ -5,6 +5,7 @@ import { horaCorta, inicial } from '../../vista/tiempo.ts';
 import { pintar } from '../Filtros/Filtros.tsx';
 import { ReservaDeConversacion } from './ReservaDeConversacion.tsx';
 import { Notas } from './Notas.tsx';
+import { DatosDeContacto } from './DatosDeContacto.tsx';
 import { NombreDelContacto } from './NombreDelContacto.tsx';
 import estilos from './PanelDeContacto.module.css';
 
@@ -81,9 +82,13 @@ export function PanelDeContacto({
           handle={conversacion.contacto.handle}
           alGuardar={alCambiar}
         />
-        {conversacion.contacto.handle && (
-          <p className={estilos.handle}>{conversacion.contacto.handle}</p>
-        )}
+        <DatosDeContacto
+          api={api}
+          contactoId={conversacion.contacto.id}
+          telefono={conversacion.contacto.telefono}
+          usuario={conversacion.contacto.usuario}
+          alCambiar={alCambiar}
+        />
       </div>
 
       <section className={estilos.seccion}>

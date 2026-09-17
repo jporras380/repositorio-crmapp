@@ -66,7 +66,16 @@ export interface ResumenDeConversacion {
   tipo: string;
   /** Publicación de la que cuelga el hilo, cuando es de comentarios. */
   publicacionId: string | null;
-  contacto: { id: string; nombre: string | null; handle: string | null };
+  contacto: {
+    id: string;
+    nombre: string | null;
+    /** Cómo se le llama de un vistazo. Puede venir unido: «+51… · @usuario». */
+    handle: string | null;
+    /** El de la ficha si lo hay; si no, el que dijo el canal. */
+    telefono: string | null;
+    /** Sin «@»: lo pone la interfaz. `null` en canales que no lo tienen. */
+    usuario: string | null;
+  };
   agenteId: string | null;
   noLeidos: number;
   ultimoEntranteEn: Date | null;
@@ -256,6 +265,11 @@ export class BandejaService {
                 c.session_expires_at, c.created_at,
                 c.handoff_reason, c.handoff_at,
                 co.id AS contact_id, co.display_name, ci.handle,
+                -- Separados, no en una cadena ya unida: la interfaz los pinta
+                -- en dos líneas y ofrece copiar cada uno. Unirlos aquí obliga
+                -- a partir texto allí, que es adivinar.
+                COALESCE(co.phone, ci.phone_e164) AS telefono,
+                ci.username AS usuario,
                 COALESCE(t.etiquetas, '[]'::json) AS etiquetas,
                 m.body AS vista_previa
            FROM conversations c
@@ -983,6 +997,8 @@ interface FilaResumen {
   contact_id: string;
   display_name: string | null;
   handle: string | null;
+  telefono: string | null;
+  usuario: string | null;
   etiquetas: { id: string; nombre: string; color: string | null }[];
   vista_previa: string | null;
   atencion: EstadoDeAtencion;
@@ -1022,7 +1038,13 @@ function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
     estado: f.estado,
     tipo: f.kind,
     publicacionId: f.external_thread_id,
-    contacto: { id: f.contact_id, nombre: f.display_name, handle: f.handle },
+    contacto: {
+      id: f.contact_id,
+      nombre: f.display_name,
+      handle: f.handle,
+      telefono: f.telefono,
+      usuario: f.usuario,
+    },
     agenteId: f.assignee_user_id,
     noLeidos: f.unread_count,
     ultimoEntranteEn: f.last_inbound_at,

@@ -86,7 +86,15 @@ export interface ResumenDeConversacion {
   /** `dm` o `comment_thread`: se responden distinto. */
   tipo: 'dm' | 'comment_thread' | string;
   publicacionId: string | null;
-  contacto: { id: string; nombre: string | null; handle: string | null };
+  contacto: {
+    id: string;
+    nombre: string | null;
+    /** Cómo se le llama de un vistazo; puede venir unido. */
+    handle: string | null;
+    telefono: string | null;
+    /** Sin «@»: lo pone la interfaz. */
+    usuario: string | null;
+  };
   agenteId: string | null;
   noLeidos: number;
   ultimoEntranteEn: string | null;
