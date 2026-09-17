@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "arch:check": "bash scripts/check-architecture.sh",
+    "arch:check": "bash scripts/check-architecture.sh && node scripts/check-puertas.mjs",
     "arranca": "node scripts/arranca.mjs",
     "build": "turbo run build",
     "db:dev-roles": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts dev-roles",

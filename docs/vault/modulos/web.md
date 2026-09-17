@@ -205,3 +205,42 @@ La primera versión del `UPDATE` comparaba `last_event_at < $2 - interval '1 min
 ### Cómo comprobarlo en menos de 5 minutos
 
 Ajustes → Canales, y escribir al número desde un móvil: la línea del canal pasa a «hace un momento».
+
+## La guarda de «declarado y sin usar» (PR-68, 2026-09-17)
+
+En un solo día aparecieron **siete fallos de la misma familia**: una capacidad, una columna o un endpoint que existía, estaba probado, y **no lo usaba nadie**. Ninguno rompía nada de forma ruidosa:
+
+| Qué | Daño silencioso |
+|---|---|
+| `limitesDeMedios` | Un vídeo de 38 MB viajaba hasta Meta para fallar allí |
+| `requiereUrlPublicaParaMedios` | Las fotos salían y no llegaban, marcadas «Enviado» |
+| `last_event_at` | «Sin eventos todavía» con el canal recibiendo mensajes |
+| `respuestasPrivadasPorComentario` | Se podía gastar dos veces algo que solo se usa una vez |
+| `handoff_reason` | El bot se rendía sin decirlo |
+| `aplazar` | Función entera sin ningún botón |
+| Deshacer la fusión | Ídem, y la escribí yo el mismo día |
+
+Los encontró un barrido a mano. `scripts/check-puertas.mjs` lo hace ahora en cada build, dentro de `pnpm arch:check`.
+
+### Qué comprueba
+
+1. **Columnas** declaradas en el esquema Drizzle que no aparecen en ningún otro archivo.
+2. **Métodos del cliente web** que no llama ningún componente.
+
+### La decisión que la hace útil
+
+**Para acallar un hallazgo hay que escribir el motivo.** Se anota en `PERMITIDOS`, con su razón, y ahí conviven dos cosas distintas que conviene distinguir al leer: lo que está así **a propósito** (cobro manual, segundo factor sin construir) y lo que es **deuda con nombre** (`DEUDA:`). Una lista de excepciones sin razones sería otra vez el problema que la guarda resuelve.
+
+### Lo que NO comprueba, y por qué
+
+Las capacidades de canal (`CapacidadesDeCanal`) no entran: se consumen dentro de `validarContraCapacidades`, que sí las usa todas, y detectarlo requeriría entender el flujo de datos, no buscar texto. Esa familia se cubre con lectura y tests.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Añade un método al cliente web sin llamarlo desde ningún sitio y ejecuta `pnpm arch:check`: falla y lo nombra. Se probó así antes de darla por buena — una guarda que nunca falla no protege nada.
+
+### Deuda que la guarda deja anotada
+
+- Borrar un tipo de habitación.
+- Crear un lead a mano (el huésped que llama por teléfono).
+- Ver las ejecuciones vivas de un bot.
