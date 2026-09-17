@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-62, la señal de vida de cada canal** ([[web]] §La señal de vida de cada canal): `last_event_at` existía desde la fase 0 y **solo se leía**; Canales decía «sin eventos» siempre. Ahora lo escribe el worker y se lee en relativo («hace 3 min»). El test atrapó de paso un `UPDATE` sin castear que habría tumbado toda la ingesta.
 - **PR-61, un solo comando para arrancar** ([[web]] §Un solo comando para arrancar): `pnpm arranca` levanta infraestructura, migra y arranca API, worker y web con los logs prefijados. Tres de los últimos fallos «del CRM» eran en realidad algo sin arrancar o arrancado con código viejo. No abre el túnel a propósito: lo recuerda en pantalla.
 - **PR-60, el archivo llega con su nombre** ([[medios]] §El archivo llega con su nombre): un PDF le llegaba al cliente como «archivo», y uno que entraba se veía «Abrir documento (pdf)». El nombre se recibía y se tiraba en los dos sentidos. Migración 0031.
 - **PR-59, «hoy» es el día del hotel** ([[panel]] §«Hoy» es el día del hotel): `cerradasHoy` y `actividadHoy` cortaban el día en UTC, así que en Perú el panel se ponía a cero a las 19:00 de la tarde y decía que no se había atendido a nadie. El comentario del código decía que no se hacía «porque la zona horaria no se guarda»: dejó de ser verdad en PR-47 y nadie volvió a mirarlo.

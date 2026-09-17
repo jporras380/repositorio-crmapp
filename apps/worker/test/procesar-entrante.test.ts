@@ -897,3 +897,34 @@ describe('aviso fuera de horario (0027)', () => {
     expect(r.avisosFueraDeHorario).toBe(0);
   });
 });
+
+describe('señal de vida del canal', () => {
+  const ultimoEvento = async () =>
+    (
+      await admin.query<{ last_event_at: Date | null }>(
+        `SELECT last_event_at FROM channel_accounts WHERE id = $1`,
+        [channelAccountId],
+      )
+    ).rows[0]!.last_event_at;
+
+  it('un webhook deja escrito cuándo llegó: es lo que contesta «¿por qué no entra nada?»', async () => {
+    await admin.query(`UPDATE channel_accounts SET last_event_at = NULL WHERE id = $1`, [
+      channelAccountId,
+    ]);
+    ahora = T0;
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.vida1')]));
+    expect(await ultimoEvento()).toEqual(T0);
+  });
+
+  it('no se escribe en cada webhook: la misma fila la leen todos los envíos', async () => {
+    // Un solo mensaje trae hasta tres webhooks de estado seguidos. Saber el
+    // minuto basta, y así no se castiga una fila caliente.
+    ahora = new Date(T0.getTime() + 30_000);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.vida2')]));
+    expect(await ultimoEvento()).toEqual(T0);
+
+    ahora = new Date(T0.getTime() + 120_000);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.vida3')]));
+    expect(await ultimoEvento()).toEqual(ahora);
+  });
+});

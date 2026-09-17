@@ -157,9 +157,40 @@ export async function procesarEventoEntrante(
       }
     }
 
+    await anotarSenalDeVida(c, fila.channel_account_id, ahora());
     await marcar(c, fila.id, 'processed', null);
     return resultado;
   });
+}
+
+/**
+ * Señal de vida del canal: cuándo llegó el último webhook.
+ *
+ * `channel_accounts.last_event_at` existía desde la fase 0 y **solo se leía**:
+ * la pantalla de Canales decía «sin eventos» siempre, aunque estuvieran
+ * entrando mensajes. Es el dato que contesta la pregunta que más veces ha
+ * costado tiempo aquí —«¿por qué no llega nada?»— y estaba en blanco.
+ *
+ * Se escribe como mucho una vez por minuto y canal. Sin ese filtro, cada
+ * webhook —incluidos los tres de estado que trae un solo mensaje— sería una
+ * escritura más sobre la MISMA fila, y esa fila la leen todos los envíos.
+ * Saber el minuto basta para lo que sirve.
+ */
+async function anotarSenalDeVida(
+  c: PoolClient,
+  channelAccountId: string,
+  ahora: Date,
+): Promise<void> {
+  await c.query(
+    // El `::timestamptz` no es adorno: sin él, PostgreSQL toma `$2` como
+    // desconocido y `$2 - interval` se lee como interval menos interval. Falla
+    // la sentencia entera, y con ella TODA la ingesta de ese webhook.
+    `UPDATE channel_accounts
+        SET last_event_at = $2::timestamptz
+      WHERE id = $1
+        AND (last_event_at IS NULL OR last_event_at < $2::timestamptz - interval '1 minute')`,
+    [channelAccountId, ahora],
+  );
 }
 
 /** Marca el evento como fallido en una transacción propia, tras un rollback. */

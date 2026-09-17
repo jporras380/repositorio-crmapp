@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { CuentaDeCanal } from '../../api/tipos.ts';
 import { irA } from '../../estado/ruta.ts';
+import { hace } from '../../vista/tiempo.ts';
 import { ConectarCanal } from './ConectarCanal.tsx';
 import estilos from './ajustes.module.css';
 
@@ -131,9 +132,15 @@ export function Canales({ api, gestor }: Props) {
                 <p className={estilos.tarjetaTitulo}>{c.displayName}</p>
                 <p className={estilos.tarjetaDetalle}>
                   {NOMBRE[c.canal] ?? c.canal} · {c.externalId}
-                  {c.lastEventAt
-                    ? ` · último evento ${new Date(c.lastEventAt).toLocaleString('es')}`
-                    : ' · sin eventos todavía'}
+                  {/*
+                    En relativo: lo que se quiere saber aquí es «¿esto sigue
+                    vivo?», y una fecha completa obliga a restar de cabeza
+                    justo cuando algo va mal y hay prisa.
+                  */}
+                  {' · '}
+                  <span title={c.lastEventAt ?? undefined}>
+                    {hace(c.lastEventAt) ?? 'sin eventos todavía'}
+                  </span>
                 </p>
               </div>
               <div className={estilos.acciones}>

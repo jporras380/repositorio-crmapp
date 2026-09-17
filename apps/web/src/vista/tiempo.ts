@@ -59,3 +59,23 @@ export function inicial(nombre: string | null, handle: string | null): string {
   const base = (nombre ?? handle ?? '?').trim();
   return base.charAt(0).toUpperCase() || '?';
 }
+
+/**
+ * «hace 3 min», «hace 5 h», «hace 2 días».
+ *
+ * Para la pantalla de Canales: una fecha completa obliga a restar mentalmente
+ * para contestar lo único que importa —«¿esto sigue vivo?»—, y ese cálculo es
+ * justo el que no se hace cuando algo va mal y hay prisa.
+ */
+export function hace(iso: string | null, ahora: Date = new Date()): string | null {
+  if (!iso) return null;
+  const segundos = Math.floor((ahora.getTime() - new Date(iso).getTime()) / 1000);
+  if (!Number.isFinite(segundos) || segundos < 0) return null;
+  if (segundos < 90) return 'hace un momento';
+  const minutos = Math.round(segundos / 60);
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.round(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.round(horas / 24);
+  return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+}

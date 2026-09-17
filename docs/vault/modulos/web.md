@@ -185,3 +185,23 @@ Arrancar el CRM eran **tres ventanas** (API, worker, web) más **dos pasos que s
 ### Cómo comprobarlo en menos de 5 minutos
 
 `pnpm arranca`, y en el mismo terminal se ve la infraestructura, las migraciones, los tres servicios y el recordatorio del túnel. La web en `localhost:5173`, la API en `localhost:3000`.
+
+## La señal de vida de cada canal (PR-62, 2026-09-17)
+
+`channel_accounts.last_event_at` existía desde la fase 0 y **solo se leía**. La pantalla de Canales decía «sin eventos todavía» siempre, incluso en el número que llevaba días recibiendo mensajes. Era el dato que contesta la pregunta que más veces ha costado tiempo en este proyecto —«¿por qué no llega nada?»— y estaba en blanco.
+
+Ahora lo escribe el worker al procesar cada webhook, y la pantalla lo enseña **en relativo**: «hace 3 min», «hace 5 h». Una fecha completa obliga a restar de cabeza justo cuando algo va mal y hay prisa.
+
+### Decisiones
+
+- **Una escritura por minuto y canal como mucho.** Un solo mensaje trae hasta tres webhooks de estado seguidos; sin ese filtro, cada uno sería otra escritura sobre la MISMA fila, y esa fila la leen todos los envíos. Saber el minuto basta para lo que sirve.
+- **Es pasivo, no avisa.** El usuario descartó por ahora el aviso activo de «no entran mensajes desde las X». Esto no lo sustituye: hace que el dato exista y se lea de un vistazo cuando se abre Canales.
+- **Una fecha futura no se pinta.** Un reloj desajustado diría «hace -3 min»; es mejor callarse.
+
+### Lo que atrapó el test
+
+La primera versión del `UPDATE` comparaba `last_event_at < $2 - interval '1 minute'` sin castear. PostgreSQL toma `$2` como desconocido, lee `$2 - interval` como *interval menos interval* y falla la sentencia entera — **tumbando la ingesta completa de ese webhook**. Los tests lo cazaron antes de llegar a `main`; en producción habría sido «dejaron de entrar mensajes» sin más pista.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Ajustes → Canales, y escribir al número desde un móvil: la línea del canal pasa a «hace un momento».
