@@ -3,6 +3,7 @@ import { crearApi } from '../../api/cliente.ts';
 import type { Embudo, Etiqueta, Miembro, Sesion, Tablero as Datos, Yo } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
 import { Etapas } from '../../componentes/leads/Etapas.tsx';
+import { NuevoLead } from '../../componentes/leads/NuevoLead.tsx';
 import { FichaDeLead } from '../../componentes/leads/FichaDeLead.tsx';
 import { Tablero } from '../../componentes/leads/Tablero.tsx';
 import { irA } from '../../estado/ruta.ts';
@@ -38,6 +39,7 @@ export function Leads({ sesion, leadId, alSalir }: Props) {
   const [responsable, setResponsable] = useState('');
   const [etiqueta, setEtiqueta] = useState('');
   const [editandoEtapas, setEditandoEtapas] = useState(false);
+  const [creando, setCreando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
@@ -162,9 +164,27 @@ export function Leads({ sesion, leadId, alSalir }: Props) {
           >
             Etapas
           </button>
+
+          {/* Lo que no llega por un canal: una llamada, alguien en recepción. */}
+          <button
+            className={estilos.accion}
+            onClick={() => setCreando((v) => !v)}
+            aria-pressed={creando}
+          >
+            Nueva oportunidad
+          </button>
         </header>
 
         {error && <p className={estilos.error}>{error}</p>}
+
+        {creando && datos && (
+          <NuevoLead
+            api={api}
+            etapas={etapas}
+            alCreado={cargar}
+            alCerrar={() => setCreando(false)}
+          />
+        )}
 
         {editandoEtapas && datos && (
           <Etapas

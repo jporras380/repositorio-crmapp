@@ -1,0 +1,125 @@
+/* Alta manual de una oportunidad: panel corto, sobre el tablero. */
+@layer components {
+  .panel {
+    display: grid;
+    gap: 0.55rem;
+    max-width: 26rem;
+    margin: 0 var(--space-3) var(--space-3);
+    padding: 0.85rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+  }
+
+  .titulo {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .ayuda,
+  .pista {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--fg-muted);
+  }
+
+  .campo {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .etiqueta {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+
+  .entrada {
+    width: 100%;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-sm);
+  }
+
+  .dos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .opcion {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--fg);
+    font-size: var(--text-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .opcion:hover {
+    background: var(--hairline);
+  }
+
+  /* La ficha nueva se ve aparte: se está creando algo, no solo eligiendo. */
+  .nuevo {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+  }
+
+  .acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin-top: 0.2rem;
+  }
+
+  .cancelar,
+  .crear {
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  .cancelar {
+    background: transparent;
+    color: var(--fg-muted);
+  }
+
+  .crear {
+    border-color: transparent;
+    background: var(--accent);
+    color: var(--sobre-accent, #fff);
+    font-weight: 600;
+  }
+
+  .crear:disabled,
+  .cancelar:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .error {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--danger);
+  }
+
+  @media (width < 40rem) {
+    .dos {
+      grid-template-columns: 1fr;
+    }
+  }
+}

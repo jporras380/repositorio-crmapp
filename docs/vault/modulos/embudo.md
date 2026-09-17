@@ -43,3 +43,22 @@ Cada etapa declara si es `abierta`, `ganada` o `perdida`. El cliente renombra co
 ## Dónde nace el embudo de una cuenta
 
 En `app.sembrar_embudo()`, una función SQL de la migración 0018 que llaman **dos** sitios: la propia migración, para los inquilinos que ya existían, y el alta de cuenta, para los que vengan. Con el SQL copiado en TypeScript, el día que alguien añada una etapa por defecto solo la tendría la mitad de los clientes.
+
+## La oportunidad que no llega por un canal (PR-69, 2026-09-17)
+
+El embudo se llenaba **solo** desde la ingesta: quien escribe por WhatsApp o Instagram entra al tablero sin que nadie haga nada. Faltaba lo más común en un hotel — **el huésped que llama por teléfono, o el que aparece en recepción**. Esas consultas existían y no se contaban en ninguna parte: el informe del periodo las ignoraba y parecían no haber pasado.
+
+`crearLead` estaba en el cliente web desde PR-33 sin que la llamara nadie; lo destapó la guarda de PR-68.
+
+### Decisiones
+
+- **Exige un cliente, no un nombre suelto.** Una oportunidad sin ficha es un nombre en una tarjeta: no se le puede escribir, no tiene historial y no se cruza con nada.
+- **Si el cliente no existe, se crea aquí mismo.** Mandar al agente a Clientes, crear la ficha y volver es perder la llamada. Basta nombre y teléfono, que es lo único que hace falta para devolverla.
+- **Elegir a alguien que ya existe no crea otra ficha.** Es el daño propio de esta pantalla —duplicar al cliente justo donde se intenta ordenarlo— y tiene su test.
+- **La etapa se elige.** Una llamada pidiendo precios no entra igual que una que ya tiene fechas.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Leads → **«Nueva oportunidad»** → escribir un nombre que no exista, poner teléfono y crear. Aparece la tarjeta en la etapa elegida, y el cliente en Clientes.
+
+5 tests.

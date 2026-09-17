@@ -52,7 +52,6 @@ const PERMITIDOS = {
 
   // --- Métodos del cliente web --------------------------------------------
   borrarTipo: 'DEUDA: se pueden crear tipos de habitación y no borrarlos.',
-  crearLead: 'DEUDA: no se puede meter a mano una oportunidad por teléfono.',
   ejecucionesDeFlujo: 'DEUDA: no se puede ver qué hace un bot ahora mismo.',
 };
 
