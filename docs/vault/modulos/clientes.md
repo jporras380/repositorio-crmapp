@@ -56,4 +56,47 @@ Exportar devuelve el CSV **dentro de un JSON** por un motivo concreto: la petici
 
 - La búsqueda es `ILIKE '%…%'`: no usa índice. Con miles de clientes va bien; con cientos de miles habrá que meter `pg_trgm` o una columna de búsqueda.
 - No hay campos personalizados genéricos. Los del hotel son columnas tipadas —se buscan y se validan—; el día que un segundo cliente pida los suyos, entonces sí toca la tabla genérica.
-- La fusión de contactos duplicados sigue siendo manual y pendiente (P-08): hoy el importador evita crear duplicados nuevos, pero no une los que ya existen.
+- ~~La fusión de contactos duplicados sigue pendiente (P-08).~~ Hecha en PR-66, abajo.
+
+## Unir dos fichas del mismo huésped (PR-66, 2026-09-17) — cierra P-08
+
+La deuda más antigua con nombre. El caso es diario: el mismo huésped escribe por WhatsApp en marzo y por Instagram en julio, o desde dos números, y quien atiende lee media historia sin saber que falta la otra mitad.
+
+`contact_merges` existía desde la fase 0 y no la usaba nadie.
+
+### Lo que se mueve
+
+Identidades de canal, conversaciones, etiquetas, leads y reservas. Los mensajes no se tocan: cuelgan de la conversación, y la conversación ya cambió de dueño. Todo en una transacción — medio cliente en cada sitio sería peor que los dos duplicados de partida.
+
+### Los datos de la ficha se MUEVEN, no se copian
+
+Lo descubrió un test con un 500: `phone` y `email` llevan índice único por inquilino, así que copiar el correo al destino dejaba el mismo en las dos fichas y la fusión moría con clave duplicada. Se vacía el origen y luego se rellena el destino, en ese orden y por ese motivo.
+
+Y **lo que el destino ya tenía escrito no se pisa nunca**: solo se mueve lo que le faltaba.
+
+### Se puede deshacer, y por eso el origen no se borra
+
+Fusionar dos huéspedes distintos haría que alguien leyera la conversación de otra persona. Así que:
+
+- el absorbido se marca con `merged_into` y desaparece de los listados, pero sigue ahí;
+- se anota en `moved` **qué filas se movieron exactamente**. Sin esa lista, deshacer sería adivinar cuál de las diez conversaciones del destino venía del origen. `reverted_at` llevaba en el esquema desde el principio y sin esto nunca habría podido usarse;
+- encadenar está prohibido: fusionar algo ya fusionado repartiría sus cosas entre tres fichas y nadie sabría cuál es la buena.
+
+### Las sugerencias son por NOMBRE, y eso sorprende
+
+Lo natural sería proponer por teléfono o correo. No sirve: la base tiene índice único en los dos, así que dos fichas con el mismo teléfono **no pueden existir**, y esa consulta devolvería siempre vacío. Una sugerencia que nunca sugiere nada es peor que no tenerla.
+
+El duplicado real —dos números, o una ficha sin teléfono que solo escribió por Instagram— no lo detecta ninguna regla con certeza. Así que se propone por nombre exacto sin acentos ni mayúsculas («Ana García» y «ana garcia»), se etiqueta como pista, y decide quien mira. Buscar a mano también vale, y es lo que cubre el resto.
+
+### `reason` no se tocó
+
+La columna tiene un CHECK de la fase 0 con dos valores: `manual` y `verified_phone`. Distingue la fusión que hace una persona de la que haría el sistema al verificar un teléfono. El texto que escribe el agente es otra cosa y va aparte, sin ensanchar esa distinción.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Clientes → abrir una ficha → **«Unir con otra ficha»**.
+2. Elegir de las sugerencias o buscar por nombre. Se ven los dos nombres antes de confirmar.
+3. Unir: las conversaciones de la otra aparecen aquí y la otra desaparece del listado.
+4. `POST /v1/contactos/{absorbido}/deshacer-fusion` lo devuelve todo a su sitio.
+
+9 tests de servidor y 5 de la pantalla.

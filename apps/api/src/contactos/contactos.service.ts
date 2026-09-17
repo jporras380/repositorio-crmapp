@@ -26,6 +26,13 @@ import type { PoolClient } from 'pg';
 import { clave, escribirCsv, leerCsv } from '@crmapp/core';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
+import {
+  devolverDatos,
+  devolverPertenencias,
+  moverDatosQueFaltan,
+  moverPertenencias,
+  type Movido,
+} from './fusion.js';
 
 /** Tope por importación. Más que esto es una migración, no una importación. */
 const MAX_FILAS = 5000;
@@ -124,7 +131,9 @@ export class ContactosService {
     return this.#db.enTransaccion(async (c) => {
       const params: unknown[] = [];
       const p = (v: unknown) => `$${params.push(v)}`;
-      const donde = ['ct.anonymized_at IS NULL'];
+      // El absorbido por una fusión no se lista: su historia ya está en la
+      // otra ficha, y verlo vacío haría dudar de si la fusión funcionó.
+      const donde = ['ct.anonymized_at IS NULL', 'ct.merged_into IS NULL'];
 
       if (filtros.q) {
         const patron = `%${filtros.q.trim()}%`;
@@ -397,6 +406,185 @@ export class ContactosService {
       );
       return { accion: tieneHistoria ? 'anonimizado' : 'borrado' };
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Fusionar duplicados (P-08)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Une dos fichas del mismo cliente: el origen se vacía en el destino.
+   *
+   * Todo en una transacción. Si algo falla a mitad, no queda medio cliente en
+   * cada sitio, que sería peor que los dos duplicados de partida.
+   */
+  async fusionar(
+    destinoId: string,
+    origenId: string,
+    motivo: string,
+  ): Promise<{ movidas: number }> {
+    const ctx = this.#exigirGestor();
+    if (destinoId === origenId) {
+      throw new ErrorDeNegocio('fusion_invalida', 'Un cliente no se fusiona consigo mismo.', 422);
+    }
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{
+        id: string;
+        merged_into: string | null;
+        anonymized_at: Date | null;
+      }>(`SELECT id, merged_into, anonymized_at FROM contacts WHERE id = ANY($1::uuid[])`, [
+        [destinoId, origenId],
+      ]);
+      const destino = rows.find((r) => r.id === destinoId);
+      const origen = rows.find((r) => r.id === origenId);
+      if (!destino || !origen) {
+        throw new ErrorDeNegocio('contacto_no_encontrado', 'Ese cliente no existe.', 404);
+      }
+      for (const f of [destino, origen]) {
+        if (f.merged_into) {
+          throw new ErrorDeNegocio(
+            'ya_fusionado',
+            'Uno de los dos ya está fusionado con otra ficha. Deshaz esa fusión primero.',
+            409,
+          );
+        }
+        if (f.anonymized_at) {
+          throw new ErrorDeNegocio(
+            'contacto_anonimizado',
+            'No se puede fusionar un cliente eliminado: su historial ya no tiene datos suyos.',
+            409,
+          );
+        }
+      }
+
+      const datos = await moverDatosQueFaltan(c, origenId, destinoId);
+      const movido = await moverPertenencias(c, origenId, destinoId);
+      await c.query(`UPDATE contacts SET merged_into = $2, updated_at = now() WHERE id = $1`, [
+        origenId,
+        destinoId,
+      ]);
+      await c.query(
+        `INSERT INTO contact_merges
+           (tenant_id, source_contact_id, target_contact_id, merged_by, reason, moved)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          ctx.tenantId,
+          origenId,
+          destinoId,
+          ctx.userId,
+          // `reason` viene de la fase 0 con un CHECK de dos valores: distingue
+          // la fusión que hace una persona de la que haría el sistema al
+          // verificar un teléfono. El texto que escribe el agente es otra
+          // cosa y va aparte, sin ensanchar esa distinción.
+          'manual',
+          JSON.stringify({ tablas: movido, datos, nota: motivo }),
+        ],
+      );
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'contacto.fusionado', 'contact', $3, $4)`,
+        [ctx.tenantId, ctx.userId, destinoId, JSON.stringify({ origenId, motivo })],
+      );
+      const movidas = Object.values(movido).reduce((n, ids) => n + ids.length, 0);
+      return { movidas };
+    });
+  }
+
+  /**
+   * Deshace una fusión: cada fila vuelve de donde vino.
+   *
+   * Solo la última sin deshacer de ese contacto. Deshacer fusiones antiguas
+   * salteándose las de en medio dejaría las filas repartidas entre tres
+   * fichas, y nadie sabría cuál es la buena.
+   */
+  async deshacerFusion(origenId: string): Promise<void> {
+    const ctx = this.#exigirGestor();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{
+        id: string;
+        target_contact_id: string;
+        moved: { tablas?: Movido; datos?: Record<string, string | null> };
+      }>(
+        `SELECT id, target_contact_id, moved
+           FROM contact_merges
+          WHERE source_contact_id = $1 AND reverted_at IS NULL
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [origenId],
+      );
+      const fusion = rows[0];
+      if (!fusion) {
+        throw new ErrorDeNegocio(
+          'fusion_no_encontrada',
+          'Ese cliente no está fusionado con nadie.',
+          404,
+        );
+      }
+
+      await devolverPertenencias(c, fusion.moved.tablas ?? {}, origenId);
+      await devolverDatos(c, origenId, fusion.target_contact_id, fusion.moved.datos ?? {});
+      await c.query(`UPDATE contacts SET merged_into = NULL, updated_at = now() WHERE id = $1`, [
+        origenId,
+      ]);
+      await c.query(`UPDATE contact_merges SET reverted_at = now() WHERE id = $1`, [fusion.id]);
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'contacto.fusion_deshecha', 'contact', $3, $4)`,
+        [
+          ctx.tenantId,
+          ctx.userId,
+          origenId,
+          JSON.stringify({ destinoId: fusion.target_contact_id }),
+        ],
+      );
+    });
+  }
+
+  /**
+   * Fichas que podrían ser la misma persona.
+   *
+   * **Por nombre, y no por teléfono o correo**, aunque parezca al revés: la
+   * base tiene índice único en los dos por inquilino, así que dos fichas con
+   * el mismo teléfono no pueden existir. Buscar por ahí devolvería siempre
+   * vacío, y una sugerencia que nunca sugiere nada es peor que no tenerla.
+   *
+   * El duplicado real es otro: la misma persona con dos números, o una ficha
+   * con teléfono y otra que solo escribió por Instagram. Eso no lo detecta
+   * ninguna regla con certeza, así que esto es una **pista**, no una
+   * afirmación: coincidencia exacta del nombre sin acentos ni mayúsculas, y
+   * decide quien mira. Fusionar se puede deshacer, pero se propone con
+   * cuidado igualmente.
+   */
+  async duplicados(id: string): Promise<{ id: string; nombre: string | null; porque: string }[]> {
+    this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{ id: string; display_name: string | null }>(
+        `SELECT o.id, o.display_name
+           FROM contacts y
+           JOIN contacts o
+             ON o.id <> y.id
+            AND o.merged_into IS NULL
+            AND o.anonymized_at IS NULL
+            AND lower(unaccent(trim(o.display_name))) = lower(unaccent(trim(y.display_name)))
+          WHERE y.id = $1 AND y.display_name IS NOT NULL
+          ORDER BY o.created_at
+          LIMIT 20`,
+        [id],
+      );
+      return rows.map((r) => ({ id: r.id, nombre: r.display_name, porque: 'mismo nombre' }));
+    });
+  }
+
+  #exigirGestor() {
+    const ctx = this.#exigirContexto();
+    if (ctx.rol !== 'owner' && ctx.rol !== 'admin' && ctx.rol !== 'supervisor') {
+      throw new ErrorDeNegocio(
+        'permiso_insuficiente',
+        'Solo un responsable puede fusionar clientes.',
+        403,
+      );
+    }
+    return ctx;
   }
 
   // -------------------------------------------------------------------------

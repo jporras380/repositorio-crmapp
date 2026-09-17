@@ -168,3 +168,21 @@
     border-radius: var(--radius-sm);
   }
 }
+
+@layer components {
+  /* Unir fichas: al lado de borrar, pero no en rojo — se puede deshacer. */
+  .unir {
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  .unir:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+}

@@ -116,6 +116,13 @@ export interface LimitesDeMedios {
   porCanal: Record<string, { tipos: string[]; limites: Record<string, number> }>;
 }
 
+/** Otra ficha que podría ser la misma persona, con el motivo de la sospecha. */
+export interface DuplicadoDeCliente {
+  id: string;
+  nombre: string | null;
+  porque: string;
+}
+
 export interface PlantillaSugerida {
   id: string;
   nombre: string;

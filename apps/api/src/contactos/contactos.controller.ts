@@ -1,4 +1,5 @@
 import {
+  HttpCode,
   Body,
   Controller,
   Delete,
@@ -33,6 +34,12 @@ const Datos = z.object({
 });
 
 const Edicion = Datos.refine((v) => Object.keys(v).length > 0, 'Nada que cambiar.');
+
+const Fusion = z.object({
+  origenId: z.string().uuid(),
+  /** Por qué se fusionan: lo lee quien audite la ficha meses después. */
+  motivo: z.string().min(1).max(200).default('duplicado'),
+});
 
 const Importacion = z.object({
   // El CSV viaja dentro del JSON en vez de como multipart: evita una
@@ -143,6 +150,29 @@ export class ContactosController {
     const datos = validar(Edicion, cuerpo);
     await conContextoDePeticion(req, () => this.contactos.editar(id, soloPresentes(datos)));
     return { editado: true };
+  }
+
+  /** Fichas que probablemente sean la misma persona que esta. */
+  @Get(':id/duplicados')
+  async duplicados(@Req() req: Req, @Param('id') id: string) {
+    return conContextoDePeticion(req, () => this.contactos.duplicados(id));
+  }
+
+  /** `:id` es el que SOBREVIVE; en el cuerpo va el que se absorbe. */
+  @Post(':id/fusionar')
+  @HttpCode(200)
+  async fusionar(@Req() req: Req, @Param('id') id: string, @Body() cuerpo: unknown) {
+    const d = validar(Fusion, cuerpo);
+    return conContextoDePeticion(req, () =>
+      this.contactos.fusionar(id, d.origenId, d.motivo ?? 'duplicado'),
+    );
+  }
+
+  /** Deshace la última fusión del contacto absorbido. */
+  @Post(':id/deshacer-fusion')
+  @HttpCode(204)
+  async deshacerFusion(@Req() req: Req, @Param('id') id: string) {
+    await conContextoDePeticion(req, () => this.contactos.deshacerFusion(id));
   }
 
   @Delete(':id')

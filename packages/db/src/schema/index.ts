@@ -201,6 +201,8 @@ export const contacts = pgTable('contacts', {
   source: text('source').notNull().default('otro'),
   guestType: text('guest_type'),
   notes: text('notes'),
+  /** Absorbido por otra ficha al fusionar (0032). Los listados lo esconden. */
+  mergedInto: uuid('merged_into'),
   anonymizedAt: timestamp('anonymized_at', { withTimezone: true }),
   createdAt: creado,
   updatedAt: actualizado,
@@ -234,6 +236,8 @@ export const contactMerges = pgTable('contact_merges', {
   targetContactId: uuid('target_contact_id').notNull(),
   mergedBy: uuid('merged_by'),
   reason: text('reason').notNull(),
+  /** Qué filas se movieron, por tabla. Sin esto no se podría deshacer (0032). */
+  moved: jsonb('moved').notNull().default({}),
   revertedAt: timestamp('reverted_at', { withTimezone: true }),
   createdAt: creado,
 });

@@ -302,3 +302,170 @@ describe('clientes', () => {
     await http.get('/v1/contactos').expect(401);
   });
 });
+
+describe('fusionar duplicados (P-08)', () => {
+  /** Una ficha con conversación, etiqueta y lead: lo que hay que mover. */
+  async function conHistoria(nombre: string, extra: Record<string, unknown> = {}) {
+    const id = await crear({ nombre, ...extra });
+    const ca = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO channel_accounts (tenant_id, channel, external_id, display_name)
+         VALUES ($1, 'whatsapp', $2, 'WA') RETURNING id`,
+        [tenantId, `pn-${nombre}`],
+      )
+    ).rows[0]!.id;
+    const ci = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO contact_identities (tenant_id, contact_id, channel, channel_account_id, external_user_id)
+         VALUES ($1, $2, 'whatsapp', $3, $4) RETURNING id`,
+        [tenantId, id, ca, `u-${nombre}`],
+      )
+    ).rows[0]!.id;
+    await admin.query(
+      `INSERT INTO conversations (tenant_id, contact_identity_id, contact_id, channel_account_id, status)
+       VALUES ($1, $2, $3, $4, 'open')`,
+      [tenantId, ci, id, ca],
+    );
+    return id;
+  }
+
+  const cuentaDe = async (tabla: string, contactId: string) =>
+    Number(
+      (
+        await admin.query<{ n: string }>(
+          `SELECT count(*) AS n FROM ${tabla} WHERE contact_id = $1`,
+          [contactId],
+        )
+      ).rows[0]!.n,
+    );
+
+  it('mueve conversaciones e identidades, y el absorbido desaparece del listado', async () => {
+    const destino = await conHistoria('Rosa Destino');
+    const origen = await conHistoria('Rosa Origen');
+
+    const r = await http
+      .post(`/v1/contactos/${destino}/fusionar`)
+      .set(auth())
+      .send({ origenId: origen, motivo: 'mismo huésped, dos números' })
+      .expect(200);
+    expect(r.body.movidas).toBeGreaterThanOrEqual(2);
+
+    expect(await cuentaDe('conversations', destino)).toBe(2);
+    expect(await cuentaDe('conversations', origen)).toBe(0);
+    expect(await cuentaDe('contact_identities', destino)).toBe(2);
+
+    const lista = await listar();
+    expect(lista.items.map((i) => i.id)).toContain(destino);
+    expect(lista.items.map((i) => i.id)).not.toContain(origen);
+  });
+
+  it('rellena los huecos del destino pero NO pisa lo que ya tenía escrito', async () => {
+    const destino = await crear({ nombre: 'Con teléfono', telefono: '+51977000001' });
+    const origen = await crear({
+      nombre: 'Con correo',
+      telefono: '+51977000002',
+      email: 'huesped-fusion@ejemplo.test',
+      ciudad: 'Barranca',
+    });
+
+    await http
+      .post(`/v1/contactos/${destino}/fusionar`)
+      .set(auth())
+      .send({ origenId: origen })
+      .expect(200);
+
+    const ficha = await http.get(`/v1/contactos/${destino}`).set(auth()).expect(200);
+    // El teléfono del destino manda; el correo y la ciudad se rellenan.
+    expect(ficha.body.telefono).toBe('+51977000001');
+    expect(ficha.body.email).toBe('huesped-fusion@ejemplo.test');
+    expect(ficha.body.ciudad).toBe('Barranca');
+  });
+
+  it('deshacer devuelve cada cosa a su sitio, incluidos los huecos rellenados', async () => {
+    const destino = await conHistoria('Vuelve Destino');
+    const origen = await conHistoria('Vuelve Origen', { ciudad: 'Lima' });
+
+    await http
+      .post(`/v1/contactos/${destino}/fusionar`)
+      .set(auth())
+      .send({ origenId: origen })
+      .expect(200);
+    await http.post(`/v1/contactos/${origen}/deshacer-fusion`).set(auth()).expect(204);
+
+    expect(await cuentaDe('conversations', destino)).toBe(1);
+    expect(await cuentaDe('conversations', origen)).toBe(1);
+    // La ciudad que se rellenó vuelve a estar vacía en el destino.
+    const ficha = await http.get(`/v1/contactos/${destino}`).set(auth()).expect(200);
+    expect(ficha.body.ciudad).toBeNull();
+    // Y el absorbido vuelve al listado.
+    expect((await listar()).items.map((i) => i.id)).toContain(origen);
+  });
+
+  it('no se fusiona consigo mismo ni dos veces en cadena', async () => {
+    const a = await crear({ nombre: 'Cadena A' });
+    const b = await crear({ nombre: 'Cadena B' });
+    const c = await crear({ nombre: 'Cadena C' });
+
+    await http.post(`/v1/contactos/${a}/fusionar`).set(auth()).send({ origenId: a }).expect(422);
+
+    await http.post(`/v1/contactos/${a}/fusionar`).set(auth()).send({ origenId: b }).expect(200);
+    // `b` ya está absorbido: encadenar dejaría sus cosas repartidas entre tres.
+    const r = await http
+      .post(`/v1/contactos/${c}/fusionar`)
+      .set(auth())
+      .send({ origenId: b })
+      .expect(409);
+    expect(r.body.codigo).toBe('ya_fusionado');
+  });
+
+  it('propone duplicados por nombre, que es el único que puede repetirse', async () => {
+    // Por teléfono o correo no puede haber duplicados: la base tiene índice
+    // único en los dos. Una sugerencia que nunca sugiere nada no sirve.
+    const uno = await crear({ nombre: 'Ana García', telefono: '+51977000003' });
+    const dos = await crear({ nombre: 'ana garcia', telefono: '+51977000004' });
+    await crear({ nombre: 'Otra Persona', telefono: '+51977000005' });
+
+    const r = await http.get(`/v1/contactos/${uno}/duplicados`).set(auth()).expect(200);
+    const filas = r.body as { id: string; porque: string }[];
+    // Sin acentos ni mayúsculas: lo escribieron dos agentes distintos.
+    expect(filas.map((d) => d.id)).toEqual([dos]);
+    expect(filas[0]!.porque).toBe('mismo nombre');
+  });
+
+  it('un contacto ya fusionado no se propone: su ficha vive en otra', async () => {
+    const vive = await crear({ nombre: 'Repetido Vivo' });
+    const absorbido = await crear({ nombre: 'Repetido Vivo' });
+    const tercero = await crear({ nombre: 'Repetido Vivo' });
+    await http
+      .post(`/v1/contactos/${vive}/fusionar`)
+      .set(auth())
+      .send({ origenId: absorbido })
+      .expect(200);
+
+    const r = await http.get(`/v1/contactos/${tercero}/duplicados`).set(auth()).expect(200);
+    expect((r.body as { id: string }[]).map((d) => d.id)).toEqual([vive]);
+  });
+
+  it('queda registrado quién fusionó y por qué', async () => {
+    const destino = await crear({ nombre: 'Auditado' });
+    const origen = await crear({ nombre: 'Auditado viejo' });
+    await http
+      .post(`/v1/contactos/${destino}/fusionar`)
+      .set(auth())
+      .send({ origenId: origen, motivo: 'escribió desde otro número' })
+      .expect(200);
+
+    const { rows } = await admin.query<{
+      reason: string;
+      merged_by: string | null;
+      moved: { nota?: string };
+    }>(`SELECT reason, merged_by, moved FROM contact_merges WHERE source_contact_id = $1`, [
+      origen,
+    ]);
+    // `reason` distingue la fusión manual de la automática; lo que escribió el
+    // agente va aparte, para no ensanchar esa distinción.
+    expect(rows[0]!.reason).toBe('manual');
+    expect(rows[0]!.moved.nota).toBe('escribió desde otro número');
+    expect(rows[0]!.merged_by).not.toBeNull();
+  });
+});

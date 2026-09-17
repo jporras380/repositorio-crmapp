@@ -44,6 +44,7 @@ import type {
   DetalleDeFlujo,
   DisparadorDeFlujo,
   EjecucionDeFlujo,
+  DuplicadoDeCliente,
   GrafoDeFlujo,
   HorasActivasDeFlujo,
   LimitesDeMedios,
@@ -442,6 +443,16 @@ export function crearApi(token: string | null) {
       peticion<{ id: string }>('/v1/contactos', { ...t, metodo: 'POST', cuerpo: d }),
     editarCliente: (id: string, d: DatosDeCliente) =>
       peticion<{ editado: true }>(`/v1/contactos/${id}`, { ...t, metodo: 'PATCH', cuerpo: d }),
+    duplicadosDeCliente: (id: string) =>
+      peticion<DuplicadoDeCliente[]>(`/v1/contactos/${id}/duplicados`, t),
+    fusionarClientes: (destinoId: string, origenId: string, motivo: string) =>
+      peticion<{ movidas: number }>(`/v1/contactos/${destinoId}/fusionar`, {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { origenId, motivo },
+      }),
+    deshacerFusionDeCliente: (origenId: string) =>
+      peticion<void>(`/v1/contactos/${origenId}/deshacer-fusion`, { ...t, metodo: 'POST' }),
     borrarCliente: (id: string) =>
       peticion<{ accion: 'borrado' | 'anonimizado' }>(`/v1/contactos/${id}`, {
         ...t,

@@ -4,6 +4,7 @@ import type { Etiqueta, FichaDeCliente as Ficha, OrigenDeCliente } from '../../a
 import { irA } from '../../estado/ruta.ts';
 import { importe as formatearImporte } from '../../vista/dinero.ts';
 import { diaDeMensaje } from '../../vista/tiempo.ts';
+import { Fusionar } from './Fusionar.tsx';
 import estilos from './FichaDeCliente.module.css';
 
 interface Props {
@@ -47,6 +48,7 @@ export function FichaDeCliente({
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+  const [uniendo, setUniendo] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -247,6 +249,20 @@ export function FichaDeCliente({
         </ul>
       </section>
 
+      {/*
+        Unir va con borrar, en el pie: son las dos acciones que cambian la
+        ficha entera, y las dos las decide quien manda.
+      */}
+      {puedeBorrar && uniendo && (
+        <Fusionar
+          api={api}
+          destinoId={clienteId}
+          nombreDestino={ficha.nombre}
+          alHecho={alCambiar}
+          alCerrar={() => setUniendo(false)}
+        />
+      )}
+
       {puedeBorrar && (
         <footer className={estilos.pie}>
           {confirmando ? (
@@ -260,9 +276,14 @@ export function FichaDeCliente({
               </button>
             </span>
           ) : (
-            <button className={estilos.borrar} onClick={() => setConfirmando(true)}>
-              Borrar cliente
-            </button>
+            <>
+              <button className={estilos.unir} onClick={() => setUniendo((v) => !v)}>
+                {uniendo ? 'Cancelar' : 'Unir con otra ficha'}
+              </button>
+              <button className={estilos.borrar} onClick={() => setConfirmando(true)}>
+                Borrar cliente
+              </button>
+            </>
           )}
         </footer>
       )}
