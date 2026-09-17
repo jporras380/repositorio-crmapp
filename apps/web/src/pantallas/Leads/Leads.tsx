@@ -101,7 +101,7 @@ export function Leads({ sesion, leadId, alSalir }: Props) {
 
   return (
     <div className={estilos.pantalla}>
-      <Barra yo={yo} activa="leads" alSalir={alSalir} />
+      <Barra api={api} yo={yo} activa="leads" alSalir={alSalir} />
 
       <main className={estilos.centro}>
         <header className={`glass ${estilos.barra}`}>

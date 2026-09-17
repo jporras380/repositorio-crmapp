@@ -83,7 +83,7 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
 
   return (
     <div className={estilos.pantalla}>
-      <Barra yo={yo} activa="flujos" alSalir={alSalir} />
+      <Barra api={api} yo={yo} activa="flujos" alSalir={alSalir} />
 
       <nav className={`glass ${estilos.lista}`} aria-label="Flujos">
         <header className={estilos.cabecera}>

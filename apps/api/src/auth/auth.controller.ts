@@ -190,7 +190,19 @@ export class AuthController {
   @UseGuards(AuthGuard)
   async yo(@Req() req: { contexto?: { tenantId: string; userId: string; rol: string } }) {
     const ctx = req.contexto!;
-    const { estado } = await this.auth.estadoDeSuscripcion(ctx.tenantId);
-    return { userId: ctx.userId, tenantId: ctx.tenantId, rol: ctx.rol, suscripcion: estado };
+    // El nombre y la foto viajan aquí y no en una petición aparte: los pinta
+    // el riel de navegación, que está en todas las pantallas.
+    const [{ estado }, perfil] = await Promise.all([
+      this.auth.estadoDeSuscripcion(ctx.tenantId),
+      conContextoDePeticion(req, () => this.auth.perfil()),
+    ]);
+    return {
+      userId: ctx.userId,
+      tenantId: ctx.tenantId,
+      rol: ctx.rol,
+      suscripcion: estado,
+      nombre: perfil.nombre,
+      fotoId: perfil.fotoId,
+    };
   }
 }

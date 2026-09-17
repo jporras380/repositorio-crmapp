@@ -60,7 +60,7 @@ export function Panel({ sesion, alSalir }: Props) {
 
   return (
     <div className={estilos.pantalla}>
-      <Barra yo={yo} activa="panel" alSalir={alSalir} />
+      <Barra api={api} yo={yo} activa="panel" alSalir={alSalir} />
       <main className={estilos.contenido}>
         <header className={estilos.cabecera}>
           <div>

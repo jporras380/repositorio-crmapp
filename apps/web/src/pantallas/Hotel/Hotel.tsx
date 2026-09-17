@@ -76,7 +76,7 @@ export function Hotel({ sesion, alSalir }: Props) {
 
   return (
     <div className={estilos.pantalla}>
-      <Barra yo={yo} activa="hotel" alSalir={alSalir} />
+      <Barra api={api} yo={yo} activa="hotel" alSalir={alSalir} />
 
       <main className={estilos.centro}>
         <header className={`glass ${estilos.barra}`}>

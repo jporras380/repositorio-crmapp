@@ -50,7 +50,7 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
 
   return (
     <div className={estilos.pantalla}>
-      <Barra yo={yo} activa="ajustes" alSalir={alSalir} />
+      <Barra api={api} yo={yo} activa="ajustes" alSalir={alSalir} />
       <nav className={`glass ${estilos.menu}`} aria-label="Ajustes">
         <h1 className={estilos.titulo}>Ajustes</h1>
         <ul className={estilos.lista}>

@@ -131,7 +131,7 @@ export function Clientes({ sesion, clienteId, alSalir }: Props) {
 
   return (
     <div className={estilos.pantalla}>
-      <Barra yo={yo} activa="clientes" alSalir={alSalir} />
+      <Barra api={api} yo={yo} activa="clientes" alSalir={alSalir} />
 
       <main className={estilos.centro}>
         <header className={`glass ${estilos.barra}`}>

@@ -15,6 +15,9 @@ export interface Yo {
   rol: Sesion['rol'];
   /** Estado efectivo que calcula la API (packages/core): la web solo lo pinta. */
   suscripcion: 'prueba' | 'activa' | 'gracia' | 'suspendida' | string;
+  /** Para el riel de navegación, que está en todas las pantallas. */
+  nombre: string;
+  fotoId: string | null;
 }
 
 /** Etiqueta con dónde se usa, para el apartado donde se administran. */

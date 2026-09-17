@@ -287,8 +287,19 @@
 
 @layer components {
   /* Quién lo escribió, delante de la hora y más apagado que el texto. */
+  /*
+   * El autor hereda el color de SU burbuja, no un gris fijo.
+   *
+   * La primera versión usaba `--fg-muted`, que es el gris de la superficie
+   * neutra: sobre la burbuja saliente —fondo de acento— quedaba casi
+   * invisible. Se veía en una captura y no en los tests, porque un test no
+   * mira el contraste.
+   */
   .autor {
     font-weight: 600;
+  }
+
+  .entrante .autor {
     color: var(--fg-muted);
   }
 

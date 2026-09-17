@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-72, el perfil en el riel** ([[web]] §El perfil en el riel): el cuadro decorativo de arriba pasa a ser la foto del agente y lleva a Mi cuenta. De paso, el nombre del autor no se leía en las burbujas salientes —gris de superficie neutra sobre fondo de acento—: un fallo que ningún test podía encontrar, porque miran el DOM y no el contraste.
 - **PR-71, Mi cuenta** ([[web]] §Mi cuenta): foto, nombre, correo, contraseña y las sesiones abiertas con su «cerrar». Las llaves piden la contraseña actual; cambiarla echa a los demás dispositivos y lo dice. La foto es un medio privado, no una URL. Migración 0034, **sin clave foránea**: atarla arrastraba `users` entera al truncar medios.
 - **PR-70, sesiones que se pueden cerrar** ([[web]] §Sesiones que se pueden cerrar): el JWT no tenía estado, así que un token robado valía hasta caducar y ni cambiando la contraseña se anulaba. Migración 0033 con IP, dispositivo y revocación; la guarda comprueba que la sesión sigue abierta. Precio: una lectura por petición. Es la base del apartado de perfil que viene detrás.
 - **PR-69, la oportunidad que no llega por un canal** ([[embudo]] §La oportunidad que no llega): el huésped que llama por teléfono ya se puede anotar, con su ficha creada de una vez si no existe. Era la primera de las tres deudas que dejó anotadas la guarda.

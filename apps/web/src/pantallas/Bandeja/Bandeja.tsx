@@ -206,7 +206,7 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
 
   return (
     <div className={clases} ref={contenedor}>
-      <Barra yo={yo} activa="bandeja" alSalir={alSalir} />
+      <Barra api={api} yo={yo} activa="bandeja" alSalir={alSalir} />
 
       <section id="panel-lista" className={`glass ${estilos.lista}`} aria-label="Conversaciones">
         <Filtros

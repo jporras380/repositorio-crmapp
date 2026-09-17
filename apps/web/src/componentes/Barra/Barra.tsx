@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react';
+import type { Api } from '../../api/cliente.ts';
 import type { Yo } from '../../api/tipos.ts';
 import { irA } from '../../estado/ruta.ts';
 import estilos from './Barra.module.css';
 
 interface Props {
+  api: Api;
   yo: Yo | null;
   activa?: 'panel' | 'bandeja' | 'clientes' | 'leads' | 'reservas' | 'hotel' | 'flujos' | 'ajustes';
   alSalir: () => void;
@@ -16,11 +19,48 @@ const ESTADOS: Record<string, { texto: string; tono: 'ok' | 'warn' | 'danger' | 
 };
 
 /** Riel de navegación. Hoy una sola sección; el estado del plan siempre visible. */
-export function Barra({ yo, activa = 'bandeja', alSalir }: Props) {
+export function Barra({ api, yo, activa = 'bandeja', alSalir }: Props) {
   const estado = yo ? (ESTADOS[yo.suscripcion] ?? { texto: yo.suscripcion, tono: 'neutro' }) : null;
+
+  /**
+   * La foto se pide con URL firmada, como cualquier medio privado. Si falla,
+   * queda la inicial: una cara rota es peor que una inicial.
+   */
+  const [foto, setFoto] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    if (!yo?.fotoId) {
+      setFoto(null);
+      return;
+    }
+    api
+      .urlDeMedio(yo.fotoId)
+      .then((m) => vivo && setFoto(m.url))
+      .catch(() => vivo && setFoto(null));
+    return () => {
+      vivo = false;
+    };
+  }, [api, yo?.fotoId]);
+
   return (
     <nav className={`glass ${estilos.barra}`} aria-label="Principal">
-      <div className={estilos.marca} aria-hidden="true" />
+      {/*
+        Antes había aquí un cuadro de color decorativo. En un riel de
+        navegación, el sitio de arriba es el de «quién soy»: lo ocupa el
+        perfil, y lleva a su pantalla de un clic.
+      */}
+      <button
+        className={`${estilos.perfil} ${activa === 'ajustes' ? estilos.perfilActivo : ''}`}
+        title={yo ? `${yo.nombre} · Mi cuenta` : 'Mi cuenta'}
+        onClick={() => irA({ pantalla: 'ajustes', seccion: 'perfil' })}
+      >
+        {foto ? (
+          <img className={estilos.perfilFoto} src={foto} alt="" />
+        ) : (
+          <span aria-hidden="true">{(yo?.nombre ?? '?').charAt(0).toUpperCase()}</span>
+        )}
+        <span className="visually-hidden">{yo ? `${yo.nombre}. Ir a Mi cuenta` : 'Mi cuenta'}</span>
+      </button>
       <button
         className={`${estilos.item} ${activa === 'panel' ? estilos.activo : ''}`}
         aria-current={activa === 'panel' ? 'page' : undefined}

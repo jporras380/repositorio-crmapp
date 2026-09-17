@@ -299,3 +299,24 @@ Migración 0034: `users.avatar_media_id`. `avatar_url` llevaba sin usarse desde 
 Ajustes → Mi cuenta: subir una foto, cambiar el nombre (se guarda al salir del campo), y cambiar la contraseña desde un navegador teniendo otro abierto — el segundo queda fuera al momento.
 
 6 tests de pantalla y 6 de servidor.
+
+## El perfil en el riel (PR-72, 2026-09-17)
+
+Arriba del riel de navegación había un **cuadro de color decorativo** —literalmente un `div` vacío con un degradado— desde PR-17. El usuario lo señaló en una captura: «¿no sería ideal que salga el perfil?». Tenía razón: en un riel de navegación, el sitio de arriba es el de «quién soy».
+
+Ahora es la foto del agente (o su inicial), y lleva a **Ajustes → Mi cuenta** de un clic.
+
+- **Redondo, no cuadrado.** En toda la aplicación lo redondo es una persona —el avatar de la bandeja, el de la ficha— y lo cuadrado es una cosa. Que el riel empiece por una persona es lo que hace que se lea como «tu cuenta» sin ninguna etiqueta.
+- **El aro solo al pasar por encima.** Quieto no compite con la navegación; en Ajustes se queda marcado igual que el resto de secciones.
+- **Si la foto no carga, queda la inicial.** Una cara rota es peor que una inicial, y la URL firmada caduca a los cinco minutos.
+- `/v1/yo` devuelve ahora nombre y foto: lo pinta el riel, que está en todas las pantallas, y pedirlo aparte sería una petición más en cada una.
+
+### El autor no se leía en las burbujas salientes
+
+En la misma captura se veía: el nombre que añadió PR-56 usaba `--fg-muted`, el gris de la superficie neutra, y sobre la burbuja de acento quedaba **casi invisible**. Ahora hereda el color de su burbuja.
+
+Es un fallo que **ningún test iba a encontrar**: los tests comprueban que el texto está en el DOM, no que se vea. Lo encontró un ojo mirando una pantalla, y conviene recordarlo antes de confiar en que 944 tests en verde significan «está bien».
+
+### Lo que no pude comprobar
+
+Intenté capturar la pantalla con Edge headless, como en sesiones anteriores, y sale **en negro incluso en la pantalla de acceso** — falla el entorno de captura, no el cambio. Queda pendiente de mirar a ojo.
