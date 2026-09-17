@@ -190,3 +190,12 @@
     line-height: 1;
   }
 }
+
+@layer components {
+  /* Aviso de la respuesta privada única: se lee antes de pulsar, no después. */
+  .avisoPrivada {
+    margin: 0 0 0.4rem;
+    font-size: 0.7rem;
+    color: var(--fg-muted);
+  }
+}

@@ -179,6 +179,7 @@ export function Hilo({
         <CompositorDeComentario
           api={api}
           conversacion={conversacion}
+          mensajes={mensajes}
           alEnviado={() => {
             void cargar();
             alCambiar();

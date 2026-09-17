@@ -176,3 +176,29 @@ Cada burbuja saliente lleva ahora el nombre de quien la escribió, delante de la
 3. Enviar dos mensajes seguidos tú: el nombre sale una vez.
 
 Cubierto por `Hilo.test.tsx` (5 casos, el hilo no tenía tests hasta ahora) y 4 en `bandeja.e2e.test.ts`.
+
+## La única respuesta privada ya no se puede gastar dos veces (PR-64, 2026-09-17)
+
+`respuestasPrivadasPorComentario` está en el contrato de canales desde PR-7, los tres adaptadores la declaran, dos tests la comprueban… y **el producto no la usaba**. Su propio comentario decía lo que había que hacer: «es un dato que el producto tiene que mostrar ANTES de enviar: si el agente gasta la única respuesta privada en un saludo, no hay segunda oportunidad».
+
+Instagram y Facebook permiten **una** respuesta privada por comentario, y no se recupera. Un «ahora te cuento» y se acabó la vía privada con ese cliente.
+
+Sale de un repaso deliberado, no de un tropiezo: en un solo día aparecieron cuatro fallos del mismo tipo —`limitesDeMedios` (PR-54), `requiereUrlPublicaParaMedios` (PR-57), `last_event_at` (PR-62) y este—, así que se buscaron los demás a propósito.
+
+### Cómo queda
+
+- **La puerta de envío lo impide**, no lo avisa: la segunda privada muere con un 409 `respuesta_privada_agotada` que dice qué queda por hacer. Antes salía hacia Meta y fallaba allí con un error genérico.
+- **Se cuenta lo que SALIÓ, no lo que se intentó.** Un envío fallido no gasta cupo en el proveedor, y contarlo dejaría al agente sin su única vía por un corte de red.
+- **El compositor lo dice antes de pulsar** —«la respuesta privada es una sola por comentario, y no se recupera»— y desactiva el botón cuando ya se usó, dejando la pública, que es lo que le queda.
+- **Quién decide sigue siendo el servidor.** La web no cuenta nada: cada mensaje trae ahora `modo_comentario`, y la web lo pinta.
+
+### Lo que salió al escribir los tests
+
+Dos cosas que ya estaban y nadie había visto:
+
+1. Una respuesta a comentario se guarda con `type = 'text'` —es lo que sale por el canal— y lo que la distingue es su `payload.comentario`. La primera versión de la consulta filtraba por `type = 'comment_reply'` y no habría contado nada.
+2. El fixture de tests usaba **el mismo id de comentario** (`c.777`) en todos los hilos, así que la cuenta se mezclaba entre conversaciones. Ahora cada hilo tiene el suyo, como en Meta, y la consulta acota también por conversación.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Abrir un hilo de comentarios, responder en privado, y mirar el compositor: el botón «En privado» queda desactivado y el texto explica por qué. «En público» sigue disponible.

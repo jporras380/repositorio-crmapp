@@ -485,12 +485,16 @@ describe('respuesta a comentarios (Instagram)', () => {
       [conv],
     );
     if (conComentario) {
+      // Un id por hilo, como en Meta: reutilizar el mismo en todos mezclaba
+      // las cuentas de respuestas privadas entre conversaciones.
       await admin.query(
         `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, payload, status, created_at)
          SELECT tenant_id, id, channel_account_id, 'inbound', 'text', 'Precio?',
-                '{"comentario":{"id":"c.777","postId":"post.7"}}', 'delivered', now() - interval '29 hours'
+                jsonb_build_object('comentario',
+                  jsonb_build_object('id', $2::text, 'postId', 'post.7')),
+                'delivered', now() - interval '29 hours'
            FROM conversations WHERE id = $1`,
-        [conv],
+        [conv, `c.${nombre}`],
       );
     }
     return conv;
@@ -511,14 +515,66 @@ describe('respuesta a comentarios (Instagram)', () => {
       tipo: 'comment_reply',
       modo: 'privada',
       texto: 'Te escribo por aquí',
-      comentarioId: 'c.777',
+      comentarioId: 'c.Karen',
     });
     const m = await admin.query<{ type: string; body: string; payload: Record<string, unknown> }>(
       `SELECT type, body, payload FROM messages WHERE id = $1`,
       [r.body.id],
     );
     expect(m.rows[0]).toMatchObject({ type: 'text', body: 'Te escribo por aquí' });
-    expect(m.rows[0]!.payload).toMatchObject({ comentario: { id: 'c.777', modo: 'privada' } });
+    expect(m.rows[0]!.payload).toMatchObject({ comentario: { id: 'c.Karen', modo: 'privada' } });
+  });
+
+  it('la privada es UNA por comentario: la segunda se impide, no se intenta', async () => {
+    // Gastarla no se deshace. Antes esto salía hacia Meta y fallaba allí con
+    // un error genérico; ahora muere en la puerta diciendo qué queda.
+    const conv = await hiloDeComentarios('Única');
+    await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'privada', texto: 'Hola, ahora te cuento' })
+      .expect(202);
+
+    const segunda = await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'privada', texto: 'Los precios son…' })
+      .expect(409);
+    expect(segunda.body.codigo).toBe('respuesta_privada_agotada');
+
+    // La pública no se toca: es la salida que le queda al agente.
+    await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'publica', texto: 'Te escribimos por privado' })
+      .expect(202);
+  });
+
+  it('una privada que FALLÓ no gasta el cupo: no salió nada', async () => {
+    const conv = await hiloDeComentarios('Reintento');
+    const r = await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'privada', texto: 'primer intento' })
+      .expect(202);
+    await admin.query(`UPDATE messages SET status = 'failed' WHERE id = $1`, [r.body.id]);
+
+    await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'privada', texto: 'segundo intento' })
+      .expect(202);
+  });
+
+  it('el listado dice de cada respuesta si fue pública o privada', async () => {
+    const conv = await hiloDeComentarios('Modos');
+    await http
+      .post(`/v1/conversaciones/${conv}/mensajes`)
+      .set(auth())
+      .send({ tipo: 'comment_reply', modo: 'publica', texto: 'en público' })
+      .expect(202);
+    const lista = await http.get(`/v1/conversaciones/${conv}/mensajes`).set(auth()).expect(200);
+    expect(lista.body.items[0].modo_comentario).toBe('publica');
   });
 
   it('el modo por defecto es privado, y la lista distingue el hilo de comentarios', async () => {

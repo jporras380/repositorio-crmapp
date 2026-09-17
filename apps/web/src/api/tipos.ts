@@ -102,6 +102,8 @@ export interface Mensaje {
   medio_estado: 'pending' | 'stored' | 'failed' | null;
   /** Nombre del fichero, cuando lo hay (documentos). */
   medio_nombre: string | null;
+  /** En una respuesta a comentario, si fue pública o privada. */
+  modo_comentario: 'publica' | 'privada' | null;
 }
 
 /**

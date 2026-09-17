@@ -220,6 +220,24 @@ export async function enviarPorConversacion(
         400,
       );
     }
+
+    // La respuesta privada a un comentario es IRREVERSIBLE: Instagram y
+    // Facebook permiten UNA por comentario y no se recupera. La capacidad
+    // estaba declarada desde PR-7 y no la miraba nadie, así que un agente
+    // podía gastarla en un «ahora te contesto» y perder la única vía privada
+    // con ese cliente. Aquí no se avisa: se impide.
+    const tope = capacidades.respuestasPrivadasPorComentario;
+    if (peticion.modo === 'privada' && tope !== null) {
+      const usadas = await respuestasPrivadasEnviadas(c, conv.id, comentarioId);
+      if (usadas >= tope) {
+        throw new ErrorDeNegocio(
+          'respuesta_privada_agotada',
+          `Ya enviaste la única respuesta privada que ${conv.channel} permite por comentario. ` +
+            `Responde en público, o escribe por el hilo si la persona te contestó.`,
+          409,
+        );
+      }
+    }
   }
 
   // 5. Capacidades del canal. Se pregunta, no se asume (ARCH §8).
@@ -416,6 +434,37 @@ async function expandirRapida(
     };
   }
   return { peticion: { tipo: 'text', texto: v.cuerpo }, quickReplyVersionId: v.versionId };
+}
+
+/**
+ * Cuántas respuestas privadas se han enviado ya por ese comentario.
+ *
+ * Se cuenta lo que SALIÓ, no lo que se intentó: un envío fallido no gasta el
+ * cupo en el proveedor, y contarlo dejaría al agente sin su única vía por un
+ * error de red.
+ */
+async function respuestasPrivadasEnviadas(
+  c: PoolClient,
+  conversationId: string,
+  comentarioId: string,
+): Promise<number> {
+  const { rows } = await c.query<{ n: string }>(
+    // No se filtra por `type`: una respuesta a comentario se guarda como
+    // 'text' —es lo que sale por el canal— y lo que la distingue es su
+    // `payload.comentario`, que solo tienen ellas.
+    // También por conversación: un id de comentario es único en Meta, pero
+    // acotar a su hilo hace la cuenta independiente de eso y evita recorrer
+    // mensajes de otras conversaciones.
+    `SELECT count(*) AS n
+       FROM messages
+      WHERE conversation_id = $1
+        AND direction = 'outbound'
+        AND status <> 'failed'
+        AND payload -> 'comentario' ->> 'id' = $2
+        AND payload -> 'comentario' ->> 'modo' = 'privada'`,
+    [conversationId, comentarioId],
+  );
+  return Number(rows[0]?.n ?? 0);
 }
 
 async function ultimoComentario(c: PoolClient, conversationId: string): Promise<string | null> {

@@ -316,6 +316,9 @@ export class BandejaService {
                 m.sent_by AS origen, m.ai_generated AS generado_por_ia, m.created_at AS creado_en,
                 m.error, m.media_asset_id AS medio_id, ma.status AS medio_estado,
                 ma.filename AS medio_nombre,
+                -- Solo lo tienen las respuestas a comentarios: distingue la
+                -- pública de la privada, que es de un solo uso.
+                m.payload -> 'comentario' ->> 'modo' AS modo_comentario,
                 m.sent_by_user_id AS autor_id, u.full_name AS autor
            FROM messages m
            LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
@@ -1005,6 +1008,8 @@ export interface MensajeDeConversacion {
   medio_estado: string | null;
   /** Cómo se llama el fichero. Solo los documentos suelen traerlo. */
   medio_nombre: string | null;
+  /** `publica` o `privada` en una respuesta a comentario; `null` en el resto. */
+  modo_comentario: string | null;
 }
 
 function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {

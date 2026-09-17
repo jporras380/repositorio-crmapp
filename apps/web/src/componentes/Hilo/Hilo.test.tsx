@@ -50,6 +50,7 @@ function mensaje(m: Partial<Mensaje>): Mensaje {
     medio_id: null,
     medio_estado: null,
     medio_nombre: null,
+    modo_comentario: null,
     ...m,
   };
 }

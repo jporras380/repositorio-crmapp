@@ -1,11 +1,13 @@
 import { useState, type KeyboardEvent } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
-import type { ResumenDeConversacion } from '../../api/tipos.ts';
+import type { Mensaje, ResumenDeConversacion } from '../../api/tipos.ts';
 import estilos from './Compositor.module.css';
 
 interface Props {
   api: Api;
   conversacion: ResumenDeConversacion;
+  /** Lo ya enviado en el hilo: dice si la privada está gastada. */
+  mensajes: Mensaje[];
   alEnviado: () => void;
 }
 
@@ -22,10 +24,18 @@ interface Props {
  * Que el privado falle es corriente: mucha gente tiene los mensajes cerrados.
  * No es una avería, así que se explica en tono normal y se ofrece el público.
  */
-export function CompositorDeComentario({ api, conversacion, alEnviado }: Props) {
+export function CompositorDeComentario({ api, conversacion, mensajes, alEnviado }: Props) {
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<{ mensaje: string; sugerirPublico: boolean } | null>(null);
+  /**
+   * Ya se gastó la privada en este hilo. Lo dice el servidor —cada mensaje
+   * trae si fue pública o privada—, no una cuenta hecha aquí: la web pinta,
+   * no decide.
+   */
+  const privadaGastada = mensajes.some(
+    (m) => m.direccion === 'outbound' && m.modo_comentario === 'privada' && m.estado !== 'failed',
+  );
 
   async function responder(modo: 'privada' | 'publica') {
     const t = texto.trim();
@@ -99,6 +109,16 @@ export function CompositorDeComentario({ api, conversacion, alEnviado }: Props) 
           onKeyDown={teclas}
           aria-label="Respuesta al comentario"
         />
+        {/*
+          Se avisa ANTES, no después: gastar la única privada en un «ahora te
+          contesto» no se deshace, y el agente no tiene por qué saberse las
+          reglas de Meta de memoria.
+        */}
+        <p className={estilos.avisoPrivada}>
+          {privadaGastada
+            ? 'La respuesta privada de este comentario ya se usó. Queda la pública.'
+            : 'La respuesta privada es una sola por comentario, y no se recupera.'}
+        </p>
         <div className={estilos.dosAcciones}>
           <button
             type="button"
@@ -113,8 +133,12 @@ export function CompositorDeComentario({ api, conversacion, alEnviado }: Props) 
             type="button"
             className={estilos.enviar}
             onClick={() => void responder('privada')}
-            disabled={enviando || !texto.trim()}
-            title="Abre un mensaje directo con quien comentó"
+            disabled={enviando || !texto.trim() || privadaGastada}
+            title={
+              privadaGastada
+                ? 'Ya enviaste la única respuesta privada de este comentario'
+                : 'Abre un mensaje directo con quien comentó. Solo se puede una vez.'
+            }
           >
             {enviando ? 'Enviando…' : 'En privado'}
           </button>
