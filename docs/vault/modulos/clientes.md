@@ -100,3 +100,22 @@ La columna tiene un CHECK de la fase 0 con dos valores: `manual` y `verified_pho
 4. `POST /v1/contactos/{absorbido}/deshacer-fusion` lo devuelve todo a su sitio.
 
 9 tests de servidor y 5 de la pantalla.
+
+### El deshacer tenía API y no tenía botón (PR-67, 2026-09-17)
+
+PR-66 cerró la fusión con el deshacer implementado, probado… y **sin puerta de entrada**. Exactamente el fallo que llevo el día entero arreglando en otros sitios, cometido en el mismo día. Lo encontró un barrido nuevo: métodos del cliente web que ningún componente llama.
+
+El deshacer va en la ficha del **destino**, no en la del absorbido: el absorbido ya no se lista, así que desde la pantalla no había forma de llegar a él. La ficha ahora trae `fusiones` —qué absorbió, con el motivo y la fecha— y cada una con su «Separar».
+
+### El barrido, y lo que queda
+
+De 100 métodos del cliente web, **4 no los llama nadie**:
+
+| Método | Qué falta |
+|---|---|
+| `deshacerFusionDeCliente` | Arreglado aquí |
+| `borrarTipo` | Se pueden crear tipos de habitación y no borrarlos |
+| `crearLead` | No se puede meter a mano una oportunidad (un huésped que llama por teléfono) |
+| `ejecucionesDeFlujo` | No se puede ver qué está haciendo un bot ahora mismo |
+
+Los tres que quedan son deuda con nombre, no fallos: nada se rompe, solo falta la puerta.

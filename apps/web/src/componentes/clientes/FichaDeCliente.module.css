@@ -186,3 +186,41 @@
     color: var(--fg);
   }
 }
+
+@layer components {
+  /* Fichas absorbidas: pocas, y con su deshacer al lado. */
+  .fusiones {
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.6rem 0.75rem;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .fusion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: var(--text-sm);
+  }
+
+  .fusionNota {
+    color: var(--fg-muted);
+    font-size: 0.7rem;
+  }
+
+  .deshacer {
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: 0.7rem;
+    cursor: pointer;
+  }
+
+  .deshacer:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+}

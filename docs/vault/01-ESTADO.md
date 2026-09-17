@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-67, el deshacer de la fusión tenía API y no tenía botón** ([[clientes]] §El deshacer tenía API): cometí en PR-66 el mismo fallo que llevaba el día arreglando. Lo encontró un barrido nuevo —métodos del cliente web que nadie llama—, que además dejó tres deudas con nombre: borrar tipo de habitación, crear lead a mano y ver las ejecuciones de un bot.
 - **PR-66, unir fichas duplicadas — P-08 CERRADA** ([[clientes]] §Unir dos fichas): el mismo huésped por dos canales deja de ser dos clientes. Se mueve todo lo suyo en una transacción, **se puede deshacer** —el absorbido no se borra y se anota qué filas se movieron— y encadenar está prohibido. Migración 0032. Las sugerencias son por nombre porque teléfono y correo llevan índice único: por ahí no puede haber duplicados.
 - **PR-65, aplazar una conversación** ([[bandeja]] §Aplazar una conversación): el endpoint, la columna, el estado «seguimiento», la insignia «Aplazada» y hasta el método del cliente web existían; faltaba el botón. Tres plazos fijos y deshacer donde se hizo.
 - **PR-64, la única respuesta privada no se gasta dos veces** ([[bandeja]] §La única respuesta privada): Instagram y Facebook permiten UNA por comentario y no se recupera; la capacidad estaba declarada desde PR-7 y no la usaba nadie. Ahora la puerta lo impide y el compositor lo avisa antes de pulsar. Encontrado en un repaso a propósito de «declarado y sin usar», el cuarto fallo de esa familia en un día.

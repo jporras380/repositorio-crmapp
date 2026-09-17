@@ -516,6 +516,8 @@ export interface ResumenDeCliente {
 
 export interface FichaDeCliente extends ResumenDeCliente {
   notas: string | null;
+  /** Fichas que esta absorbió y todavía se pueden devolver. */
+  fusiones: { origenId: string; nombre: string | null; nota: string; fecha: string }[];
   identidades: { canal: string; handle: string | null; telefono: string | null }[];
   conversaciones: { id: string; canal: string; estado: string; ultimoMensajeEn: string | null }[];
   reservas: {

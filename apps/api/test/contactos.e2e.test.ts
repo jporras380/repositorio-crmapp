@@ -446,6 +446,31 @@ describe('fusionar duplicados (P-08)', () => {
     expect((r.body as { id: string }[]).map((d) => d.id)).toEqual([vive]);
   });
 
+  it('la ficha del destino dice qué absorbió, que es por donde se deshace', async () => {
+    // El absorbido ya no se lista: si el deshacer no estuviera en el destino,
+    // no habría forma de llegar a él desde la pantalla.
+    const destino = await crear({ nombre: 'Guarda Historia' });
+    const origen = await crear({ nombre: 'Se fue dentro' });
+    await http
+      .post(`/v1/contactos/${destino}/fusionar`)
+      .set(auth())
+      .send({ origenId: origen, motivo: 'dos números' })
+      .expect(200);
+
+    const ficha = await http.get(`/v1/contactos/${destino}`).set(auth()).expect(200);
+    expect(ficha.body.fusiones).toHaveLength(1);
+    expect(ficha.body.fusiones[0]).toMatchObject({
+      origenId: origen,
+      nombre: 'Se fue dentro',
+      nota: 'dos números',
+    });
+
+    // Y al deshacerla desaparece de la lista: no quedan deshaceres fantasma.
+    await http.post(`/v1/contactos/${origen}/deshacer-fusion`).set(auth()).expect(204);
+    const despues = await http.get(`/v1/contactos/${destino}`).set(auth()).expect(200);
+    expect(despues.body.fusiones).toEqual([]);
+  });
+
   it('queda registrado quién fusionó y por qué', async () => {
     const destino = await crear({ nombre: 'Auditado' });
     const origen = await crear({ nombre: 'Auditado viejo' });

@@ -39,6 +39,7 @@ const api = {
   cliente: vi.fn().mockResolvedValue({
     ...CLIENTE,
     notas: null,
+    fusiones: [],
     identidades: [],
     conversaciones: [],
     reservas: [],

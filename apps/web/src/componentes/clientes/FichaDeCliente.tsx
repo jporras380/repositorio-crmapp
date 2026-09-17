@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Api } from '../../api/cliente.ts';
+import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { Etiqueta, FichaDeCliente as Ficha, OrigenDeCliente } from '../../api/tipos.ts';
 import { irA } from '../../estado/ruta.ts';
 import { importe as formatearImporte } from '../../vista/dinero.ts';
@@ -72,6 +72,17 @@ export function FichaDeCliente({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo guardar.');
       await cargar();
+    }
+  }
+
+  async function deshacer(origenId: string) {
+    setError(null);
+    try {
+      await api.deshacerFusionDeCliente(origenId);
+      await alCambiar();
+      await cargar();
+    } catch (e) {
+      setError(e instanceof ErrorDeApi ? e.message : 'No se pudo separar las fichas.');
     }
   }
 
@@ -248,6 +259,35 @@ export function FichaDeCliente({
           {ficha.reservas.length === 0 && <li className={estilos.pista}>Sin reservas todavía.</li>}
         </ul>
       </section>
+
+      {/*
+        Lo que esta ficha absorbió, con su deshacer. Va aquí y no en la ficha
+        del absorbido porque el absorbido ya no se lista: si el deshacer no
+        estuviera en el destino, no habría forma de llegar a él.
+      */}
+      {puedeBorrar && ficha.fusiones.length > 0 && (
+        <section className={estilos.fusiones}>
+          <p className={estilos.etiquetaCampo}>Fichas unidas a esta</p>
+          {ficha.fusiones.map((f) => (
+            <div key={f.origenId} className={estilos.fusion}>
+              <span>
+                <strong>{f.nombre ?? 'Sin nombre'}</strong>
+                <span className={estilos.fusionNota}>
+                  {' · '}
+                  {f.nota} · {diaDeMensaje(f.fecha)}
+                </span>
+              </span>
+              <button
+                className={estilos.deshacer}
+                onClick={() => void deshacer(f.origenId)}
+                title="Devuelve sus conversaciones y sus datos a la ficha de antes"
+              >
+                Separar
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/*
         Unir va con borrar, en el pie: son las dos acciones que cambian la

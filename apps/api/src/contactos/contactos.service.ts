@@ -68,6 +68,13 @@ export interface ResumenDeContacto {
 
 export interface FichaDeContacto extends ResumenDeContacto {
   notas: string | null;
+  /**
+   * Fichas que esta absorbió y siguen sin deshacerse.
+   *
+   * Va en la ficha del DESTINO porque el absorbido ya no se lista: si el
+   * deshacer no estuviera aquí, no habría forma de llegar a él.
+   */
+  fusiones: { origenId: string; nombre: string | null; nota: string; fecha: Date }[];
   identidades: { canal: string; handle: string | null; telefono: string | null }[];
   conversaciones: { id: string; canal: string; estado: string; ultimoMensajeEn: Date | null }[];
   /** Historial: cada oportunidad que tuvo, ganada o no. */
@@ -201,6 +208,22 @@ export class ContactosService {
       const f = rows[0];
       if (!f) throw new ErrorDeNegocio('contacto_no_encontrado', 'Ese cliente no existe.', 404);
 
+      // Lo que esta ficha se tragó y todavía se puede devolver.
+      const { rows: fusiones } = await c.query<{
+        source_contact_id: string;
+        nombre: string | null;
+        nota: string | null;
+        created_at: Date;
+      }>(
+        `SELECT m.source_contact_id, o.display_name AS nombre,
+                m.moved ->> 'nota' AS nota, m.created_at
+           FROM contact_merges m
+           JOIN contacts o ON o.id = m.source_contact_id
+          WHERE m.target_contact_id = $1 AND m.reverted_at IS NULL
+          ORDER BY m.created_at DESC`,
+        [id],
+      );
+
       const { rows: identidades } = await c.query<{
         channel: string;
         handle: string | null;
@@ -250,6 +273,12 @@ export class ContactosService {
       return {
         ...resumen(f, etiquetas.get(id) ?? []),
         notas: f.notes,
+        fusiones: fusiones.map((x) => ({
+          origenId: x.source_contact_id,
+          nombre: x.nombre,
+          nota: x.nota ?? 'duplicado',
+          fecha: x.created_at,
+        })),
         identidades: identidades.map((i) => ({
           canal: i.channel,
           handle: i.handle,
