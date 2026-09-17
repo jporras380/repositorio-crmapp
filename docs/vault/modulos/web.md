@@ -244,3 +244,36 @@ Añade un método al cliente web sin llamarlo desde ningún sitio y ejecuta `pnp
 - Borrar un tipo de habitación.
 - Crear un lead a mano (el huésped que llama por teléfono).
 - Ver las ejecuciones vivas de un bot.
+
+## Sesiones que se pueden cerrar (PR-70, 2026-09-17)
+
+Hasta aquí el JWT **no tenía estado**: se firmaba, se entregaba y valía hasta caducar. Dos consecuencias que no se ven hasta que hacen falta:
+
+1. **Un token robado no se podía anular.** Ni cambiando la contraseña.
+2. **Nadie sabía desde dónde estaba entrando**, ni el propio dueño de la cuenta, que es justo quien reconocería un sitio raro.
+
+Migración 0033: tabla `sessions` con IP, dispositivo, última vez y revocación. El token lleva dentro el identificador de su sesión (`sid`), y la guarda comprueba en cada petición que sigue abierta.
+
+### El precio, dicho claro
+
+**Una lectura por petición autenticada.** Un token sin estado es más rápido justamente porque nadie pregunta si sigue valiendo. Se paga con una búsqueda por clave primaria, y `last_seen_at` se escribe como mucho una vez por minuto para no castigar una fila que se lee constantemente.
+
+### Decisiones
+
+- **La fila no se borra al cerrar**, se marca. El historial de accesos es lo que deja ver «alguien entró desde otra ciudad el martes»; borrarlo esconde justo lo que se estaba mirando.
+- **Los tokens antiguos sin `sid` se aceptan hasta caducar.** Invalidarlos de golpe echaría a todo el mundo en el despliegue, y caducan solos.
+- **«Cerrar las otras» no se cierra a sí misma.** Es el caso de «esto no era yo» y dejar a alguien fuera de su propia sesión mientras arregla un susto es cruel.
+- **De `x-forwarded-for` se queda la primera IP**: el cliente. El resto son proxies.
+
+### Lo que salió al probarlo
+
+- **El alta de cuenta reventaba** con violación de clave foránea: la sesión se creaba en otra conexión mientras la transacción del alta aún no había confirmado, así que el inquilino todavía no existía. Ahora se pasa el cliente de la transacción en curso.
+- **Un `user-agent` con tildes llega mangleado**: una cabecera HTTP no es UTF-8. No es un problema real —los navegadores mandan ASCII— pero el test lo destapó y queda anotado.
+
+### Lo que esto habilita
+
+El cambio de contraseña ya puede cerrar las demás sesiones de verdad. Sin esta tabla, ese botón habría sido una promesa vacía: por eso va primero.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Entrar desde dos navegadores, `GET /v1/sesiones` desde uno, cerrar la del otro y comprobar que su token devuelve 401 `sesion_cerrada` aunque su firma siga siendo válida.

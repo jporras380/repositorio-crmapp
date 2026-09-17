@@ -40,6 +40,24 @@ interface PayloadJwt {
   sub: string;
   tid: string;
   rol: Rol;
+  /** Sesión a la que pertenece el token (0033). Es lo que se puede cerrar. */
+  sid?: string;
+}
+
+/** De dónde viene quien entra. Lo que el dueño de la cuenta reconoce o no. */
+export interface DatosDeAcceso {
+  ip?: string | undefined;
+  userAgent?: string | undefined;
+}
+
+export interface SesionAbierta {
+  id: string;
+  ip: string | null;
+  dispositivo: string | null;
+  ultimaVezEn: Date;
+  creadaEn: Date;
+  /** La del token con el que se está preguntando: no se ofrece cerrarla igual. */
+  esLaActual: boolean;
 }
 
 export interface OpcionesDeAuth {
@@ -75,15 +93,18 @@ export class AuthService {
    * fechas se falla cerrado. Dejarlo para un job posterior significaría que
    * toda cuenta nueva nace sin poder enviar hasta que ese job pase.
    */
-  async registrar(datos: {
-    nombreDeCuenta: string;
-    slug: string;
-    email: string;
-    contrasena: string;
-    nombreCompleto: string;
-    // `| undefined` explicito por exactOptionalPropertyTypes.
-    planCode?: string | undefined;
-  }): Promise<Sesion> {
+  async registrar(
+    datos: {
+      nombreDeCuenta: string;
+      slug: string;
+      email: string;
+      contrasena: string;
+      nombreCompleto: string;
+      // `| undefined` explicito por exactOptionalPropertyTypes.
+      planCode?: string | undefined;
+    },
+    acceso: DatosDeAcceso = {},
+  ): Promise<Sesion> {
     if (datos.contrasena.length < 10) {
       throw new ErrorDeNegocio(
         'contrasena_debil',
@@ -165,7 +186,7 @@ export class AuthService {
         payload: { email: datos.email, plan: datos.planCode ?? 'starter' },
       });
 
-      return this.#emitirSesion(tenantId, userId, 'owner');
+      return this.#emitirSesion(tenantId, userId, 'owner', acceso, c);
     });
   }
 
@@ -173,7 +194,12 @@ export class AuthService {
   // Inicio de sesión
   // -------------------------------------------------------------------------
 
-  async iniciarSesion(email: string, contrasena: string, tenantSlug?: string): Promise<Sesion> {
+  async iniciarSesion(
+    email: string,
+    contrasena: string,
+    tenantSlug?: string,
+    acceso: DatosDeAcceso = {},
+  ): Promise<Sesion> {
     const fila = await this.#db.deAutenticacion(async (c) => {
       const { rows } = await c.query<{
         id: string;
@@ -211,7 +237,7 @@ export class AuthService {
       await c.query(`UPDATE users SET last_login_at = now() WHERE id = $1`, [fila.id]);
     });
 
-    return this.#emitirSesion(fila.tenant_id, fila.id, fila.role);
+    return this.#emitirSesion(fila.tenant_id, fila.id, fila.role, acceso);
   }
 
   verificarToken(token: string): PayloadJwt {
@@ -349,11 +375,10 @@ export class AuthService {
   }
 
   /** Acepta una invitación: crea el usuario si no existe y lo da de alta. */
-  async aceptarInvitacion(datos: {
-    token: string;
-    contrasena: string;
-    nombreCompleto: string;
-  }): Promise<Sesion> {
+  async aceptarInvitacion(
+    datos: { token: string; contrasena: string; nombreCompleto: string },
+    acceso: DatosDeAcceso = {},
+  ): Promise<Sesion> {
     const tokenHash = createHash('sha256').update(datos.token).digest('hex');
 
     const inv = await this.#db.deAutenticacion(async (c) => {
@@ -426,7 +451,7 @@ export class AuthService {
 
       await this.#auditar(c, inv.tenant_id, userId, 'invitacion.aceptada', 'invitation', inv.id);
 
-      return this.#emitirSesion(inv.tenant_id, userId, inv.role);
+      return this.#emitirSesion(inv.tenant_id, userId, inv.role, acceso, c);
     });
   }
 
@@ -455,10 +480,121 @@ export class AuthService {
 
   // -------------------------------------------------------------------------
 
-  #emitirSesion(tenantId: string, userId: string, rol: Rol): Sesion {
-    const payload: PayloadJwt = { sub: userId, tid: tenantId, rol };
+  /**
+   * Firma el token Y deja constancia de la sesión.
+   *
+   * El `sid` dentro del token es lo que permite cerrarla: sin él, revocar
+   * exigiría una lista negra de tokens enteros, que crece sin parar y hay que
+   * limpiar. Con el identificador, cerrar es marcar una fila.
+   */
+  async #emitirSesion(
+    tenantId: string,
+    userId: string,
+    rol: Rol,
+    acceso: DatosDeAcceso = {},
+    /**
+     * Cliente de una transacción en curso, si la hay.
+     *
+     * El alta de cuenta crea el inquilino y emite la sesión en la MISMA
+     * transacción: abrir otra conexión aquí veía un inquilino que todavía no
+     * existe y la clave foránea saltaba. Lo cazó el test del alta.
+     */
+    enCurso?: PoolClient,
+  ): Promise<Sesion> {
+    const insertar = async (c: PoolClient) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO sessions (tenant_id, user_id, ip, user_agent, expires_at)
+         VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5))
+         RETURNING id`,
+        [tenantId, userId, acceso.ip ?? null, acceso.userAgent ?? null, this.#ttl],
+      );
+      return rows[0]!.id;
+    };
+    const sid = enCurso
+      ? await insertar(enCurso)
+      : await this.#db.paraInquilino(tenantId, insertar);
+    const payload: PayloadJwt = { sub: userId, tid: tenantId, rol, sid };
     const token = jwt.sign(payload, this.#secret, { expiresIn: this.#ttl });
     return { token, tenantId, userId, rol, expiraEn: this.#ttl };
+  }
+
+  /**
+   * ¿Sigue viva esta sesión? La llama la guarda en cada petición.
+   *
+   * Un token con firma válida pero sesión cerrada **no vale**: es justo el caso
+   * que hace útil esta tabla. Un token antiguo sin `sid` —emitido antes de
+   * 0033— se acepta hasta que caduque: invalidarlos de golpe echaría a todo el
+   * mundo en el despliegue, y caducan solos.
+   */
+  async sesionViva(payload: { tid: string; sid?: string }): Promise<void> {
+    if (!payload.sid) return;
+    const viva = await this.#db.paraInquilino(payload.tid, async (c) => {
+      const { rows } = await c.query<{ revoked_at: Date | null }>(
+        `SELECT revoked_at FROM sessions WHERE id = $1`,
+        [payload.sid],
+      );
+      if (!rows[0] || rows[0].revoked_at) return false;
+      // Una escritura por minuto como mucho: la fila la lee cada petición.
+      await c.query(
+        `UPDATE sessions SET last_seen_at = now()
+          WHERE id = $1 AND last_seen_at < now() - interval '1 minute'`,
+        [payload.sid],
+      );
+      return true;
+    });
+    if (!viva) {
+      throw new ErrorDeNegocio('sesion_cerrada', 'Esta sesión se cerró. Entra otra vez.', 401);
+    }
+  }
+
+  /** Las sesiones abiertas de quien pregunta. */
+  async sesiones(): Promise<SesionAbierta[]> {
+    const ctx = this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{
+        id: string;
+        ip: string | null;
+        user_agent: string | null;
+        last_seen_at: Date;
+        created_at: Date;
+      }>(
+        `SELECT id, ip, user_agent, last_seen_at, created_at
+           FROM sessions
+          WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
+          ORDER BY last_seen_at DESC`,
+        [ctx.userId],
+      );
+      return rows.map((r) => ({
+        id: r.id,
+        ip: r.ip,
+        dispositivo: r.user_agent,
+        ultimaVezEn: r.last_seen_at,
+        creadaEn: r.created_at,
+        esLaActual: r.id === ctx.sessionId,
+      }));
+    });
+  }
+
+  /**
+   * Cierra una sesión, o todas menos la actual.
+   *
+   * No se borra la fila: el historial de accesos es lo que deja ver «alguien
+   * entró desde otra ciudad el martes», y borrarlo esconde justo lo que se
+   * estaba mirando.
+   */
+  async cerrarSesion(id: string | 'otras', motivo = 'cerrada por el usuario'): Promise<number> {
+    const ctx = this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const { rowCount } = await c.query(
+        id === 'otras'
+          ? `UPDATE sessions SET revoked_at = now(), revoked_reason = $2
+              WHERE user_id = $1 AND revoked_at IS NULL AND id <> $3::uuid`
+          : `UPDATE sessions SET revoked_at = now(), revoked_reason = $2
+              WHERE user_id = $1 AND revoked_at IS NULL AND id = $3::uuid`,
+        [ctx.userId, motivo, id === 'otras' ? (ctx.sessionId ?? null) : id],
+      );
+      return rowCount ?? 0;
+    });
   }
 
   #exigirContexto() {

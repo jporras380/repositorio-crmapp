@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { TOKEN_AUTH } from '../tokens.js';
 import { AuthService, ErrorDeNegocio } from './auth.service.js';
@@ -53,27 +64,52 @@ function validar<T>(esquema: z.ZodType<T>, datos: unknown): T {
   return r.data;
 }
 
+/** Lo que la petición sabe de quien entra. Nada de esto se cree a ciegas. */
+type Req = {
+  contexto?: unknown;
+  ip?: string;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+/**
+ * IP y dispositivo de quien inicia sesión.
+ *
+ * `x-forwarded-for` lo pone el proxy y puede venir con varias: la primera es
+ * el cliente. Se recorta el agente porque un `User-Agent` puede ser larguísimo
+ * y aquí solo sirve para que su dueño reconozca «Chrome en Windows».
+ */
+function accesoDe(req: Req): { ip?: string; userAgent?: string } {
+  const reenviada = req.headers?.['x-forwarded-for'];
+  const ip =
+    (typeof reenviada === 'string' ? reenviada.split(',')[0]?.trim() : undefined) ?? req.ip;
+  const agente = req.headers?.['user-agent'];
+  return {
+    ...(ip ? { ip } : {}),
+    ...(typeof agente === 'string' ? { userAgent: agente.slice(0, 200) } : {}),
+  };
+}
+
 @Controller()
 export class AuthController {
   constructor(@Inject(TOKEN_AUTH) private readonly auth: AuthService) {}
 
   @Post('v1/cuentas')
   @HttpCode(201)
-  async registrar(@Body() body: unknown) {
-    return this.auth.registrar(validar(AltaDto, body));
+  async registrar(@Req() req: Req, @Body() body: unknown) {
+    return this.auth.registrar(validar(AltaDto, body), accesoDe(req));
   }
 
   @Post('v1/sesiones')
   @HttpCode(200)
-  async login(@Body() body: unknown) {
+  async login(@Req() req: Req, @Body() body: unknown) {
     const d = validar(LoginDto, body);
-    return this.auth.iniciarSesion(d.email, d.contrasena, d.tenantSlug);
+    return this.auth.iniciarSesion(d.email, d.contrasena, d.tenantSlug, accesoDe(req));
   }
 
   @Post('v1/invitaciones/aceptar')
   @HttpCode(200)
-  async aceptar(@Body() body: unknown) {
-    return this.auth.aceptarInvitacion(validar(AceptarDto, body));
+  async aceptar(@Req() req: Req, @Body() body: unknown) {
+    return this.auth.aceptarInvitacion(validar(AceptarDto, body), accesoDe(req));
   }
 
   @Post('v1/invitaciones')
@@ -88,6 +124,23 @@ export class AuthController {
   @UseGuards(AuthGuard)
   miembros(@Req() req: { contexto?: unknown }) {
     return conContextoDePeticion(req, () => this.auth.miembros());
+  }
+
+  /** Las sesiones abiertas de quien pregunta, para reconocerlas o cerrarlas. */
+  @Get('v1/sesiones')
+  @UseGuards(AuthGuard)
+  async sesiones(@Req() req: { contexto?: unknown }) {
+    return conContextoDePeticion(req, () => this.auth.sesiones());
+  }
+
+  /** `otras` cierra todas menos la actual: el caso de «esto no era yo». */
+  @Delete('v1/sesiones/:id')
+  @UseGuards(AuthGuard)
+  @HttpCode(200)
+  async cerrarSesion(@Req() req: { contexto?: unknown }, @Param('id') id: string) {
+    return conContextoDePeticion(req, async () => ({
+      cerradas: await this.auth.cerrarSesion(id === 'otras' ? 'otras' : id),
+    }));
   }
 
   @Get('v1/yo')

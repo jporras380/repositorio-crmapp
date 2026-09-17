@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-70, sesiones que se pueden cerrar** ([[web]] §Sesiones que se pueden cerrar): el JWT no tenía estado, así que un token robado valía hasta caducar y ni cambiando la contraseña se anulaba. Migración 0033 con IP, dispositivo y revocación; la guarda comprueba que la sesión sigue abierta. Precio: una lectura por petición. Es la base del apartado de perfil que viene detrás.
 - **PR-69, la oportunidad que no llega por un canal** ([[embudo]] §La oportunidad que no llega): el huésped que llama por teléfono ya se puede anotar, con su ficha creada de una vez si no existe. Era la primera de las tres deudas que dejó anotadas la guarda.
 - **PR-68, guarda de «declarado y sin usar»** ([[web]] §La guarda de declarado y sin usar): los siete fallos de hoy eran de la misma familia, así que el barrido pasa a correr en cada build dentro de `arch:check`. Para acallar un hallazgo hay que escribir el motivo, y la lista distingue lo deliberado de la deuda con nombre.
 - **PR-67, el deshacer de la fusión tenía API y no tenía botón** ([[clientes]] §El deshacer tenía API): cometí en PR-66 el mismo fallo que llevaba el día arreglando. Lo encontró un barrido nuevo —métodos del cliente web que nadie llama—, que además dejó tres deudas con nombre: borrar tipo de habitación, crear lead a mano y ver las ejecuciones de un bot.

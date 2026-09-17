@@ -21,6 +21,8 @@ export interface ContextoDePeticion {
   userId: string;
   rol: 'owner' | 'admin' | 'supervisor' | 'agent';
   correlationId: string;
+  /** Sesión del token, para saber cuál es «esta» al listarlas o cerrarlas. */
+  sessionId?: string | undefined;
 }
 
 const almacen = new AsyncLocalStorage<ContextoDePeticion>();

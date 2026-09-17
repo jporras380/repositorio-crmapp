@@ -19,7 +19,7 @@ import { randomUUID } from 'node:crypto';
 export class AuthGuard implements CanActivate {
   constructor(@Inject(TOKEN_AUTH) private readonly auth: AuthService) {}
 
-  canActivate(contexto: ExecutionContext): boolean {
+  async canActivate(contexto: ExecutionContext): Promise<boolean> {
     const req = contexto.switchToHttp().getRequest();
     const cabecera: string | undefined = req.headers?.authorization;
 
@@ -28,11 +28,15 @@ export class AuthGuard implements CanActivate {
     }
 
     const payload = this.auth.verificarToken(cabecera.slice(7));
+    // La firma dice que el token es nuestro; esto dice que la sesión sigue
+    // abierta. Son dos preguntas distintas y hacen falta las dos (0033).
+    await this.auth.sesionViva(payload);
     req.contexto = {
       tenantId: payload.tid,
       userId: payload.sub,
       rol: payload.rol,
       correlationId: req.headers['x-correlation-id'] ?? randomUUID(),
+      ...(payload.sid ? { sessionId: payload.sid } : {}),
     };
     return true;
   }

@@ -119,6 +119,20 @@ export const businessHours = pgTable('business_hours', {
   updatedAt: actualizado,
 });
 
+/** Sesiones abiertas, para poder cerrarlas de verdad (0033). */
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  ip: text('ip'),
+  userAgent: text('user_agent'),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  revokedReason: text('revoked_reason'),
+  createdAt: creado,
+});
+
 export const invitations = pgTable('invitations', {
   id: uuid('id').primaryKey(),
   tenantId: uuid('tenant_id').notNull(),

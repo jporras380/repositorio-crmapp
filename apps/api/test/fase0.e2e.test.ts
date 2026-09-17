@@ -302,3 +302,69 @@ describe('auditoría', () => {
     expect(acciones).toContain('invitacion.aceptada');
   });
 });
+
+describe('sesiones que se pueden cerrar (0033)', () => {
+  const CUENTA = alta('sesiones', 'duena@sesiones.test');
+
+  beforeAll(async () => {
+    await http.post('/v1/cuentas').send(CUENTA).expect(201);
+  });
+
+  /**
+   * Los nombres van sin acentos a propósito: una cabecera HTTP no es UTF-8, y
+   * un `user-agent` con tildes llega mangleado. Los navegadores reales mandan
+   * ASCII, así que el caso no existe fuera del test.
+   */
+  const entrar = async (agente: string) => {
+    const r = await http
+      .post('/v1/sesiones')
+      .set('user-agent', agente)
+      .set('x-forwarded-for', '190.12.3.4, 10.0.0.1')
+      .send({ email: CUENTA.email, contrasena: CUENTA.contrasena })
+      .expect(200);
+    return r.body.token as string;
+  };
+
+  const cabecera = (t: string) => ({ Authorization: `Bearer ${t}` });
+
+  it('cada inicio de sesión queda listado, con su IP y su dispositivo', async () => {
+    const t = await entrar('Firefox en Android');
+    const r = await http.get('/v1/sesiones').set(cabecera(t)).expect(200);
+    const actual = (r.body as { esLaActual: boolean; ip: string; dispositivo: string }[]).find(
+      (s) => s.esLaActual,
+    );
+    // De `x-forwarded-for` se queda la primera: el cliente. El resto son proxies.
+    expect(actual?.ip).toBe('190.12.3.4');
+    expect(actual?.dispositivo).toBe('Firefox en Android');
+  });
+
+  it('cerrar una sesión deja su token SIN valor, aunque la firma siga siendo buena', async () => {
+    const viejo = await entrar('PC de recepcion');
+    const nuevo = await entrar('Mi portátil');
+
+    const lista = await http.get('/v1/sesiones').set(cabecera(nuevo));
+    const otra = (lista.body as { id: string; dispositivo: string }[]).find(
+      (s) => s.dispositivo === 'PC de recepcion',
+    )!;
+    await http.delete(`/v1/sesiones/${otra.id}`).set(cabecera(nuevo)).expect(200);
+
+    // Esto es lo que antes era imposible: el token sigue firmado y ya no sirve.
+    const r = await http.get('/v1/yo').set(cabecera(viejo)).expect(401);
+    expect(r.body.codigo).toBe('sesion_cerrada');
+    await http.get('/v1/yo').set(cabecera(nuevo)).expect(200);
+  });
+
+  it('«cerrar las otras» no se cierra a sí misma', async () => {
+    await entrar('Uno');
+    await entrar('Dos');
+    const mia = await entrar('La mia');
+
+    const r = await http.delete('/v1/sesiones/otras').set(cabecera(mia)).expect(200);
+    expect(r.body.cerradas).toBeGreaterThanOrEqual(2);
+
+    await http.get('/v1/yo').set(cabecera(mia)).expect(200);
+    expect(await http.get('/v1/sesiones').set(cabecera(mia))).toMatchObject({
+      body: expect.objectContaining({ length: 1 }),
+    });
+  });
+});
