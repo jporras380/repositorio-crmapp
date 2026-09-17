@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-76, la lista caía al fondo del panel** ([[bandeja]] §La lista caía al fondo): con un solo resultado de búsqueda aparecía abajo con un hueco enorme. La rejilla declaraba dos filas y había hasta cuatro hijos.
 - **PR-75, dos fallos de diseño que solo se ven mirando** ([[bandeja]] §Dos fallos de diseño): burbujas colapsadas por un porcentaje que pasó a ser circular al meterlas en una fila (lo rompí en PR-73), y separadores de día `sticky` apilados unos sobre otros. Los 951 tests estaban en verde: jsdom no calcula diseño. Queda anotada la receta de captura con Edge `--headless=old`.
 - **PR-74, teléfono y usuario separados y copiables** ([[bandeja]] §Teléfono y usuario): dos líneas con su botón transparente de copiar, solo lo que existe, y se puede añadir el número cuando la conversación llegó solo con usuario.
 - **PR-73, la cara del agente en el hilo** ([[bandeja]] §La cara del agente): avatar junto a la burbuja saliente, una vez por tanda, con caché por medio.

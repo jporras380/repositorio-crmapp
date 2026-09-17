@@ -273,3 +273,15 @@ La solución no es quitar el `sticky`, que es útil: es dar a cada día **su pro
 **Ningún test podía encontrar esto.** jsdom no calcula diseño: no hay anchos, no hay `sticky`, no hay solapamiento. Los tests comprueban que el texto está en el DOM.
 
 Se añadió una forma de capturar la pantalla de verdad: `--headless=old` de Edge (el nuevo sale en negro) con `--virtual-time-budget` y la sesión sembrada por `#sesion=<json>`, que ya existía para desarrollo. Con eso se vio el arreglo antes de darlo por bueno, y así debería mirarse todo cambio visual.
+
+## La lista caía al fondo del panel (PR-76, 2026-09-17)
+
+Buscando un teléfono, el único resultado aparecía **abajo del todo**, con un hueco enorme encima. Otra captura del usuario, otro fallo que ningún test podía ver.
+
+El panel de la lista declaraba `grid-template-rows: auto minmax(0, 1fr)` —cabecera y lista—, pero encima de la lista pueden ir **hasta dos botones más**: el de pedir permiso de avisos (PR-50) y el de silenciar (PR-55). Con cuatro hijos y dos filas declaradas, el botón de permiso se quedaba con la fila elástica y empujaba la lista al fondo.
+
+Con la lista llena no se notaba —el panel se llenaba igual— y por eso llevaba dos días así.
+
+Ahora el panel apila en columna: cualquier número de cabeceras cabe, y el último hijo —la lista, o el aviso de «nada por aquí»— se queda con lo que sobra. De paso, la campana de silencio pasó a `align-self`, porque `justify-self` no hace nada en una columna flexible.
+
+**El patrón, que se repite:** una plantilla de rejilla con filas contadas a mano se rompe en silencio la primera vez que alguien añade un hijo. Una columna flexible no tiene ese fallo posible.

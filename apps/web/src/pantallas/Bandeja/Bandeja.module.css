@@ -32,9 +32,28 @@
        arrastrar el separador con la lista llena. */
     contain: layout paint;
   }
+  /*
+   * El panel de la lista apila en columna, no en filas de rejilla.
+   *
+   * Tenía `grid-template-rows: auto minmax(0, 1fr)` —cabecera y lista— pero
+   * encima de la lista pueden ir además el botón de pedir permiso de avisos y
+   * el de silenciar. Con tres o cuatro hijos y dos filas declaradas, el botón
+   * se quedaba con la fila elástica y **la lista caía al fondo del panel**:
+   * al buscar y quedar un solo resultado, aparecía abajo del todo con un
+   * hueco enorme encima.
+   *
+   * En columna, cualquier número de cabeceras se apila y el último hijo —la
+   * lista, o el aviso de «nada por aquí»— se queda con el espacio que sobra.
+   */
   .lista {
     flex: 0 0 var(--ancho-lista, 21rem);
-    grid-template-rows: auto minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .lista > :last-child {
+    flex: 1 1 0;
+    min-block-size: 0;
   }
   .hilo {
     flex: 1 1 0;
@@ -134,7 +153,9 @@
 @layer components {
   /* Campana de silencio: pequeña y a mano, arriba de la lista. */
   .sonido {
-    justify-self: end;
+    /* `align-self` y no `justify-self`: el panel apila en columna desde que
+       dejó de ser una rejilla, y ahí el eje cruzado es el horizontal. */
+    align-self: flex-end;
     margin: 0 var(--space-3) var(--space-1);
     padding: 0.2rem 0.4rem;
     border: 0;
