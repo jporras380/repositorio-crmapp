@@ -319,7 +319,8 @@ export class BandejaService {
                 -- Solo lo tienen las respuestas a comentarios: distingue la
                 -- pública de la privada, que es de un solo uso.
                 m.payload -> 'comentario' ->> 'modo' AS modo_comentario,
-                m.sent_by_user_id AS autor_id, u.full_name AS autor
+                m.sent_by_user_id AS autor_id, u.full_name AS autor,
+                u.avatar_media_id AS autor_foto_id
            FROM messages m
            LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
            -- Quién lo escribió. Se une por fuera porque lo entrante y lo que
@@ -1001,6 +1002,8 @@ export interface MensajeDeConversacion {
   /** Quién lo escribió, si fue una persona. `null` para entrantes y bots. */
   autor_id: string | null;
   autor: string | null;
+  /** Foto del agente que lo escribió, para reconocerlo de un vistazo. */
+  autor_foto_id: string | null;
   creado_en: Date;
   error: unknown;
   /** Medio propio; la URL se pide aparte en GET /v1/medios/:id/url. */

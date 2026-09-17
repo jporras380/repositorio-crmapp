@@ -45,6 +45,7 @@ function mensaje(m: Partial<Mensaje>): Mensaje {
     generado_por_ia: false,
     autor_id: null,
     autor: null,
+    autor_foto_id: null,
     creado_en: new Date('2026-09-16T15:00:00Z').toISOString(),
     error: null,
     medio_id: null,
@@ -59,6 +60,7 @@ function mensaje(m: Partial<Mensaje>): Mensaje {
 function pintar(mensajes: Mensaje[]) {
   const api = {
     mensajes: vi.fn().mockResolvedValue({ items: [...mensajes].reverse(), siguienteCursor: null }),
+    urlDeMedio: vi.fn().mockResolvedValue({ url: 'blob:cara', expiraEnSegundos: 300, mime: null }),
     iaAjustes: vi.fn().mockResolvedValue({ activa: false }),
     respuestasRapidas: vi.fn().mockResolvedValue([]),
     limitesDeMedios: vi.fn().mockResolvedValue({
@@ -157,5 +159,32 @@ describe('Hilo', () => {
       />,
     );
     expect(await screen.findByText('boleta_reserva.pdf')).toBeTruthy();
+  });
+
+  it('la cara del agente sale en lo que SALE, y una sola vez por tanda', async () => {
+    pintar([
+      mensaje({ texto: 'Le confirmo', autor: 'Marta', autor_id: 'u1', autor_foto_id: 'f1' }),
+      mensaje({ texto: 'Y el desayuno', autor: 'Marta', autor_id: 'u1', autor_foto_id: 'f1' }),
+      mensaje({ direccion: 'inbound', origen: 'contact', texto: 'Gracias' }),
+    ]);
+    await screen.findByText('Le confirmo');
+    // Una cara para las dos burbujas de Marta; lo entrante no lleva ninguna,
+    // porque de quien escribe ya hay avatar en la cabecera.
+    expect(document.querySelectorAll('.avatarAutor')).toHaveLength(1);
+  });
+
+  it('dos agentes seguidos llevan cada uno su cara', async () => {
+    pintar([
+      mensaje({ texto: 'Yo contesto', autor: 'Marta', autor_id: 'u1', autor_foto_id: 'f1' }),
+      mensaje({ texto: 'Y yo también', autor: 'Luis', autor_id: 'u2', autor_foto_id: 'f2' }),
+    ]);
+    await screen.findByText('Yo contesto');
+    expect(document.querySelectorAll('.avatarAutor')).toHaveLength(2);
+  });
+
+  it('sin foto, la cara es la inicial del nombre', async () => {
+    pintar([mensaje({ texto: 'Sin foto', autor: 'Marta', autor_id: 'u1', autor_foto_id: null })]);
+    await screen.findByText('Sin foto');
+    expect(document.querySelector('.avatarAutor')?.textContent).toBe('M');
   });
 });

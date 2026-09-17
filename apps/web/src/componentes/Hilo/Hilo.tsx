@@ -5,6 +5,7 @@ import { diaDeMensaje, horaDeMensaje, inicial, ventana } from '../../vista/tiemp
 import { Compositor } from '../Compositor/Compositor.tsx';
 import { CompositorDeComentario } from '../Compositor/CompositorDeComentario.tsx';
 import { Aplazar } from './Aplazar.tsx';
+import { AvatarDeAutor } from './AvatarDeAutor.tsx';
 import { Medio } from './Medio.tsx';
 import estilos from './Hilo.module.css';
 
@@ -226,42 +227,51 @@ function autorDe(m: Mensaje): string | null {
 function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean }) {
   const saliente = m.direccion === 'outbound';
   const autor = autorDe(m);
+  /*
+    La cara solo en la primera de una tanda y solo en lo que sale: repetirla
+    en seis burbujas seguidas es ruido, y de lo que entra ya hay avatar en la
+    cabecera del hilo.
+  */
+  const conCara = saliente && autor !== null && !agrupado;
   return (
-    <article
-      className={`${estilos.burbuja} ${saliente ? estilos.saliente : estilos.entrante} ${agrupado ? estilos.agrupado : ''} ${m.estado === 'failed' ? estilos.fallido : ''}`}
-    >
-      {m.medio_id && (
-        <Medio
-          api={api}
-          tipo={m.tipo}
-          medioId={m.medio_id}
-          estado={m.medio_estado}
-          nombre={m.medio_nombre}
-        />
-      )}
-      {m.tipo === 'template' && <span className={estilos.tipo}>Plantilla</span>}
-      {m.texto && <p className={estilos.texto}>{m.texto}</p>}
-      <footer className={estilos.meta}>
-        {/*
+    <div className={`${estilos.fila} ${saliente ? estilos.filaSaliente : estilos.filaEntrante}`}>
+      <article
+        className={`${estilos.burbuja} ${saliente ? estilos.saliente : estilos.entrante} ${agrupado ? estilos.agrupado : ''} ${m.estado === 'failed' ? estilos.fallido : ''}`}
+      >
+        {m.medio_id && (
+          <Medio
+            api={api}
+            tipo={m.tipo}
+            medioId={m.medio_id}
+            estado={m.medio_estado}
+            nombre={m.medio_nombre}
+          />
+        )}
+        {m.tipo === 'template' && <span className={estilos.tipo}>Plantilla</span>}
+        {m.texto && <p className={estilos.texto}>{m.texto}</p>}
+        <footer className={estilos.meta}>
+          {/*
           Solo en el primero de una tanda: repetir «Marta» en seis burbujas
           seguidas es ruido, y el agrupado ya dice que son del mismo.
         */}
-        {autor && !agrupado && <span className={estilos.autor}>{autor}</span>}
-        <time dateTime={m.creado_en}>{horaDeMensaje(m.creado_en)}</time>
-        {m.generado_por_ia && (
-          <span className={estilos.ia} title="Redactado con IA y revisado por una persona">
-            IA
-          </span>
-        )}
-        {saliente && (
-          <span className={estilos.estado}>
-            {m.estado === 'failed' && m.error?.mensaje
-              ? `No se envió: ${m.error.mensaje}`
-              : (ESTADO_MENSAJE[m.estado] ?? m.estado)}
-          </span>
-        )}
-      </footer>
-    </article>
+          {autor && !agrupado && <span className={estilos.autor}>{autor}</span>}
+          <time dateTime={m.creado_en}>{horaDeMensaje(m.creado_en)}</time>
+          {m.generado_por_ia && (
+            <span className={estilos.ia} title="Redactado con IA y revisado por una persona">
+              IA
+            </span>
+          )}
+          {saliente && (
+            <span className={estilos.estado}>
+              {m.estado === 'failed' && m.error?.mensaje
+                ? `No se envió: ${m.error.mensaje}`
+                : (ESTADO_MENSAJE[m.estado] ?? m.estado)}
+            </span>
+          )}
+        </footer>
+      </article>
+      {conCara && <AvatarDeAutor api={api} nombre={autor} fotoId={m.autor_foto_id} />}
+    </div>
   );
 }
 

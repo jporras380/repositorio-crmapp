@@ -307,3 +307,48 @@
     content: ' ·';
   }
 }
+
+@layer components {
+  /*
+   * Fila del mensaje: la burbuja y, al lado, la cara de quien lo escribió.
+   *
+   * Hacía falta un contenedor: la burbuja se alineaba sola con `align-self`, y
+   * una cara «al lado» necesita que algo las ponga en la misma línea.
+   */
+  .fila {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+    max-inline-size: min(84%, 40rem);
+  }
+
+  .filaEntrante {
+    align-self: flex-start;
+  }
+
+  /* La cara va a la derecha en lo que sale: del lado de quien lo escribió. */
+  .filaSaliente {
+    align-self: flex-end;
+  }
+
+  .avatarAutor {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    margin-block-end: 0.15rem;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.65rem;
+    font-weight: 700;
+    overflow: hidden;
+  }
+
+  .avatarAutorFoto {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+}

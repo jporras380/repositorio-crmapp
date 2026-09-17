@@ -219,3 +219,14 @@ Ahora hay un botón en la cabecera del hilo con tres plazos y el deshacer.
 ### Cómo comprobarlo en menos de 5 minutos
 
 Abrir una conversación → «Aplazar» → «En 1 hora». El botón pasa a «Aplazada» y la fila de la lista muestra la insignia. Volver a pulsarlo y elegir «Volver a verla ahora» lo deshace.
+
+## La cara del agente en el hilo (PR-73, 2026-09-17)
+
+PR-56 puso el nombre de quien escribió; el usuario pidió también la cara: «no aparece cuando envío el mensaje el avatar». El nombre contesta «¿quién dijo esto?» leyendo; la cara lo contesta **mirando**, que es como se lee un hilo largo cuando hay prisa.
+
+- **Solo en lo que sale.** De quien escribe ya hay avatar en la cabecera del hilo.
+- **Una por tanda.** Repetirla en seis burbujas seguidas es ruido; se corta por el mismo criterio que el nombre, que agrupa por dirección **y** por autor.
+- **Sin foto, la inicial.** Igual que en el riel.
+- **Una caché por id de medio, compartida por el módulo.** Las fotos se firman por cinco minutos, así que hay que pedirlas; en un hilo de cincuenta mensajes de la misma persona, pedirla cincuenta veces sería absurdo. Se pide una vez por agente y por carga de página.
+
+Hizo falta un contenedor de fila: la burbuja se alineaba sola con `align-self`, y una cara «al lado» necesita que algo las ponga en la misma línea.

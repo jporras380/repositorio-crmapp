@@ -118,6 +118,7 @@ export interface Mensaje {
   /** Quién lo escribió, si fue una persona. `null` en entrantes y bots. */
   autor_id: string | null;
   autor: string | null;
+  autor_foto_id: string | null;
   creado_en: string;
   error: { tipo?: string; mensaje?: string } | null;
   medio_id: string | null;
