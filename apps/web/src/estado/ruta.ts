@@ -11,6 +11,7 @@ export type Ruta =
   | {
       pantalla: 'ajustes';
       seccion:
+        | 'perfil'
         | 'canales'
         | 'etiquetas'
         | 'reparto'
@@ -33,6 +34,7 @@ export type Ruta =
   | { pantalla: 'reservas'; reservaId: string | null };
 
 const SECCIONES = new Set([
+  'perfil',
   'canales',
   'etiquetas',
   'reparto',

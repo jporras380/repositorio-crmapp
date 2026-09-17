@@ -277,3 +277,25 @@ El cambio de contraseña ya puede cerrar las demás sesiones de verdad. Sin esta
 ### Cómo comprobarlo en menos de 5 minutos
 
 Entrar desde dos navegadores, `GET /v1/sesiones` desde uno, cerrar la del otro y comprobar que su token devuelve 401 `sesion_cerrada` aunque su firma siga siendo válida.
+
+## Mi cuenta (PR-71, 2026-09-17)
+
+Ajustes → **Mi cuenta**: foto, nombre, correo, contraseña y las sesiones abiertas con su «cerrar». Va después de PR-70 a propósito: sin sesiones revocables, el botón de cambiar contraseña habría sido una promesa vacía.
+
+### Qué pide cada cosa, y por qué
+
+- **Nombre y foto se guardan solos.** Es cómo te ven tus compañeros; equivocarse cuesta un momento de vergüenza y nada más.
+- **Correo y contraseña piden la contraseña de ahora.** Son las dos llaves de la cuenta: quien se deje la sesión abierta en el ordenador de recepción no debería poder quedarse con ella para siempre.
+- **Cambiar la contraseña cierra las demás sesiones y lo dice** («se cerraron 2 sesiones en otros dispositivos»). Cambiar el correo **no** echa a nadie: quien corrige una letra no espera quedarse fuera de su móvil.
+
+### La foto es un medio, no una URL
+
+Migración 0034: `users.avatar_media_id`. `avatar_url` llevaba sin usarse desde la fase 0 y no servía — los medios son privados y se sirven firmados cinco minutos, así que guardar una URL es guardar algo caducado. Ahora la foto pasa por el mismo control de acceso que cualquier imagen del hilo.
+
+**Sin clave foránea, y lo descubrió un test.** La primera versión ató `users` a `media_assets` y rompió tres tests del worker: `TRUNCATE media_assets CASCADE` **arrastraba `users` entera**. El fondo es que `users` es global —una persona puede estar en varias cuentas— y `media_assets` es de un inquilino; atarlas acopla dos ámbitos distintos. La referencia es blanda a propósito: si el medio desaparece, no carga la foto y se pinta la inicial, que es lo que la pantalla ya hacía cuando fallaba la URL.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Ajustes → Mi cuenta: subir una foto, cambiar el nombre (se guarda al salir del campo), y cambiar la contraseña desde un navegador teniendo otro abierto — el segundo queda fuera al momento.
+
+6 tests de pantalla y 6 de servidor.

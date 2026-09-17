@@ -1,0 +1,157 @@
+/* Mi cuenta: perfil, llaves y sesiones. */
+@layer components {
+  .perfil {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .bloque {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.9rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    background: var(--surface-1);
+  }
+
+  .titulo {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .identidad {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  /* La foto, redonda y con la inicial cuando no hay ninguna. */
+  .foto {
+    display: grid;
+    place-items: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 1.4rem;
+    font-weight: 700;
+    overflow: hidden;
+  }
+
+  .fotoImg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .acciones {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .campo {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .etiqueta {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+
+  .entrada {
+    width: 100%;
+    max-width: 22rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-sm);
+  }
+
+  .pista {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--fg-muted);
+  }
+
+  .sesiones {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .sesion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+  }
+
+  .sesionDatos {
+    display: grid;
+  }
+
+  .dispositivo {
+    font-size: var(--text-sm);
+    color: var(--fg);
+  }
+
+  .primario,
+  .secundario {
+    justify-self: start;
+    padding: 0.35rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  .secundario {
+    background: transparent;
+    color: var(--fg-muted);
+  }
+
+  .secundario:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+
+  .primario {
+    border-color: transparent;
+    background: var(--accent);
+    color: var(--sobre-accent, #fff);
+    font-weight: 600;
+  }
+
+  .primario:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .aviso {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--accent);
+  }
+
+  .error {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--danger);
+  }
+
+  .cargando {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+}

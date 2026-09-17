@@ -1,0 +1,22 @@
+-- 0034 · La foto del perfil, como medio propio.
+--
+-- `users.avatar_url` existía desde la fase 0 y nunca se usó. No servía: los
+-- medios de este CRM son privados y se sirven con URL firmada de cinco
+-- minutos, así que guardar una URL sería guardar algo caducado.
+--
+-- Se guarda el id del medio y la URL se firma al pintarla, igual que cualquier
+-- imagen del hilo. Así la foto pasa por el mismo control de acceso que todo lo
+-- demás, en vez de ser un enlace público suelto.
+--
+-- ## Por qué SIN clave foránea, a propósito
+--
+-- `users` es una tabla global —una persona puede estar en varias cuentas— y
+-- `media_assets` pertenece a un inquilino. Atarlas rompe cosas en los dos
+-- sentidos: `TRUNCATE media_assets CASCADE` arrastraría `users` entera (lo
+-- descubrió un test del worker), y borrar un inquilino tocaría filas de
+-- usuarios que no son suyas.
+--
+-- La referencia es blanda a propósito: si el medio desaparece, la foto no
+-- carga y se pinta la inicial. Es exactamente lo que ya hace la pantalla
+-- cuando la URL firmada falla.
+ALTER TABLE users ADD COLUMN avatar_media_id uuid;

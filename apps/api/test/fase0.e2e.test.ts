@@ -368,3 +368,93 @@ describe('sesiones que se pueden cerrar (0033)', () => {
     });
   });
 });
+
+describe('perfil de quien ha entrado (0034)', () => {
+  const CUENTA = alta('perfiles', 'duena@perfiles.test');
+  let token: string;
+
+  const cabecera = (t = token) => ({ Authorization: `Bearer ${t}` });
+
+  beforeAll(async () => {
+    const r = await http.post('/v1/cuentas').send(CUENTA).expect(201);
+    token = r.body.token;
+  });
+
+  it('devuelve lo que se puede cambiar de uno mismo', async () => {
+    const r = await http.get('/v1/perfil').set(cabecera()).expect(200);
+    expect(r.body).toMatchObject({
+      nombre: 'Persona Titular',
+      email: CUENTA.email,
+      fotoId: null,
+      dobleFactor: false,
+    });
+  });
+
+  it('el nombre se cambia sin pedir nada más: no es una llave', async () => {
+    await http.patch('/v1/perfil').set(cabecera()).send({ nombre: 'Rosa Jefa' }).expect(204);
+    expect((await http.get('/v1/perfil').set(cabecera())).body.nombre).toBe('Rosa Jefa');
+  });
+
+  it('una foto que no existe no se guarda en silencio', async () => {
+    const r = await http
+      .patch('/v1/perfil')
+      .set(cabecera())
+      .send({ fotoId: '01a00000-0000-7000-8000-000000000000' })
+      .expect(404);
+    expect(r.body.codigo).toBe('medio_no_encontrado');
+  });
+
+  it('cambiar el correo exige la contraseña de ahora', async () => {
+    await http
+      .post('/v1/perfil/acceso')
+      .set(cabecera())
+      .send({ contrasenaActual: 'me-la-invento', email: 'otra@perfiles.test' })
+      .expect(403);
+
+    await http
+      .post('/v1/perfil/acceso')
+      .set(cabecera())
+      .send({ contrasenaActual: CUENTA.contrasena, email: 'otra@perfiles.test' })
+      .expect(200);
+    expect((await http.get('/v1/perfil').set(cabecera())).body.email).toBe('otra@perfiles.test');
+  });
+
+  it('cambiar la contraseña CIERRA las demás sesiones, que es lo que se espera', async () => {
+    // Una segunda sesión, como la del ordenador de recepción que se quedó abierta.
+    const otra = (
+      await http
+        .post('/v1/sesiones')
+        .send({ email: 'otra@perfiles.test', contrasena: CUENTA.contrasena })
+        .expect(200)
+    ).body.token as string;
+    await http.get('/v1/yo').set(cabecera(otra)).expect(200);
+
+    const r = await http
+      .post('/v1/perfil/acceso')
+      .set(cabecera())
+      .send({ contrasenaActual: CUENTA.contrasena, contrasenaNueva: 'una-contrasena-nueva-larga' })
+      .expect(200);
+    expect(r.body.sesionesCerradas).toBeGreaterThanOrEqual(1);
+
+    // La otra queda fuera; la que hizo el cambio sigue dentro.
+    expect((await http.get('/v1/yo').set(cabecera(otra)).expect(401)).body.codigo).toBe(
+      'sesion_cerrada',
+    );
+    await http.get('/v1/yo').set(cabecera()).expect(200);
+
+    // Y la contraseña nueva es la que vale.
+    await http
+      .post('/v1/sesiones')
+      .send({ email: 'otra@perfiles.test', contrasena: 'una-contrasena-nueva-larga' })
+      .expect(200);
+  });
+
+  it('un correo ya usado por otra cuenta se rechaza con su motivo', async () => {
+    const r = await http
+      .post('/v1/perfil/acceso')
+      .set(cabecera())
+      .send({ contrasenaActual: 'una-contrasena-nueva-larga', email: 'duena@sesiones.test' })
+      .expect(409);
+    expect(r.body.codigo).toBe('email_en_uso');
+  });
+});

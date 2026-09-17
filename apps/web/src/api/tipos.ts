@@ -51,6 +51,25 @@ export interface HorarioDeAtencion {
   configurado: boolean;
 }
 
+/** Lo que uno puede ver y cambiar de sí mismo. */
+export interface Perfil {
+  userId: string;
+  nombre: string;
+  email: string;
+  fotoId: string | null;
+  dobleFactor: boolean;
+}
+
+/** Una sesión abierta, para reconocerla o cerrarla. */
+export interface SesionAbierta {
+  id: string;
+  ip: string | null;
+  dispositivo: string | null;
+  ultimaVezEn: string;
+  creadaEn: string;
+  esLaActual: boolean;
+}
+
 export interface Etiqueta {
   id: string;
   nombre: string;

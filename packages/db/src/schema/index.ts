@@ -69,6 +69,8 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash'),
   fullName: text('full_name').notNull(),
   avatarUrl: text('avatar_url'),
+  /** Foto de perfil como medio propio, con URL firmada al pintarla (0034). */
+  avatarMediaId: uuid('avatar_media_id'),
   mfaSecretId: uuid('mfa_secret_id'),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: creado,

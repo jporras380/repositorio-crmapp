@@ -6,6 +6,7 @@ import {
   HttpCode,
   Inject,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -89,6 +90,25 @@ function accesoDe(req: Req): { ip?: string; userAgent?: string } {
   };
 }
 
+const PerfilDto = z
+  .object({
+    nombre: z.string().min(1).max(120).optional(),
+    /** `null` quita la foto. Distinto de no mandar el campo. */
+    fotoId: z.string().uuid().nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, 'Nada que cambiar.');
+
+const AccesoDto = z
+  .object({
+    contrasenaActual: z.string().min(1),
+    email: z.string().email('El correo no tiene buena pinta.').max(160).optional(),
+    contrasenaNueva: z.string().min(12, 'Al menos 12 caracteres.').max(200).optional(),
+  })
+  .refine(
+    (v) => v.email !== undefined || v.contrasenaNueva !== undefined,
+    'Di qué quieres cambiar.',
+  );
+
 @Controller()
 export class AuthController {
   constructor(@Inject(TOKEN_AUTH) private readonly auth: AuthService) {}
@@ -124,6 +144,29 @@ export class AuthController {
   @UseGuards(AuthGuard)
   miembros(@Req() req: { contexto?: unknown }) {
     return conContextoDePeticion(req, () => this.auth.miembros());
+  }
+
+  @Get('v1/perfil')
+  @UseGuards(AuthGuard)
+  async perfil(@Req() req: { contexto?: unknown }) {
+    return conContextoDePeticion(req, () => this.auth.perfil());
+  }
+
+  @Patch('v1/perfil')
+  @UseGuards(AuthGuard)
+  @HttpCode(204)
+  async editarPerfil(@Req() req: { contexto?: unknown }, @Body() body: unknown) {
+    const d = validar(PerfilDto, body);
+    await conContextoDePeticion(req, () => this.auth.editarPerfil(d));
+  }
+
+  /** Correo y contraseña van juntos porque los dos piden la contraseña actual. */
+  @Post('v1/perfil/acceso')
+  @UseGuards(AuthGuard)
+  @HttpCode(200)
+  async cambiarAcceso(@Req() req: { contexto?: unknown }, @Body() body: unknown) {
+    const d = validar(AccesoDto, body);
+    return conContextoDePeticion(req, () => this.auth.cambiarAcceso(d));
   }
 
   /** Las sesiones abiertas de quien pregunta, para reconocerlas o cerrarlas. */

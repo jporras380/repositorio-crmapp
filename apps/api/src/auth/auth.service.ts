@@ -547,6 +547,133 @@ export class AuthService {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Perfil de quien ha entrado
+  // -------------------------------------------------------------------------
+
+  /** Los datos que el propio usuario puede ver y cambiar de sí mismo. */
+  async perfil(): Promise<{
+    userId: string;
+    nombre: string;
+    email: string;
+    fotoId: string | null;
+    dobleFactor: boolean;
+  }> {
+    const ctx = this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{
+        full_name: string;
+        email: string;
+        avatar_media_id: string | null;
+        mfa_secret_id: string | null;
+      }>(
+        `SELECT full_name, email::text AS email, avatar_media_id, mfa_secret_id
+           FROM users WHERE id = $1`,
+        [ctx.userId],
+      );
+      const u = rows[0];
+      if (!u) throw new ErrorDeNegocio('usuario_no_encontrado', 'No existe ese usuario.', 404);
+      return {
+        userId: ctx.userId,
+        nombre: u.full_name,
+        email: u.email,
+        fotoId: u.avatar_media_id,
+        dobleFactor: u.mfa_secret_id !== null,
+      };
+    });
+  }
+
+  /**
+   * Cambia nombre o foto. El correo NO: es la llave de entrada y va aparte.
+   */
+  async editarPerfil(datos: {
+    nombre?: string | undefined;
+    fotoId?: string | null | undefined;
+  }): Promise<void> {
+    const ctx = this.#exigirContexto();
+    await this.#db.enTransaccion(async (c) => {
+      if (datos.nombre !== undefined) {
+        await c.query(`UPDATE users SET full_name = $2, updated_at = now() WHERE id = $1`, [
+          ctx.userId,
+          datos.nombre,
+        ]);
+      }
+      if (datos.fotoId !== undefined) {
+        // Se comprueba que el medio es de esta cuenta: RLS ya lo filtra, pero
+        // un id ajeno debe dar «no existe», no guardarse en silencio.
+        if (datos.fotoId !== null) {
+          const { rows } = await c.query(`SELECT 1 FROM media_assets WHERE id = $1`, [
+            datos.fotoId,
+          ]);
+          if (!rows[0]) {
+            throw new ErrorDeNegocio('medio_no_encontrado', 'Esa imagen no existe.', 404);
+          }
+        }
+        await c.query(`UPDATE users SET avatar_media_id = $2, updated_at = now() WHERE id = $1`, [
+          ctx.userId,
+          datos.fotoId,
+        ]);
+      }
+    });
+  }
+
+  /**
+   * Cambia el correo o la contraseña, pidiendo la contraseña actual.
+   *
+   * **Las dos cosas exigen la contraseña de ahora**, y no es burocracia: son
+   * las dos llaves de la cuenta. Quien se deje la sesión abierta en el
+   * ordenador de recepción no debería poder quedarse con ella para siempre.
+   *
+   * **Cambiar la contraseña cierra las demás sesiones.** Es lo que la gente
+   * espera de ese botón, y hasta 0033 era imposible de cumplir.
+   */
+  async cambiarAcceso(datos: {
+    contrasenaActual: string;
+    email?: string | undefined;
+    contrasenaNueva?: string | undefined;
+  }): Promise<{ sesionesCerradas: number }> {
+    const ctx = this.#exigirContexto();
+    const actual = await this.#db.deAutenticacion(async (c) => {
+      const { rows } = await c.query<{ password_hash: string | null }>(
+        `SELECT password_hash FROM users WHERE id = $1`,
+        [ctx.userId],
+      );
+      return rows[0]?.password_hash ?? HASH_SENUELO;
+    });
+    if (!(await verificarContrasena(datos.contrasenaActual, actual))) {
+      throw new ErrorDeNegocio('contrasena_incorrecta', 'La contraseña actual no es esa.', 403);
+    }
+
+    await this.#db.enTransaccion(async (c) => {
+      if (datos.email) {
+        try {
+          await c.query(`UPDATE users SET email = $2, updated_at = now() WHERE id = $1`, [
+            ctx.userId,
+            datos.email,
+          ]);
+        } catch (e) {
+          if ((e as { code?: string }).code === '23505') {
+            throw new ErrorDeNegocio('email_en_uso', 'Ese correo ya está en uso.', 409);
+          }
+          throw e;
+        }
+      }
+      if (datos.contrasenaNueva) {
+        await c.query(`UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1`, [
+          ctx.userId,
+          await hashearContrasena(datos.contrasenaNueva),
+        ]);
+      }
+    });
+
+    // Solo al cambiar la contraseña: cambiar el correo no echa a nadie, y
+    // hacerlo sorprendería a quien solo corrigió una letra.
+    const sesionesCerradas = datos.contrasenaNueva
+      ? await this.cerrarSesion('otras', 'cambio de contraseña')
+      : 0;
+    return { sesionesCerradas };
+  }
+
   /** Las sesiones abiertas de quien pregunta. */
   async sesiones(): Promise<SesionAbierta[]> {
     const ctx = this.#exigirContexto();

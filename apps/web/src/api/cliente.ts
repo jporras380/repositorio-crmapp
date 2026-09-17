@@ -49,6 +49,7 @@ import type {
   HorasActivasDeFlujo,
   LimitesDeMedios,
   Miembro,
+  Perfil,
   ResumenDeFlujo,
   ResumenDeSuscripcion,
   SimulacionDeFlujo,
@@ -63,6 +64,7 @@ import type {
   RespuestaRapida,
   ResumenDeConversacion,
   Sesion,
+  SesionAbierta,
   Yo,
 } from './tipos.ts';
 
@@ -443,6 +445,18 @@ export function crearApi(token: string | null) {
       peticion<{ id: string }>('/v1/contactos', { ...t, metodo: 'POST', cuerpo: d }),
     editarCliente: (id: string, d: DatosDeCliente) =>
       peticion<{ editado: true }>(`/v1/contactos/${id}`, { ...t, metodo: 'PATCH', cuerpo: d }),
+    perfil: () => peticion<Perfil>('/v1/perfil', t),
+    editarPerfil: (d: { nombre?: string; fotoId?: string | null }) =>
+      peticion<void>('/v1/perfil', { ...t, metodo: 'PATCH', cuerpo: d }),
+    cambiarAcceso: (d: { contrasenaActual: string; email?: string; contrasenaNueva?: string }) =>
+      peticion<{ sesionesCerradas: number }>('/v1/perfil/acceso', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: d,
+      }),
+    sesiones: () => peticion<SesionAbierta[]>('/v1/sesiones', t),
+    cerrarSesion: (id: string | 'otras') =>
+      peticion<{ cerradas: number }>(`/v1/sesiones/${id}`, { ...t, metodo: 'DELETE' }),
     duplicadosDeCliente: (id: string) =>
       peticion<DuplicadoDeCliente[]>(`/v1/contactos/${id}/duplicados`, t),
     fusionarClientes: (destinoId: string, origenId: string, motivo: string) =>
