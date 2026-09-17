@@ -98,6 +98,13 @@ const str = (v: unknown): string | undefined =>
 /** Campos que se piden a Meta al listar números. */
 const CAMPOS_DE_NUMERO = 'id,display_phone_number,verified_name,quality_rating';
 /** Campos de webhook que cada canal necesita de la página (documentación de Meta). */
+/**
+ * Lo mínimo para ver y atender una página. Sin `pages_show_list` la lista
+ * llega vacía; sin `pages_messaging` no se puede responder un Messenger, y sin
+ * `pages_read_engagement` no llegan los comentarios del muro.
+ */
+const PERMISOS_DE_PAGINA = ['pages_show_list', 'pages_messaging', 'pages_read_engagement'];
+
 export const CAMPOS_DE_WEBHOOK = {
   instagram: ['messages', 'comments'],
   facebook: ['messages', 'feed'],
@@ -155,6 +162,59 @@ export function descubridorGraph(
       `Meta rechazó el token (HTTP ${status}) al ${que}. Revisa que esté completo y no haya caducado.`,
       422,
     );
+
+  /** Permisos que Meta dice que tiene el token, o `null` si no se puede saber. */
+  async function permisosDe(accessToken: string): Promise<string[] | null> {
+    const d = await pedir(
+      `/debug_token?input_token=${encodeURIComponent(accessToken)}`,
+      accessToken,
+    );
+    if (!d.ok) return null;
+    const scopes = arr(obj(d.json['data'])['scopes']).flatMap((x) => str(x) ?? []);
+    return scopes;
+  }
+
+  /**
+   * Por qué no salió ninguna página, dicho con nombres y apellidos.
+   *
+   * Cuando a un token le faltan los permisos de páginas, Meta **no devuelve un
+   * error**: devuelve `data: []` y un 200. El cliente ve «no tienes páginas»,
+   * que es mentira, y se queda mirando su página de Facebook sin entender
+   * nada. Preguntando por los permisos se puede decir lo que de verdad pasa.
+   */
+  async function porQueNingunaPagina(accessToken: string): Promise<never | void> {
+    const permisos = await permisosDe(accessToken);
+    if (!permisos) return;
+    const faltan = PERMISOS_DE_PAGINA.filter((p) => !permisos.includes(p));
+    if (faltan.length === 0) return;
+    throw new ErrorDeNegocio(
+      'permisos_insuficientes',
+      `Este token no tiene ${faltan.join(', ')}. Sin esos permisos Meta devuelve la lista ` +
+        `de páginas vacía aunque administres alguna. Genera el token otra vez marcándolos.`,
+      422,
+    );
+  }
+
+  /**
+   * Una página asignada a un usuario del sistema, con su token de página.
+   *
+   * `assigned_pages` puede devolver `access_token` o no, según cómo esté
+   * concedido el acceso; cuando no viene, se pide a la propia página. Sin ese
+   * token no se puede ni suscribir la página ni responder, así que no vale
+   * devolverla a medias y descubrirlo al enviar.
+   */
+  async function conTokenDePagina(
+    pagina: Obj,
+    paginaId: string,
+    tokenDeUsuario: string,
+  ): Promise<PaginaDescubierta> {
+    const suyo = str(pagina['access_token']);
+    if (suyo) return aPagina(pagina, paginaId, suyo);
+    const r = await pedir(`/${encodeURIComponent(paginaId)}?fields=access_token`, tokenDeUsuario);
+    const token = r.ok ? str(r.json['access_token']) : null;
+    if (!token) throw rechazado(r.status, `obtener el token de la página "${paginaId}"`);
+    return aPagina(pagina, paginaId, token);
+  }
 
   async function numerosDe(wabaId: string, token: string): Promise<WabaDescubierta> {
     const [cuenta, numeros] = await Promise.all([
@@ -230,13 +290,39 @@ export function descubridorGraph(
       const campos = 'id,name,access_token,instagram_business_account{id,username}';
       const r = await pedir(`/me/accounts?fields=${encodeURIComponent(campos)}`, accessToken);
       if (r.ok) {
-        return arr(r.json['data']).flatMap((p) => {
+        const suyas = arr(r.json['data']).flatMap((p) => {
           const pagina = obj(p);
           const paginaId = str(pagina['id']);
           const tokenDePagina = str(pagina['access_token']);
           if (!paginaId || !tokenDePagina) return [];
           return [aPagina(pagina, paginaId, tokenDePagina)];
         });
+        if (suyas.length > 0) return suyas;
+
+        // `/me/accounts` es de tokens de USUARIO. Con uno de usuario del
+        // sistema devuelve `data: []` y un 200 — o sea «no tienes páginas»
+        // sin ningún error, que es la peor forma de fallar. Sus páginas son
+        // las ASIGNADAS en el Business Manager, y ese es otro borde. Mismo
+        // caso que las WABA, arriba (Meta real, 2026-09-17).
+        const asignadas = await pedir(
+          `/me/assigned_pages?fields=${encodeURIComponent(campos)}`,
+          accessToken,
+        );
+        if (asignadas.ok) {
+          const deSistema = await Promise.all(
+            arr(asignadas.json['data']).flatMap((p) => {
+              const pagina = obj(p);
+              const paginaId = str(pagina['id']);
+              if (!paginaId) return [];
+              return [conTokenDePagina(pagina, paginaId, accessToken)];
+            }),
+          );
+          if (deSistema.length > 0) return deSistema;
+        }
+        // Ni por un camino ni por el otro: antes de decir «no tienes páginas»
+        // hay que descartar que el problema sean los permisos.
+        await porQueNingunaPagina(accessToken);
+        return [];
       }
       if (r.status === 401 || obj(r.json['error'])['code'] === 190) {
         throw rechazado(r.status, 'listar tus páginas');

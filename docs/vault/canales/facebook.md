@@ -37,3 +37,27 @@ Prioridad 3 del encargo. Entró en PR-42 **dentro del contrato `ChannelAdapter`*
 - Etiquetas de mensaje para escribir fuera de la ventana.
 
 Relacionado: [[instagram]], [[whatsapp]], [[2026-09-14-embedded-signup]].
+
+## «No tienes ninguna página» siendo mentira (PR-63, 2026-09-17)
+
+El usuario asignó su página al usuario del sistema, generó un token y el asistente le dijo que no veía ninguna página. La página estaba ahí, delante.
+
+### Dos causas, y las dos callaban
+
+**1. `/me/accounts` es de tokens de USUARIO.** Con un token de usuario del sistema devuelve `data: []` y un **200** — «no tienes páginas» sin ningún error. Es el mismo borde que ya nos mordió con las WABA en PR-39, y la solución es la hermana: `GET /me/assigned_pages`, las páginas asignadas a ese usuario en el Business Manager.
+
+Si la página asignada no trae `access_token`, se le pide a ella (`GET /{page-id}?fields=access_token`). Sin token de página no se puede suscribirla ni responder: devolverla a medias sería descubrirlo al enviar, delante de un cliente.
+
+**2. Un token sin permisos de páginas también devuelve la lista vacía.** Comprobado contra Meta el 17/09 con el token real del proyecto: `/me/accounts` y `/me/assigned_pages` devuelven `data: []` y 200, sin decir que faltan `pages_show_list`, `pages_messaging` y `pages_read_engagement`.
+
+Ahora, antes de decir «no tienes páginas», el CRM le pregunta al token por sus permisos (`debug_token`, que un token puede hacer sobre sí mismo) y, si faltan, **los nombra**: «Este token no tiene pages_show_list, pages_messaging, pages_read_engagement. Sin esos permisos Meta devuelve la lista vacía aunque administres alguna».
+
+### Lo que NO es el problema
+
+**El rol del usuario del sistema.** Employee basta si la página está asignada; pasar a Admin no cambia la lista. Lo que decide son las casillas marcadas **al generar el token**.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Ajustes → Canales → Conectar Facebook con un token sin permisos de páginas: sale el mensaje diciendo cuáles faltan, no un «no tienes páginas». Con los permisos y la página asignada, sale la página.
+
+4 tests sin red con las respuestas que Meta da de verdad.

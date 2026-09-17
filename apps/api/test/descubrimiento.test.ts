@@ -236,3 +236,71 @@ describe('Instagram', () => {
     ).toBe(false);
   });
 });
+
+describe('páginas con un token de usuario del sistema', () => {
+  const PAGINA = { id: 'PG1', name: 'Tik o Cos' };
+
+  it('cuando /me/accounts viene vacío, se miran las páginas ASIGNADAS', async () => {
+    // Es el caso real: `/me/accounts` es de tokens de usuario y con uno de
+    // usuario del sistema devuelve `data: []` y un 200, o sea «no tienes
+    // páginas» sin ningún error.
+    const { f, llamadas } = redFalsa({
+      '/me/accounts': { json: { data: [] } },
+      '/me/assigned_pages': { json: { data: [{ ...PAGINA, access_token: 'TOKEN_PAGINA' }] } },
+    });
+    const paginas = await descubridorGraph({ fetch: f }).paginas({ accessToken: 'SISTEMA' });
+    expect(paginas).toEqual([
+      {
+        paginaId: 'PG1',
+        pagina: 'Tik o Cos',
+        tokenDePagina: 'TOKEN_PAGINA',
+        igUserId: null,
+        usuario: null,
+      },
+    ]);
+    expect(llamadas.map((l) => l.ruta.split('?')[0])).toContain('/me/assigned_pages');
+  });
+
+  it('si la página asignada no trae su token, se le pide a ella', async () => {
+    // Sin token de página no se puede ni suscribirla ni responder: devolverla
+    // a medias sería descubrirlo al enviar, delante de un cliente.
+    const { f } = redFalsa({
+      '/me/accounts': { json: { data: [] } },
+      '/me/assigned_pages': { json: { data: [PAGINA] } },
+      '/PG1': { json: { access_token: 'TOKEN_PEDIDO' } },
+    });
+    const paginas = await descubridorGraph({ fetch: f }).paginas({ accessToken: 'SISTEMA' });
+    expect(paginas[0]!.tokenDePagina).toBe('TOKEN_PEDIDO');
+  });
+
+  it('sin permisos de páginas lo DICE, en vez de «no tienes ninguna»', async () => {
+    // Meta responde 200 con la lista vacía cuando faltan los permisos. Decir
+    // «no tienes páginas» a quien está mirando la suya es la peor respuesta.
+    const { f } = redFalsa({
+      '/me/accounts': { json: { data: [] } },
+      '/me/assigned_pages': { json: { data: [] } },
+      '/debug_token': {
+        json: { data: { scopes: ['public_profile', 'whatsapp_business_messaging'] } },
+      },
+    });
+    await expect(
+      descubridorGraph({ fetch: f }).paginas({ accessToken: 'SOLO_WA' }),
+    ).rejects.toMatchObject({
+      codigo: 'permisos_insuficientes',
+      message: expect.stringContaining('pages_show_list'),
+    });
+  });
+
+  it('con los permisos puestos y sin páginas, la lista vacía es la verdad', async () => {
+    const { f } = redFalsa({
+      '/me/accounts': { json: { data: [] } },
+      '/me/assigned_pages': { json: { data: [] } },
+      '/debug_token': {
+        json: {
+          data: { scopes: ['pages_show_list', 'pages_messaging', 'pages_read_engagement'] },
+        },
+      },
+    });
+    expect(await descubridorGraph({ fetch: f }).paginas({ accessToken: 'OK' })).toEqual([]);
+  });
+});

@@ -247,25 +247,39 @@ describe('GET /v1/panel', () => {
       return fila?.entrantes ?? 0;
     };
 
-    it('a las 19:30 de Lima sigue contando lo de esa misma tarde', async () => {
-      // Con el día UTC, a esa hora el panel ya se había puesto a cero y decía
-      // que no se había atendido a nadie, con el equipo trabajando.
-      await conZona('America/Lima');
+    /**
+     * Se mide la DIFERENCIA que produce el mensaje de la tarde, no el total.
+     *
+     * La primera versión comparaba contra cero y pasó un día y falló al
+     * siguiente: los otros tests del fichero siembran con el reloj real, y si
+     * hoy cae dentro del día UTC de referencia, cuentan. Un test que depende
+     * de la fecha en que se ejecuta no prueba nada, solo avisa a destiempo.
+     */
+    it('a las 19:30 de Lima cuenta lo de esa tarde; en UTC ya es otro día', async () => {
       ahora = nocheEnLima;
+
+      await conZona('America/Lima');
+      const conLimaAntes = await actividadDe('whatsapp');
+      await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+      const conUtcAntes = await actividadDe('whatsapp');
+
       const conv = await conversacion({ nombre: 'DeLaTarde' });
       await admin.query(
         `INSERT INTO messages (tenant_id, conversation_id, channel_account_id, direction, type, body, status, created_at)
          VALUES ($1, $2, $3, 'inbound', 'text', 'de la tarde', 'delivered', $4)`,
         [tenantId, conv, ca, tardeEnLima],
       );
-      expect(await actividadDe('whatsapp')).toBeGreaterThanOrEqual(1);
-    });
 
-    it('sin horario configurado se usa UTC: nunca se inventa una zona horaria', async () => {
+      // Para el hotel son las 19:30 del mismo día: ese mensaje cuenta. Antes
+      // del arreglo, el panel se ponía a cero a las 19:00 con el equipo
+      // todavía trabajando.
+      await conZona('America/Lima');
+      expect(await actividadDe('whatsapp')).toBe(conLimaAntes + 1);
+
+      // Sin horario configurado se usa UTC, donde ya es el día siguiente: no
+      // cuenta. Nunca se inventa una zona horaria.
       await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
-      ahora = nocheEnLima;
-      // Para UTC ya es el día 17, así que lo de las 20:00 del 16 no cuenta.
-      expect(await actividadDe('whatsapp')).toBe(0);
+      expect(await actividadDe('whatsapp')).toBe(conUtcAntes);
     });
   });
 });
