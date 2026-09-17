@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Api } from '../../api/cliente.ts';
 import type { Mensaje, ResumenDeConversacion } from '../../api/tipos.ts';
 import { diaDeMensaje, horaDeMensaje, inicial, ventana } from '../../vista/tiempo.ts';
@@ -152,34 +152,41 @@ export function Hilo({
         {!cargando && mensajes.length === 0 && (
           <p className={estilos.sinMensajes}>Todavía no hay mensajes.</p>
         )}
-        {mensajes.map((m, i) => {
-          const anterior = mensajes[i - 1];
-          const dia = diaDeMensaje(m.creado_en);
-          const nuevoDia = !anterior || diaDeMensaje(anterior.creado_en) !== dia;
-          return (
-            <Fragment key={m.id}>
-              {nuevoDia && (
-                <div className={estilos.dia}>
-                  <span className={estilos.diaTexto}>{dia}</span>
-                </div>
-              )}
-              <Burbuja
-                m={m}
-                api={api}
-                /*
-                  Se agrupa por dirección Y por quién escribe: si contestan dos
-                  personas seguidas, agrupar escondería el nombre de la
-                  segunda y el hilo diría que habló una sola.
-                */
-                agrupado={
-                  !nuevoDia &&
-                  anterior?.direccion === m.direccion &&
-                  autorDe(anterior) === autorDe(m)
-                }
-              />
-            </Fragment>
-          );
-        })}
+        {/*
+          Un bloque por día, y no una lista plana con separadores sueltos.
+          Los separadores son `sticky`: si todos cuelgan del mismo padre se
+          pegan al MISMO borde y se apilan unos encima de otros — se leía
+          «Martes, 1 Ayer tiembre». Dentro de su propio bloque, cada uno se
+          queda arriba mientras dura su día y el siguiente lo empuja fuera,
+          que es como se comporta esto en cualquier mensajería.
+        */}
+        {porDias(mensajes).map(({ dia, delDia }) => (
+          <section key={dia} className={estilos.bloqueDeDia}>
+            <div className={estilos.dia}>
+              <span className={estilos.diaTexto}>{dia}</span>
+            </div>
+            {delDia.map((m, i) => {
+              const anterior = delDia[i - 1];
+              return (
+                <Burbuja
+                  key={m.id}
+                  m={m}
+                  api={api}
+                  /*
+                    Se agrupa por dirección Y por quién escribe: si contestan
+                    dos personas seguidas, agrupar escondería el nombre de la
+                    segunda y el hilo diría que habló una sola.
+                  */
+                  agrupado={
+                    anterior !== undefined &&
+                    anterior.direccion === m.direccion &&
+                    autorDe(anterior) === autorDe(m)
+                  }
+                />
+              );
+            })}
+          </section>
+        ))}
         <div ref={fondo} />
       </div>
 
@@ -205,6 +212,18 @@ export function Hilo({
       )}
     </div>
   );
+}
+
+/** Parte los mensajes en bloques por día, conservando el orden. */
+function porDias(mensajes: Mensaje[]): { dia: string; delDia: Mensaje[] }[] {
+  const bloques: { dia: string; delDia: Mensaje[] }[] = [];
+  for (const m of mensajes) {
+    const dia = diaDeMensaje(m.creado_en);
+    const ultimo = bloques[bloques.length - 1];
+    if (ultimo && ultimo.dia === dia) ultimo.delDia.push(m);
+    else bloques.push({ dia, delDia: [m] });
+  }
+  return bloques;
 }
 
 /**

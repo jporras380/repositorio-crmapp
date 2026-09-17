@@ -251,3 +251,25 @@ La causa estaba en el servidor: el worker une los dos datos en `contact_identiti
 La primera versión ponía el nombre del botón en un texto oculto **además** del visible, y un lector de pantalla leía «Copiar Copiar teléfono». Ahora va en `aria-label` y el texto visible dice solo «Copiar», porque al lado ya se ve qué se copia.
 
 6 tests.
+
+## Dos fallos de diseño que solo se ven mirando (PR-75, 2026-09-17)
+
+El usuario mandó una captura: burbujas de tres letras partiendo las palabras («pru / eba», «respo / nde») y el separador de día escrito encima de otro («Martes, 1 Ayer tiembre»). **Los 951 tests estaban en verde.**
+
+### 1. Las burbujas colapsadas — lo rompí yo una hora antes
+
+`.burbuja` tenía `max-inline-size: 72%`, que funcionaba cuando colgaba directamente de la columna de mensajes. Al meterla en una fila para poner la cara al lado (PR-73), ese 72% pasó a calcularse **contra una caja cuyo ancho depende de su contenido**: referencia circular, y el navegador la resuelve encogiéndola al mínimo.
+
+Ahora el ancho lo manda la fila —que sí cuelga de una columna con ancho— y la burbuja usa `100%`.
+
+### 2. Los separadores de día apilados — venía de antes
+
+Son `position: sticky` al borde de arriba. Todos colgaban del mismo padre, así que **se pegaban al mismo sitio y se dibujaban unos encima de otros**.
+
+La solución no es quitar el `sticky`, que es útil: es dar a cada día **su propio bloque**. Dentro de su sección, el separador se queda arriba mientras dura su día y el siguiente lo empuja fuera, que es como se comporta esto en cualquier mensajería.
+
+### La lección, que vale más que los dos arreglos
+
+**Ningún test podía encontrar esto.** jsdom no calcula diseño: no hay anchos, no hay `sticky`, no hay solapamiento. Los tests comprueban que el texto está en el DOM.
+
+Se añadió una forma de capturar la pantalla de verdad: `--headless=old` de Edge (el nuevo sale en negro) con `--virtual-time-budget` y la sesión sembrada por `#sesion=<json>`, que ya existía para desarrollo. Con eso se vio el arreglo antes de darlo por bueno, y así debería mirarse todo cambio visual.

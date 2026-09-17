@@ -169,8 +169,19 @@
     font-size: var(--text-sm);
   }
 
+  /*
+   * El ancho lo manda la FILA, no la burbuja.
+   *
+   * Tenía `max-inline-size: 72%`, que funcionaba cuando la burbuja colgaba
+   * directamente de la columna de mensajes. Al meterla en una fila para poner
+   * la cara al lado (PR-73), ese 72% pasó a calcularse contra una caja cuyo
+   * ancho depende de su contenido: referencia circular, y el navegador la
+   * resuelve encogiéndola al mínimo. El resultado eran burbujas de tres
+   * letras partiendo las palabras («pru / eba»).
+   */
   .burbuja {
-    max-inline-size: min(72%, 36rem);
+    max-inline-size: 100%;
+    min-inline-size: 0;
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-md);
     display: grid;
@@ -180,13 +191,11 @@
     overflow-wrap: anywhere;
   }
   .entrante {
-    align-self: flex-start;
     background: var(--surface-raised);
     border-end-start-radius: 4px;
     box-shadow: 0 1px 2px oklch(0% 0 0 / 0.06);
   }
   .saliente {
-    align-self: flex-end;
     background: var(--accent);
     color: var(--accent-fg);
     border-end-end-radius: 4px;
@@ -209,10 +218,15 @@
   }
   .meta {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     justify-content: flex-end;
     font-size: var(--text-xs);
     opacity: 0.75;
+  }
+  /* La hora y el estado no se parten por la mitad: «10:2 / 6» no es una hora. */
+  .meta > * {
+    white-space: nowrap;
   }
   /* Marca de texto, no de color: se lee igual en burbuja clara y oscura. */
   .ia {
@@ -319,7 +333,8 @@
     display: flex;
     align-items: flex-end;
     gap: var(--space-2);
-    max-inline-size: min(84%, 40rem);
+    /* Aquí sí es un porcentaje de la columna de mensajes, que tiene ancho. */
+    max-inline-size: min(78%, 40rem);
   }
 
   .filaEntrante {
@@ -350,5 +365,18 @@
     inline-size: 100%;
     block-size: 100%;
     object-fit: cover;
+  }
+}
+
+@layer components {
+  /*
+   * Un bloque por día. Es lo que hace que su separador `sticky` se quede
+   * arriba solo mientras dura ese día: al terminar el bloque, el siguiente lo
+   * empuja fuera en vez de apilarse encima.
+   */
+  .bloqueDeDia {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 }
