@@ -165,3 +165,23 @@ Pasó de verdad con PR-57: la imagen seguía fallando después del arreglo, y la
 Ahora los dos arrancan con `tsx watch`. Precio: reiniciar el worker corta un job en vuelo, y el relevo del outbox lo reintenta; es preferible a depurar un proceso que miente sobre qué código ejecuta.
 
 `--clear-screen=false` para no borrar los logs anteriores en cada recarga, que es justo lo que se está mirando cuando se depura.
+
+## Un solo comando para arrancar (PR-61, 2026-09-17)
+
+Arrancar el CRM eran **tres ventanas** (API, worker, web) más **dos pasos que se olvidan**: levantar Docker y aplicar migraciones. Y olvidarse de uno no se parece nunca a su causa:
+
+- Con el worker parado, todo funciona y los mensajes salientes se quedan en cola sin que nadie lo diga.
+- Con la API parada, el túnel «no conecta» — porque detrás no hay nadie escuchando. Pasó el 17/09.
+- Con el worker viejo en marcha, un arreglo recién hecho parece no funcionar. Pasó el 16/09 y costó media hora.
+
+`pnpm arranca` hace las cinco cosas en orden: comprueba PostgreSQL y levanta Docker si hace falta, **espera a que acepte conexiones** (`docker compose up -d` vuelve antes), aplica migraciones, y arranca los tres procesos con los logs prefijados por quién habla. Ctrl+C los baja a los tres — dejar un worker huérfano es la forma de acabar con dos compitiendo y un misterio que depurar.
+
+### Decisiones
+
+- **Sin dependencias.** `spawn` de Node basta; una librería para pintar tres prefijos no se paga con otra dependencia que mantener.
+- **Si las migraciones fallan, se para ahí.** Arrancar con el esquema viejo es la forma de que el fallo aparezca media hora después y en otro sitio.
+- **No abre el túnel, y es deliberado.** `cloudflared` da una URL nueva en cada arranque y hay que pegarla en Meta a mano. Automatizarlo a medias sería peor: daría la sensación de que ya está resuelto. Se recuerda en pantalla, con los tres pasos y el aviso de que la URL cambia.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+`pnpm arranca`, y en el mismo terminal se ve la infraestructura, las migraciones, los tres servicios y el recordatorio del túnel. La web en `localhost:5173`, la API en `localhost:3000`.

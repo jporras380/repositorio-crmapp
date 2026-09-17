@@ -9,6 +9,7 @@
   },
   "scripts": {
     "arch:check": "bash scripts/check-architecture.sh",
+    "arranca": "node scripts/arranca.mjs",
     "build": "turbo run build",
     "db:dev-roles": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts dev-roles",
     "db:migrate": "tsx --tsconfig packages/db/tsconfig.json --env-file=.env packages/db/src/cli.ts migrate",
