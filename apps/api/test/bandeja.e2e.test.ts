@@ -1160,3 +1160,103 @@ describe('quién dijo cada cosa', () => {
     expect(huerfano).toBeTruthy();
   });
 });
+
+describe('cerrar en bloque', () => {
+  const estadoDe = async (id: string) =>
+    (
+      await admin.query<{ status: string; human_reply_at: Date | null }>(
+        `SELECT status, human_reply_at FROM conversations WHERE id = $1`,
+        [id],
+      )
+    ).rows[0]!;
+
+  it('cierra las marcadas y deja de contarlas como sin responder', async () => {
+    const a = await conversacion('Bloque A', { haceHoras: 40 });
+    const b = await conversacion('Bloque B', { haceHoras: 40 });
+
+    const antes = await http
+      .get('/v1/conversaciones')
+      .query({ atencion: 'nueva', limite: 100 })
+      .set(auth())
+      .expect(200);
+    expect(antes.body.items.map((i: { id: string }) => i.id)).toEqual(
+      expect.arrayContaining([a, b]),
+    );
+
+    const r = await http
+      .post('/v1/conversaciones/cerrar')
+      .set(auth())
+      .send({ ids: [a, b] })
+      .expect(200);
+    expect(r.body.cerradas).toBe(2);
+
+    const despues = await http
+      .get('/v1/conversaciones')
+      .query({ atencion: 'nueva', limite: 100 })
+      .set(auth())
+      .expect(200);
+    const ids = despues.body.items.map((i: { id: string }) => i.id);
+    expect(ids).not.toContain(a);
+    expect(ids).not.toContain(b);
+  });
+
+  it('cerrar devuelve el turno a los bots, igual que cerrar una sola', async () => {
+    const c = await conversacion('Bloque Bot', { haceHoras: 5, respondida: true });
+    expect((await estadoDe(c)).human_reply_at).not.toBeNull();
+    await http
+      .post('/v1/conversaciones/cerrar')
+      .set(auth())
+      .send({ ids: [c] })
+      .expect(200);
+    expect((await estadoDe(c)).human_reply_at).toBeNull();
+  });
+
+  it('las que ya estaban cerradas no se cuentan dos veces', async () => {
+    const c = await conversacion('Bloque Repetida', { haceHoras: 6 });
+    await http
+      .post('/v1/conversaciones/cerrar')
+      .set(auth())
+      .send({ ids: [c] })
+      .expect(200);
+    const otra = await http
+      .post('/v1/conversaciones/cerrar')
+      .set(auth())
+      .send({ ids: [c] })
+      .expect(200);
+    // Quien marca cincuenta filas no ha mirado el estado de cada una.
+    expect(otra.body.cerradas).toBe(0);
+  });
+
+  it('una conversación de otra cuenta no se cierra: ni siquiera se ve', async () => {
+    const mia = await conversacion('Bloque Mía', { haceHoras: 7 });
+    const otra = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Ajena cierre',
+        slug: 'ajena-cierre',
+        email: 'ajena-cierre@test.test',
+        contrasena: 'contrasena-muy-larga',
+        nombreCompleto: 'Ajena',
+      })
+      .expect(201);
+
+    // La cabecera se pone a mano: el `auth()` de este fichero usa siempre el
+    // token de la cuenta principal e ignora lo que se le pase, y con él la
+    // petición iba como yo mismo — el test decía «fuga» sin haberla.
+    const r = await http
+      .post('/v1/conversaciones/cerrar')
+      .set({ Authorization: `Bearer ${otra.body.token as string}` })
+      .send({ ids: [mia] })
+      .expect(200);
+    expect(r.body.cerradas).toBe(0);
+    expect((await estadoDe(mia)).status).not.toBe('closed');
+  });
+
+  it('hay un tope: cerrar doscientas de un clic no tiene deshacer', async () => {
+    const muchas = Array.from(
+      { length: 101 },
+      (_, i) => `01a00000-0000-7000-8000-${String(i).padStart(12, '0')}`,
+    );
+    await http.post('/v1/conversaciones/cerrar').set(auth()).send({ ids: muchas }).expect(400);
+  });
+});

@@ -332,6 +332,12 @@ export function crearApi(token: string | null) {
         cuerpo: { grafo, respuestas },
       }),
     // --- Bandeja: aplazar, notas y vistas -----------------------------------
+    cerrarVarias: (ids: string[]) =>
+      peticion<{ cerradas: number }>('/v1/conversaciones/cerrar', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { ids },
+      }),
     aplazar: (id: string, hasta: string | null) =>
       peticion<void>(`/v1/conversaciones/${id}/aplazar`, {
         ...t,

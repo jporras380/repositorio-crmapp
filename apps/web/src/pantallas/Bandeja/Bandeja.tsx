@@ -25,7 +25,6 @@ import {
 import { useEventos } from '../../estado/eventos.ts';
 import { useAvisos } from '../../estado/avisos.ts';
 import estilos from './Bandeja.module.css';
-
 interface Props {
   sesion: Sesion;
   conversacionInicial: string | null;
@@ -62,6 +61,14 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
   const [cursor, setCursor] = useState<string | null>(null);
   // La conversación abierta vive en la URL (#c=<id>): se puede recargar y compartir.
   const [seleccionadaId, setSeleccionadaIdEstado] = useState<string | null>(conversacionInicial);
+  /**
+   * Las marcadas para cerrar en bloque.
+   *
+   * La bandeja acumula consultas viejas que nadie va a responder y cada una
+   * cuenta como «sin responder» en el panel. Cerrarlas de una en una son
+   * cincuenta clics, así que no se hace y el panel deja de significar nada.
+   */
+  const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
   const setSeleccionadaId = useCallback((id: string | null) => {
     setSeleccionadaIdEstado(id);
     history.replaceState(null, '', id ? `#c=${id}` : location.pathname);
@@ -163,6 +170,22 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
     }
   });
 
+  /** Cierra de golpe lo marcado. */
+  async function cerrarMarcadas() {
+    const ids = [...marcadas];
+    if (ids.length === 0) return;
+    try {
+      await api.cerrarVarias(ids);
+      setMarcadas(new Set());
+      // Si estaba abierta una de las cerradas, se deja de mostrar: seguir
+      // viéndola abierta después de cerrarla es un estado que no existe.
+      if (seleccionadaId && ids.includes(seleccionadaId)) setSeleccionadaId(null);
+    } finally {
+      // Se recarga pase lo que pase: así se ve qué quedó cerrado de verdad.
+      await cargarLista();
+    }
+  }
+
   async function cargarMas() {
     if (!cursor) return;
     const p = await api.conversaciones({ ...filtros, cursor });
@@ -247,8 +270,33 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
             {avisos.sonido ? 'Silenciar el aviso' : 'Activar el aviso con sonido'}
           </span>
         </button>
+        {/*
+          Barra de selección: aparece solo cuando hay algo marcado. Un panel
+          con acciones siempre visibles ocupa sitio para no hacer nada el 99%
+          del tiempo.
+        */}
+        {marcadas.size > 0 && (
+          <div className={estilos.barraDeSeleccion}>
+            <span>{marcadas.size} marcadas</span>
+            <button className={estilos.cerrarVarias} onClick={() => void cerrarMarcadas()}>
+              Cerrar
+            </button>
+            <button className={estilos.quitarMarcas} onClick={() => setMarcadas(new Set())}>
+              Cancelar
+            </button>
+          </div>
+        )}
         <ListaDeConversaciones
           items={items}
+          marcadas={marcadas}
+          alMarcar={(id, v) =>
+            setMarcadas((antes) => {
+              const nuevo = new Set(antes);
+              if (v) nuevo.add(id);
+              else nuevo.delete(id);
+              return nuevo;
+            })
+          }
           seleccionadaId={seleccionadaId}
           cargando={cargando}
           error={error}

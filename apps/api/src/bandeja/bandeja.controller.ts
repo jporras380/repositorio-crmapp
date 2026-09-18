@@ -19,6 +19,10 @@ import { AuthGuard, conContextoDePeticion } from '../auth/auth.guard.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import type { BandejaService, PeticionDeEnvio } from './bandeja.service.js';
 
+const CierreEnBloque = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+});
+
 const Filtros = z.object({
   canal: z.enum(['whatsapp', 'instagram', 'facebook', 'tiktok']).optional(),
   tipo: z.enum(['dm', 'comment_thread']).optional(),
@@ -174,6 +178,14 @@ export class BandejaController {
   }
 
   /** `hasta: null` la despierta ya. */
+  /** Cerrar varias de una vez: la bandeja se limpia sin cincuenta clics. */
+  @Post('conversaciones/cerrar')
+  @HttpCode(200)
+  async cerrarVarias(@Req() req: Req, @Body() body: unknown) {
+    const d = validar(CierreEnBloque, body);
+    return conContextoDePeticion(req, () => this.bandeja.cerrarVarias(d.ids));
+  }
+
   @Patch('conversaciones/:id/aplazar')
   @HttpCode(204)
   async aplazar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {

@@ -257,3 +257,43 @@
     white-space: nowrap;
   }
 }
+
+@layer components {
+  /* Fila con su casilla de selección al margen. */
+  .filaConMarca {
+    position: relative;
+  }
+
+  .marcaCaja {
+    position: absolute;
+    inset-block-start: 0.55rem;
+    inset-inline-start: 0.35rem;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    inline-size: 1.1rem;
+    block-size: 1.1rem;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  /* Al pasar por encima aparece; con algo marcado se queda fija. */
+  .filaConMarca:hover .marcaCaja,
+  .marcaCaja:focus-within,
+  .marcaVisible {
+    opacity: 1;
+  }
+
+  .marcaCaja input {
+    inline-size: 1rem;
+    block-size: 1rem;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+
+  /* Con la casilla a la vista, el avatar se corre para no quedar debajo. */
+  .marcaVisible ~ .fila .avatar,
+  .filaConMarca:hover .fila .avatar {
+    opacity: 0.35;
+  }
+}

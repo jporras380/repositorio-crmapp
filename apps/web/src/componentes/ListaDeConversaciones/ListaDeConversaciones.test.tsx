@@ -48,6 +48,8 @@ describe('ListaDeConversaciones', () => {
           },
         ]}
         seleccionadaId={null}
+        marcadas={new Set()}
+        alMarcar={vi.fn()}
         cargando={false}
         error={null}
         hayMas={false}
@@ -73,6 +75,8 @@ describe('ListaDeConversaciones', () => {
       <ListaDeConversaciones
         items={[]}
         seleccionadaId={null}
+        marcadas={new Set()}
+        alMarcar={vi.fn()}
         cargando={false}
         error={null}
         hayMas={false}
@@ -85,6 +89,8 @@ describe('ListaDeConversaciones', () => {
       <ListaDeConversaciones
         items={[]}
         seleccionadaId={null}
+        marcadas={new Set()}
+        alMarcar={vi.fn()}
         cargando={false}
         error="Sin conexión"
         hayMas={false}
@@ -103,6 +109,8 @@ describe('ListaDeConversaciones', () => {
           { ...base, id: 'c2', relevo: null },
         ]}
         seleccionadaId={null}
+        marcadas={new Set()}
+        alMarcar={vi.fn()}
         cargando={false}
         error={null}
         hayMas={false}

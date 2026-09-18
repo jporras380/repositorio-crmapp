@@ -285,3 +285,26 @@ Con la lista llena no se notaba —el panel se llenaba igual— y por eso llevab
 Ahora el panel apila en columna: cualquier número de cabeceras cabe, y el último hijo —la lista, o el aviso de «nada por aquí»— se queda con lo que sobra. De paso, la campana de silencio pasó a `align-self`, porque `justify-self` no hace nada en una columna flexible.
 
 **El patrón, que se repite:** una plantilla de rejilla con filas contadas a mano se rompe en silencio la primera vez que alguien añade un hijo. Una columna flexible no tiene ese fallo posible.
+
+## Cerrar en bloque (PR-77, 2026-09-18)
+
+«¿Qué tal si no quiero responder el mensaje de ciertos clientes, y cerrar la conversación de forma masiva?»
+
+El caso es real y diario: la bandeja acumula consultas que ya no van a responderse —el que preguntó un precio en marzo, el que nunca contestó— y **cada una cuenta como «sin responder» en el panel**. Cerrarlas de una en una son cincuenta clics, así que no se hace, y el panel deja de significar nada.
+
+Cerrar ya resolvía las dos cosas que pedía el usuario: la conversación sale del filtro «sin responder» y deja de contar en el panel, porque el estado de atención de una cerrada es `cerrada`. Lo que faltaba era poder hacerlo de golpe.
+
+### Decisiones
+
+- **Todo en una transacción.** O se cierran las que se pidieron, o ninguna: media tanda obliga a adivinar por dónde iba.
+- **Tope de 100.** No es una limitación técnica: cerrar doscientas de un clic sin querer **no tiene deshacer**, y reabrirlas una a una sería peor que el problema original.
+- **Las ya cerradas se ignoran sin ruido.** Quien marca cincuenta filas no ha mirado el estado de cada una.
+- **Cerrar devuelve el turno a los bots**, igual que cerrar una sola: el siguiente mensaje del contacto es una consulta nueva.
+- **La casilla aparece al pasar por encima y se queda fija en cuanto hay algo marcado.** Mientras se seleccionan veinte, esconder las demás obligaría a cazar cada fila con el ratón.
+- **La barra de acciones solo existe con algo marcado.** Un panel de acciones siempre visible ocupa sitio para no hacer nada el 99 % del tiempo.
+
+### Un susto que resultó ser del test
+
+El test de aislamiento entre cuentas falló diciendo que otra cuenta había cerrado una conversación ajena. No era eso: el ayudante `auth()` de ese fichero **usa siempre el token de la cuenta principal e ignora lo que se le pase**, así que la petición iba como uno mismo. Se pone la cabecera a mano y queda anotado, porque el siguiente que escriba un test de aislamiento ahí va a tropezar igual.
+
+5 tests de servidor.

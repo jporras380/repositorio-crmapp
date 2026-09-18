@@ -104,6 +104,15 @@ export interface OpcionesDeBandeja {
   ahora?: () => Date;
 }
 
+/**
+ * Tope de un cierre en bloque.
+ *
+ * No es una limitación técnica: es que cerrar doscientas conversaciones de un
+ * clic sin querer no tiene deshacer, y reabrirlas una a una sería peor que el
+ * problema que se venía a resolver.
+ */
+const LIMITE_DE_CIERRE = 100;
+
 const LIMITE_POR_DEFECTO = 30;
 const LIMITE_MAXIMO = 100;
 
@@ -595,6 +604,55 @@ export class BandejaService {
          VALUES ($1, $2, 'conversacion.estado', 'conversation', $3, $4)`,
         [ctx.tenantId, ctx.userId, conversationId, JSON.stringify({ estado })],
       );
+    });
+  }
+
+  /**
+   * Cierra varias conversaciones de una vez.
+   *
+   * El caso real: la bandeja acumula consultas viejas que ya no van a
+   * responderse —el que preguntó un precio en marzo, el que nunca contestó— y
+   * cada una cuenta como «sin responder» en el panel. Cerrarlas de una en una
+   * son cincuenta clics, así que no se hace, y el panel deja de significar
+   * nada.
+   *
+   * **Todo en una transacción**: o se cierran las que se pidieron, o ninguna.
+   * Media tanda cerrada obliga a adivinar por dónde iba.
+   *
+   * Las que ya estaban cerradas se ignoran sin ruido: quien marca cincuenta
+   * filas no tiene por qué haber mirado el estado de cada una.
+   */
+  async cerrarVarias(ids: string[]): Promise<{ cerradas: number }> {
+    const ctx = this.#exigirContexto();
+    if (ids.length === 0) return { cerradas: 0 };
+    if (ids.length > LIMITE_DE_CIERRE) {
+      throw new ErrorDeNegocio(
+        'demasiadas',
+        `Se pueden cerrar hasta ${LIMITE_DE_CIERRE} a la vez.`,
+        422,
+      );
+    }
+    return this.#db.enTransaccion(async (c) => {
+      // RLS filtra las de otra cuenta: lo que no se ve, no se cierra.
+      const { rows } = await c.query<{ id: string }>(
+        `UPDATE conversations
+            SET status = 'closed', closed_at = now(),
+                -- Cerrar devuelve el turno a los bots, igual que cerrar una
+                -- sola: el siguiente mensaje es una consulta nueva.
+                human_reply_at = NULL,
+                updated_at = now()
+          WHERE id = ANY($1::uuid[]) AND status <> 'closed'
+        RETURNING id`,
+        [ids],
+      );
+      if (rows.length > 0) {
+        await c.query(
+          `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+           VALUES ($1, $2, 'conversacion.cerrada_en_bloque', 'conversation', NULL, $3)`,
+          [ctx.tenantId, ctx.userId, JSON.stringify({ ids: rows.map((r) => r.id) })],
+        );
+      }
+      return { cerradas: rows.length };
     });
   }
 

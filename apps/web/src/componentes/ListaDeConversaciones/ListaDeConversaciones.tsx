@@ -6,6 +6,9 @@ import estilos from './ListaDeConversaciones.module.css';
 interface Props {
   items: ResumenDeConversacion[];
   seleccionadaId: string | null;
+  /** Las marcadas para cerrar en bloque. Vacío = no hay selección en curso. */
+  marcadas: Set<string>;
+  alMarcar: (id: string, marcada: boolean) => void;
   cargando: boolean;
   error: string | null;
   hayMas: boolean;
@@ -23,6 +26,8 @@ const ATENCION: Record<string, string> = {
 export function ListaDeConversaciones({
   items,
   seleccionadaId,
+  marcadas,
+  alMarcar,
   cargando,
   error,
   hayMas,
@@ -53,6 +58,9 @@ export function ListaDeConversaciones({
           key={c.id}
           c={c}
           activa={c.id === seleccionadaId}
+          marcada={marcadas.has(c.id)}
+          hayMarcadas={marcadas.size > 0}
+          alMarcar={(v) => alMarcar(c.id, v)}
           alSeleccionar={() => alSeleccionar(c.id)}
         />
       ))}
@@ -68,16 +76,37 @@ export function ListaDeConversaciones({
 function Fila({
   c,
   activa,
+  marcada,
+  hayMarcadas,
+  alMarcar,
   alSeleccionar,
 }: {
   c: ResumenDeConversacion;
   activa: boolean;
+  marcada: boolean;
+  hayMarcadas: boolean;
+  alMarcar: (v: boolean) => void;
   alSeleccionar: () => void;
 }) {
   const v = ventana(c.ventanaExpiraEn);
   const nombre = c.contacto.nombre ?? c.contacto.handle ?? 'Sin nombre';
   return (
-    <li>
+    <li className={estilos.filaConMarca}>
+      {/*
+        La casilla se ve al pasar por encima, y se queda fija en cuanto hay
+        alguna marcada: mientras se seleccionan veinte, esconder las demás
+        obligaría a cazar cada fila con el ratón.
+      */}
+      <label
+        className={`${estilos.marcaCaja} ${hayMarcadas || marcada ? estilos.marcaVisible : ''}`}
+      >
+        <input
+          type="checkbox"
+          checked={marcada}
+          onChange={(e) => alMarcar(e.target.checked)}
+          aria-label={`Marcar la conversación de ${nombre}`}
+        />
+      </label>
       <button
         className={`${estilos.fila} ${activa ? estilos.activa : ''} ${c.noLeidos > 0 ? estilos.noLeida : ''}`}
         onClick={alSeleccionar}
