@@ -154,4 +154,76 @@
     color: var(--fg-muted);
     font-size: var(--text-sm);
   }
+
+  /* ---------------------------------------------------------------------
+     Verificación en dos pasos (0035)
+     --------------------------------------------------------------------- */
+
+  .preparado,
+  .recuperacion {
+    display: grid;
+    gap: 0.5rem;
+    justify-items: start;
+  }
+
+  /* La clave se teclea a mano en el móvil mirando esta pantalla: monoespaciada
+     y con aire, para no confundir un 0 con una O al octavo carácter. */
+  .secreto {
+    font-family: var(--font-mono);
+    font-size: var(--text-md);
+    letter-spacing: 0.06em;
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface-2);
+    color: var(--fg);
+    user-select: all;
+    word-break: break-all;
+  }
+
+  .entradaCodigo {
+    max-width: 10rem;
+    font-family: var(--font-mono);
+    letter-spacing: 0.18em;
+  }
+
+  /* No es una pista más: si se va de la pantalla sin copiarlos, no vuelven. */
+  .avisoFuerte {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--fg);
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .codigos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, max-content));
+    gap: 0.25rem 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--fg);
+  }
+
+  .pistaMenor {
+    margin: 0;
+    font-size: 0.68rem;
+    color: var(--fg-muted);
+    max-width: 30rem;
+  }
+
+  /* El enlace «Abrir en la app» comparte aspecto con los botones, pero es un
+     <a> de verdad: en el móvil abre el autenticador, y eso un <button> no
+     puede hacerlo. */
+  a.secundario {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
 }

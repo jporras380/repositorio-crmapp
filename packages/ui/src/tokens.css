@@ -50,6 +50,19 @@
     --surface: light-dark(oklch(100% 0 0 / 0.72), oklch(24% 0.02 262 / 0.66));
     --surface-raised: light-dark(oklch(100% 0 0 / 0.92), oklch(30% 0.022 262 / 0.85));
     --surface-solida: light-dark(oklch(100% 0 0), var(--graphite-700));
+    /**
+     * Superficie hundida: campos de texto y celdas dentro de una tarjeta.
+     *
+     * Cinco hojas la venían usando sin que existiera, así que esos fondos
+     * salían transparentes y el campo se confundía con la tarjeta. Va un pelo
+     * por DEBAJO de `--surface`, que es lo que hace que un input parezca un
+     * hueco y no un relieve.
+     */
+    --surface-2: light-dark(oklch(97% 0.004 255 / 0.85), oklch(20% 0.018 262 / 0.6));
+    /** Alias de `--surface`: se escribió así en dos hojas y no existía. */
+    --surface-1: var(--surface);
+    /** Lo que se lee ENCIMA del acento. Mismo valor que `--accent-fg`. */
+    --sobre-accent: var(--accent-fg);
     --hairline: light-dark(oklch(20% 0.02 262 / 0.09), oklch(100% 0 0 / 0.09));
     --blur: 28px;
     --saturate: 180%;
@@ -83,6 +96,13 @@
     /* --- Tipografía ----------------------------------------------------- */
     --font-ui:
       'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    /**
+     * Para lo que se copia carácter a carácter: claves del segundo factor,
+     * códigos de recuperación, identificadores. El ancho fijo es lo que deja
+     * ver que falta un dígito, y distingue el 0 de la O.
+     */
+    --font-mono:
+      ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', Menlo, monospace;
     --text-xs: 0.75rem;
     --text-sm: 0.8125rem;
     --text-md: 0.9375rem;

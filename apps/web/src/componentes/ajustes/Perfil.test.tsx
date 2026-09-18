@@ -121,3 +121,113 @@ describe('Perfil', () => {
     expect(api.editarPerfil).toHaveBeenCalledWith({ nombre: 'Rosa Quispe' });
   });
 });
+
+/**
+ * Verificación en dos pasos (0035).
+ *
+ * Lo que se prueba es que nadie se quede fuera de su cuenta por descuido de
+ * esta pantalla: que no se active hasta comprobar un código, que los códigos
+ * de recuperación se vean antes de poder seguir, y que quitarla pida la
+ * contraseña.
+ */
+describe('Perfil · dos pasos', () => {
+  const CON_DOS_PASOS = {
+    userId: 'u1',
+    nombre: 'Rosa Jefa',
+    email: 'rosa@hotel.test',
+    fotoId: null,
+    dobleFactor: true,
+  };
+
+  function apiConDosPasos(extra: Record<string, unknown> = {}) {
+    return apiFalsa({
+      prepararDosPasos: vi
+        .fn()
+        .mockResolvedValue({ secreto: 'JBSWY3DPEHPK3PXP', enlace: 'otpauth://totp/CRM:rosa' }),
+      confirmarDosPasos: vi
+        .fn()
+        .mockResolvedValue({ codigosDeRecuperacion: ['AAAAA-BBBBB', 'CCCCC-DDDDD'] }),
+      quitarDosPasos: vi.fn().mockResolvedValue(undefined),
+      ...extra,
+    });
+  }
+
+  it('apagada, se ofrece activarla y nada más', async () => {
+    render(<Perfil api={apiConDosPasos()} />);
+    expect(await screen.findByRole('button', { name: 'Activar' })).toBeTruthy();
+    expect(screen.queryByLabelText('Código de la aplicación')).toBeNull();
+  });
+
+  it('preparar enseña la clave en grupos y NO la activa', async () => {
+    const api = apiConDosPasos();
+    render(<Perfil api={api} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Activar' }));
+
+    // En grupos de cuatro: se teclea a mano mirando esta pantalla.
+    expect(await screen.findByText('JBSW Y3DP EHPK 3PXP')).toBeTruthy();
+    expect(api.confirmarDosPasos).not.toHaveBeenCalled();
+    // El hueco del QR se admite en pantalla, no se esconde.
+    expect(screen.getByText(/código QR/)).toBeTruthy();
+  });
+
+  it('confirmar manda el código y enseña los de recuperación una sola vez', async () => {
+    const api = apiConDosPasos();
+    render(<Perfil api={api} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Activar' }));
+    await userEvent.type(await screen.findByLabelText('Código de la aplicación'), '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar y activar' }));
+
+    expect(api.confirmarDosPasos).toHaveBeenCalledWith('123456');
+    expect(await screen.findByText('AAAAA-BBBBB')).toBeTruthy();
+    expect(screen.getByText('CCCCC-DDDDD')).toBeTruthy();
+    // Con un aviso que dice que no vuelven, porque no vuelven.
+    expect(screen.getByText(/única vez que se muestran/)).toBeTruthy();
+  });
+
+  it('un código corto no deja pulsar: seis dígitos o nada', async () => {
+    render(<Perfil api={apiConDosPasos()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Activar' }));
+    await userEvent.type(await screen.findByLabelText('Código de la aplicación'), '123');
+    expect(
+      (screen.getByRole('button', { name: 'Confirmar y activar' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it('si el código falla, se dice y se vacía el campo', async () => {
+    const api = apiConDosPasos({
+      confirmarDosPasos: vi
+        .fn()
+        .mockRejectedValue(new ErrorDeApi(403, 'codigo_invalido', 'Ese código no es válido.')),
+    });
+    render(<Perfil api={api} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Activar' }));
+    const campo = await screen.findByLabelText('Código de la aplicación');
+    await userEvent.type(campo, '000000');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar y activar' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('no es válido');
+    expect((campo as HTMLInputElement).value).toBe('');
+  });
+
+  it('activada, quitarla exige la contraseña', async () => {
+    const api = apiConDosPasos({
+      perfil: vi.fn().mockResolvedValue(CON_DOS_PASOS),
+    });
+    render(<Perfil api={api} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Desactivar' }));
+
+    await userEvent.type(screen.getByLabelText('Tu contraseña'), 'secreta-larga');
+    await userEvent.click(screen.getByRole('button', { name: 'Desactivar' }));
+    expect(api.quitarDosPasos).toHaveBeenCalledWith('secreta-larga');
+  });
+
+  it('sin contraseña no se puede desactivar ni por descuido', async () => {
+    const api = apiConDosPasos({ perfil: vi.fn().mockResolvedValue(CON_DOS_PASOS) });
+    render(<Perfil api={api} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Desactivar' }));
+    expect((screen.getByRole('button', { name: 'Desactivar' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(api.quitarDosPasos).not.toHaveBeenCalled();
+  });
+});

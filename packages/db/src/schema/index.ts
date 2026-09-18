@@ -71,7 +71,6 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   /** Foto de perfil como medio propio, con URL firmada al pintarla (0034). */
   avatarMediaId: uuid('avatar_media_id'),
-  mfaSecretId: uuid('mfa_secret_id'),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: creado,
   updatedAt: actualizado,
@@ -132,6 +131,25 @@ export const sessions = pgTable('sessions', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   revokedReason: text('revoked_reason'),
+  createdAt: creado,
+});
+
+/** Segundo factor de una PERSONA, no de una cuenta (0035). */
+export const userMfa = pgTable('user_mfa', {
+  userId: uuid('user_id').primaryKey(),
+  ciphertext: bytea('ciphertext').notNull(),
+  dekWrapped: bytea('dek_wrapped').notNull(),
+  keyVersion: integer('key_version').notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  createdAt: creado,
+});
+
+/** Códigos de recuperación, hasheados: perder el móvil no es perder la cuenta. */
+export const userMfaRecovery = pgTable('user_mfa_recovery', {
+  id: uuid('id').primaryKey(),
+  userId: uuid('user_id').notNull(),
+  codeHash: text('code_hash').notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
   createdAt: creado,
 });
 

@@ -64,6 +64,15 @@
     box-shadow: var(--ring);
   }
 
+  /* Seis dígitos que se copian de una pantalla a otra: holgados y monoespaciados,
+     que es como se comprueba de un vistazo que no falta ninguno. */
+  .codigo {
+    font-family: var(--font-mono);
+    font-size: var(--text-lg);
+    letter-spacing: 0.18em;
+    text-align: center;
+  }
+
   .error {
     font-size: var(--text-sm);
     color: var(--danger);
@@ -88,5 +97,15 @@
   .boton:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+
+  /* Salida del segundo paso: quien se equivocó de cuenta no debe recargar. */
+  .volver {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    padding: var(--space-1);
+  }
+  .volver:hover {
+    color: var(--fg);
   }
 }

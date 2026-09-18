@@ -41,6 +41,8 @@ const LoginDto = z.object({
   email: z.string().email(),
   contrasena: z.string().min(1),
   tenantSlug: z.string().optional(),
+  /** Del autenticador o de recuperación. Solo si esa persona lo tiene puesto. */
+  codigo: z.string().min(6).max(20).optional(),
 });
 
 const InvitacionDto = z.object({
@@ -90,6 +92,8 @@ function accesoDe(req: Req): { ip?: string; userAgent?: string } {
   };
 }
 
+const CodigoDto = z.object({ codigo: z.string().min(6).max(20) });
+
 const PerfilDto = z
   .object({
     nombre: z.string().min(1).max(120).optional(),
@@ -123,7 +127,7 @@ export class AuthController {
   @HttpCode(200)
   async login(@Req() req: Req, @Body() body: unknown) {
     const d = validar(LoginDto, body);
-    return this.auth.iniciarSesion(d.email, d.contrasena, d.tenantSlug, accesoDe(req));
+    return this.auth.iniciarSesion(d.email, d.contrasena, d.tenantSlug, accesoDe(req), d.codigo);
   }
 
   @Post('v1/invitaciones/aceptar')
@@ -144,6 +148,31 @@ export class AuthController {
   @UseGuards(AuthGuard)
   miembros(@Req() req: { contexto?: unknown }) {
     return conContextoDePeticion(req, () => this.auth.miembros());
+  }
+
+  /** Prepara el segundo factor: devuelve el secreto para meterlo en la app. */
+  @Post('v1/perfil/dos-pasos')
+  @UseGuards(AuthGuard)
+  @HttpCode(200)
+  async prepararDosPasos(@Req() req: { contexto?: unknown }) {
+    return conContextoDePeticion(req, () => this.auth.prepararDosPasos());
+  }
+
+  /** Lo activa comprobando un código, y entrega los de recuperación una vez. */
+  @Post('v1/perfil/dos-pasos/confirmar')
+  @UseGuards(AuthGuard)
+  @HttpCode(200)
+  async confirmarDosPasos(@Req() req: { contexto?: unknown }, @Body() body: unknown) {
+    const d = validar(CodigoDto, body);
+    return conContextoDePeticion(req, () => this.auth.confirmarDosPasos(d.codigo));
+  }
+
+  @Delete('v1/perfil/dos-pasos')
+  @UseGuards(AuthGuard)
+  @HttpCode(204)
+  async quitarDosPasos(@Req() req: { contexto?: unknown }, @Body() body: unknown) {
+    const d = validar(z.object({ contrasenaActual: z.string().min(1) }), body);
+    await conContextoDePeticion(req, () => this.auth.quitarDosPasos(d.contrasenaActual));
   }
 
   @Get('v1/perfil')

@@ -320,3 +320,54 @@ Es un fallo que **ningún test iba a encontrar**: los tests comprueban que el te
 ### Lo que no pude comprobar
 
 Intenté capturar la pantalla con Edge headless, como en sesiones anteriores, y sale **en negro incluso en la pantalla de acceso** — falla el entorno de captura, no el cambio. Queda pendiente de mirar a ojo.
+
+## Verificación en dos pasos (PR-78, 2026-09-18)
+
+Una contraseña robada bastaba para entrar en la bandeja de un hotel: leer lo que escriben los huéspedes, contestar en nombre del negocio, ver teléfonos. Desde aquí hace falta además el móvil de la persona.
+
+**TOTP y nada más** (RFC 6238, el de Google Authenticator, Authy, 1Password y el gestor del propio móvil). No hay SMS —cuesta dinero por mensaje y el secuestro de SIM es común en Perú— ni correo, que es exactamente la cuenta que suele caer junto a la contraseña. El algoritmo entero son unas ochenta líneas en `packages/core/src/totp.ts`, sin ninguna dependencia nueva, y está probado contra los vectores del apéndice B del RFC.
+
+### Dónde vive el secreto, y por qué ahí
+
+Migración 0035: `user_mfa` y `user_mfa_recovery`. **Sin `tenant_id` y sin RLS de inquilino**, y las dos cosas son deliberadas:
+
+- El segundo factor es de la **persona**, no de la empresa. La misma persona puede estar en dos cuentas y no va a llevar dos móviles.
+- Se comprueba **al iniciar sesión**, cuando todavía no hay inquilino en el contexto: una política por inquilino no tendría a qué agarrarse.
+
+Lo que las protege es el reparto de permisos: solo el rol `crmapp_auth` las toca; el rol de la aplicación no tiene ni `SELECT`. Como eso no lo vigila la guarda de RLS, hay un test que lo comprueba **y que se demuestra a sí mismo**: concede el permiso que no debe existir, verifica que la consulta lo detecta, y lo revoca. Un test que no puede fallar no protege de nada.
+
+El secreto va cifrado con el mismo sobre que las credenciales de canal: quien lea esa tabla podría generar códigos válidos para siempre.
+
+### Dos fuentes de verdad, y se quedó una
+
+`users.mfa_secret_id` llevaba desde la fase 0 como hueco reservado para un diseño que nunca existió. Estaba a NULL en todas las filas. Dejarlo habría significado **dos sitios donde preguntar «¿esta persona tiene segundo factor?»** — y el primer test que escribí falló justo por eso: el perfil miraba la columna vieja mientras la activación escribía en la tabla nueva. Se elimina en 0035; la reversa lo devuelve vacío, que es como estuvo siempre.
+
+### Preparar no es activar
+
+Guardar un secreto al pulsar «Activar» deja fuera de su propia cuenta a quien cierre la pestaña antes de configurar la app. Así que se queda **sin confirmar** hasta que la persona teclea un código que sale de su móvil; solo entonces protege, y solo entonces se entregan los de recuperación.
+
+**Ocho códigos de recuperación**, mostrados una sola vez y guardados hasheados como las contraseñas: ni el servidor puede volver a enseñarlos. Es incómodo a propósito — si el CRM pudiera recuperarlos, quien entrara al CRM también. Cada uno sirve una vez, y confirmar de nuevo borra los anteriores.
+
+**Quitarlo pide la contraseña.** Si no, una sesión olvidada abierta en el ordenador de recepción bastaría para desactivar la protección.
+
+### El código va en un segundo paso
+
+Un campo «código» siempre visible confunde a las nueve de cada diez cuentas que no lo tienen: parece obligatorio. Además un TOTP caduca cada 30 segundos, así que pedirlo antes de escribir la contraseña es pedir uno que ya habrá vencido. Manda el servidor: si contesta `codigo_requerido`, la contraseña era buena y solo falta el factor. Un código rechazado vacía el campo, porque reenviar el mismo nunca es lo que se quiere.
+
+### Lo que falta: el código QR
+
+Se enseña la clave en grupos de cuatro y un enlace `otpauth://` que en el móvil abre la app ya configurada. **No hay QR**: pintarlo exige una librería, y el acuerdo es no meter dependencias por comodidad. Desde el escritorio hay que teclear dieciséis caracteres una vez. Está dicho en la propia pantalla, no escondido.
+
+### De paso: tokens de CSS que no existían
+
+`--surface-2` se usaba en cinco hojas y **no lo declaraba nadie**: CSS resuelve un token inexistente a vacío y sigue pintando, así que esos campos llevaban meses saliendo transparentes. Lo mismo `--surface-1` y `--sobre-accent`. Es el reverso del fallo de «declarado y sin usar», y ahora `check-puertas.mjs` también lo vigila: cualquier `var(--x)` sin valor de respaldo que nadie declare —ni en CSS ni con `setProperty` desde un componente— rompe el build.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Ajustes → Mi cuenta → Verificación en dos pasos → **Activar**. Copia la clave en Google Authenticator (o el gestor del móvil).
+2. Teclea el código de seis dígitos → **Confirmar y activar**. Aparecen ocho códigos de recuperación: copia uno.
+3. Cierra sesión y vuelve a entrar: tras la contraseña pide el código. Escribe el del móvil.
+4. Sal otra vez y entra con **el código de recuperación** que copiaste. Funciona. Repite con el mismo: ya no.
+5. **Desactivar** pide la contraseña; con una equivocada no se quita.
+
+7 tests de pantalla (perfil), 5 de acceso, 8 de servidor, 14 del algoritmo TOTP contra el RFC.

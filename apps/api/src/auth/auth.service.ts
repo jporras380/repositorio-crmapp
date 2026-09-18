@@ -9,7 +9,13 @@
 import { randomBytes, createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import jwt from 'jsonwebtoken';
-import { hashearContrasena, verificarContrasena, igualesEnTiempoConstante } from '@crmapp/crypto';
+import {
+  hashearContrasena,
+  verificarContrasena,
+  igualesEnTiempoConstante,
+  type Cifrador,
+} from '@crmapp/crypto';
+import { aBase32, enlaceDeAutenticador, esCodigoValido } from '@crmapp/core';
 import {
   cabeUnoMas,
   ErrorDeNegocio,
@@ -62,6 +68,8 @@ export interface SesionAbierta {
 
 export interface OpcionesDeAuth {
   db: BaseDeDatos;
+  /** Para el secreto del segundo factor, que va cifrado (0035). */
+  cifrador: Cifrador;
   jwtSecret: string;
   ttlSegundos?: number;
   /** Reloj inyectable: probar el fin de la prueba exige controlarlo. */
@@ -71,12 +79,14 @@ export interface OpcionesDeAuth {
 export class AuthService {
   readonly #db: BaseDeDatos;
   readonly #secret: string;
+  readonly #cifrador: Cifrador;
   readonly #ttl: number;
   readonly #ahora: () => Date;
 
   constructor(opciones: OpcionesDeAuth) {
     this.#db = opciones.db;
     this.#secret = opciones.jwtSecret;
+    this.#cifrador = opciones.cifrador;
     this.#ttl = opciones.ttlSegundos ?? 60 * 60 * 8;
     this.#ahora = opciones.ahora ?? (() => new Date());
   }
@@ -199,6 +209,8 @@ export class AuthService {
     contrasena: string,
     tenantSlug?: string,
     acceso: DatosDeAcceso = {},
+    /** Del autenticador o de recuperación. Solo hace falta con 0035 activo. */
+    codigo?: string,
   ): Promise<Sesion> {
     const fila = await this.#db.deAutenticacion(async (c) => {
       const { rows } = await c.query<{
@@ -236,6 +248,26 @@ export class AuthService {
     await this.#db.paraInquilino(fila.tenant_id, async (c) => {
       await c.query(`UPDATE users SET last_login_at = now() WHERE id = $1`, [fila.id]);
     });
+
+    // Segundo factor, si esta persona lo tiene confirmado. Va DESPUÉS de
+    // comprobar la contraseña: pedir el código antes diría a un desconocido
+    // que esa cuenta existe.
+    const secreto = await this.#secretoDeDosPasos(fila.id, true);
+    if (secreto) {
+      if (!codigo) {
+        throw new ErrorDeNegocio(
+          'codigo_requerido',
+          'Escribe el código de tu aplicación de autenticación.',
+          401,
+        );
+      }
+      const valido =
+        esCodigoValido(secreto, codigo, this.#ahora()) ||
+        (await this.#gastarCodigoDeRecuperacion(fila.id, codigo));
+      if (!valido) {
+        throw new ErrorDeNegocio('codigo_invalido', 'Ese código no es válido.', 403);
+      }
+    }
 
     return this.#emitirSesion(fila.tenant_id, fila.id, fila.role, acceso);
   }
@@ -548,6 +580,160 @@ export class AuthService {
   }
 
   // -------------------------------------------------------------------------
+  // Verificación en dos pasos (0035)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Prepara el segundo factor y devuelve lo que hay que meter en la app.
+   *
+   * **No lo activa todavía.** Se queda sin confirmar hasta que la persona
+   * teclea un código que sale de su móvil: activar a ciegas es la forma de
+   * dejar a alguien fuera de su propia cuenta con un secreto que nunca llegó
+   * a guardar.
+   */
+  async prepararDosPasos(): Promise<{ secreto: string; enlace: string }> {
+    const ctx = this.#exigirContexto();
+    const secreto = aBase32(randomBytes(20));
+    const cifrado = this.#cifrador.cifrar(secreto);
+    const email = await this.#db.deAutenticacion(async (c) => {
+      await c.query(
+        `INSERT INTO user_mfa (user_id, ciphertext, dek_wrapped, key_version)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id) DO UPDATE
+            SET ciphertext = EXCLUDED.ciphertext,
+                dek_wrapped = EXCLUDED.dek_wrapped,
+                key_version = EXCLUDED.key_version,
+                -- Volver a preparar descarta lo anterior: si alguien reinstala
+                -- la app, el secreto viejo ya no vale.
+                confirmed_at = NULL`,
+        [ctx.userId, cifrado.ciphertext, cifrado.dekWrapped, cifrado.keyVersion],
+      );
+      const { rows } = await c.query<{ email: string }>(
+        `SELECT email::text AS email FROM users WHERE id = $1`,
+        [ctx.userId],
+      );
+      return rows[0]?.email ?? 'cuenta';
+    });
+    return {
+      secreto,
+      enlace: enlaceDeAutenticador({ secretoBase32: secreto, cuenta: email, emisor: 'CRM' }),
+    };
+  }
+
+  /**
+   * Activa el segundo factor comprobando un código, y entrega los de
+   * recuperación.
+   *
+   * Los códigos se enseñan **una sola vez**: se guardan hasheados, así que ni
+   * el CRM puede volver a mostrarlos. Es incómodo a propósito — si el servidor
+   * pudiera recuperarlos, quien entrara al servidor también.
+   */
+  async confirmarDosPasos(codigo: string): Promise<{ codigosDeRecuperacion: string[] }> {
+    const ctx = this.#exigirContexto();
+    const secreto = await this.#secretoDeDosPasos(ctx.userId);
+    if (!secreto) {
+      throw new ErrorDeNegocio('sin_preparar', 'Primero prepara la verificación.', 409);
+    }
+    if (!esCodigoValido(secreto, codigo, this.#ahora())) {
+      throw new ErrorDeNegocio(
+        'codigo_invalido',
+        'Ese código no es válido. Prueba con el siguiente.',
+        403,
+      );
+    }
+
+    const codigos = Array.from({ length: 8 }, () =>
+      randomBytes(5)
+        .toString('hex')
+        .toUpperCase()
+        .match(/.{1,5}/g)!
+        .join('-'),
+    );
+    await this.#db.deAutenticacion(async (c) => {
+      await c.query(`UPDATE user_mfa SET confirmed_at = now() WHERE user_id = $1`, [ctx.userId]);
+      // Preparar otra vez invalida los de antes: si el móvil cambió, los
+      // códigos viejos van con él.
+      await c.query(`DELETE FROM user_mfa_recovery WHERE user_id = $1`, [ctx.userId]);
+      for (const codigoDeRecuperacion of codigos) {
+        await c.query(`INSERT INTO user_mfa_recovery (user_id, code_hash) VALUES ($1, $2)`, [
+          ctx.userId,
+          await hashearContrasena(codigoDeRecuperacion),
+        ]);
+      }
+    });
+    return { codigosDeRecuperacion: codigos };
+  }
+
+  /** Lo quita, pidiendo la contraseña: si no, una sesión olvidada lo desactiva. */
+  async quitarDosPasos(contrasenaActual: string): Promise<void> {
+    const ctx = this.#exigirContexto();
+    await this.#exigirContrasena(ctx.userId, contrasenaActual);
+    await this.#db.deAutenticacion(async (c) => {
+      await c.query(`DELETE FROM user_mfa_recovery WHERE user_id = $1`, [ctx.userId]);
+      await c.query(`DELETE FROM user_mfa WHERE user_id = $1`, [ctx.userId]);
+    });
+  }
+
+  /** El secreto descifrado, o `null` si esa persona no lo tiene preparado. */
+  async #secretoDeDosPasos(userId: string, soloConfirmado = false): Promise<string | null> {
+    return this.#db.deAutenticacion(async (c) => {
+      const { rows } = await c.query<{
+        ciphertext: Buffer;
+        dek_wrapped: Buffer;
+        key_version: number;
+        confirmed_at: Date | null;
+      }>(
+        `SELECT ciphertext, dek_wrapped, key_version, confirmed_at
+           FROM user_mfa WHERE user_id = $1`,
+        [userId],
+      );
+      const fila = rows[0];
+      if (!fila) return null;
+      if (soloConfirmado && !fila.confirmed_at) return null;
+      return this.#cifrador.descifrarTexto({
+        ciphertext: fila.ciphertext,
+        dekWrapped: fila.dek_wrapped,
+        keyVersion: fila.key_version,
+      });
+    });
+  }
+
+  /**
+   * Gasta un código de recuperación, si el que se tecleó es uno.
+   *
+   * Un solo uso: quien lo apuntó en un papel y lo perdió no deja una llave
+   * viva para siempre.
+   */
+  async #gastarCodigoDeRecuperacion(userId: string, codigo: string): Promise<boolean> {
+    return this.#db.deAutenticacion(async (c) => {
+      const { rows } = await c.query<{ id: string; code_hash: string }>(
+        `SELECT id, code_hash FROM user_mfa_recovery WHERE user_id = $1 AND used_at IS NULL`,
+        [userId],
+      );
+      for (const fila of rows) {
+        if (await verificarContrasena(codigo.trim().toUpperCase(), fila.code_hash)) {
+          await c.query(`UPDATE user_mfa_recovery SET used_at = now() WHERE id = $1`, [fila.id]);
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  async #exigirContrasena(userId: string, contrasena: string): Promise<void> {
+    const hash = await this.#db.deAutenticacion(async (c) => {
+      const { rows } = await c.query<{ password_hash: string | null }>(
+        `SELECT password_hash FROM users WHERE id = $1`,
+        [userId],
+      );
+      return rows[0]?.password_hash ?? HASH_SENUELO;
+    });
+    if (!(await verificarContrasena(contrasena, hash))) {
+      throw new ErrorDeNegocio('contrasena_incorrecta', 'La contraseña actual no es esa.', 403);
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Perfil de quien ha entrado
   // -------------------------------------------------------------------------
 
@@ -560,15 +746,29 @@ export class AuthService {
     dobleFactor: boolean;
   }> {
     const ctx = this.#exigirContexto();
-    return this.#db.enTransaccion(async (c) => {
+    // Va por la conexión de autenticación, no por la del inquilino: `user_mfa`
+    // solo la ve ese rol, a propósito (el segundo factor es de la persona, no
+    // de la empresa). Leer el perfil no necesita RLS: se filtra por el id que
+    // trae el token, que es el de quien pregunta.
+    return this.#db.deAutenticacion(async (c) => {
       const { rows } = await c.query<{
         full_name: string;
         email: string;
         avatar_media_id: string | null;
-        mfa_secret_id: string | null;
+        doble_factor: boolean;
       }>(
-        `SELECT full_name, email::text AS email, avatar_media_id, mfa_secret_id
-           FROM users WHERE id = $1`,
+        /*
+          `dobleFactor` sale de `user_mfa.confirmed_at` y de ningún otro sitio:
+          preparado-pero-sin-confirmar no protege nada, y decir que sí sería
+          mentirle a quien mira su perfil creyéndose a salvo.
+        */
+        `SELECT u.full_name,
+                u.email::text AS email,
+                u.avatar_media_id,
+                (m.confirmed_at IS NOT NULL) AS doble_factor
+           FROM users u
+           LEFT JOIN user_mfa m ON m.user_id = u.id
+          WHERE u.id = $1`,
         [ctx.userId],
       );
       const u = rows[0];
@@ -578,7 +778,7 @@ export class AuthService {
         nombre: u.full_name,
         email: u.email,
         fotoId: u.avatar_media_id,
-        dobleFactor: u.mfa_secret_id !== null,
+        dobleFactor: u.doble_factor,
       };
     });
   }

@@ -23,7 +23,7 @@
  * problema que esta guarda resuelve.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 /**
  * Lo que puede estar declarado y sin usar, y por qué.
@@ -35,7 +35,6 @@ const PERMITIDOS = {
   // --- Columnas de la base -------------------------------------------------
   provider_customer_id: 'Cobro manual (ADR-011): no hay pasarela que rellene esto.',
   provider_subscription_id: 'Ídem.',
-  mfa_secret_id: 'Segundo factor: decidido y sin construir.',
   avatar_url: 'Foto del agente. La bandeja usa iniciales a propósito.',
   thumb_key: 'Miniaturas de medios: no se generan todavía.',
   duration_ms: 'Duración de audio y vídeo: no se lee del archivo todavía.',
@@ -105,6 +104,53 @@ function grepTodo(patron, rutas, incluye) {
   for (const m of metodos) {
     if (!llamadas.has(m) && !PERMITIDOS[m]) {
       fallos.push(`api.${m}() existe en el cliente web y no la llama ningún componente`);
+    }
+  }
+}
+
+// --- 3. Tokens de CSS usados y nunca declarados ---------------------------
+//
+// El reverso del mismo fallo. `var(--surface-2)` sin declarar no rompe nada:
+// CSS lo resuelve a vacío y sigue pintando. El campo se queda transparente y
+// nadie se entera. Se encontró con siete usos repartidos en cinco hojas, y
+// uno llevaba desde 0030. Un `var()` CON valor de respaldo sí es una decisión
+// —«usa esto si no hay token»— y no se marca.
+{
+  const hojas = [];
+  const fuentesWeb = [];
+  const recorrer = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name === 'dist' || e.name === '.turbo') continue;
+      const ruta = `${dir}/${e.name}`;
+      if (e.isDirectory()) recorrer(ruta);
+      else if (e.name.endsWith('.css')) hojas.push(ruta);
+      else if (e.name.endsWith('.tsx') || e.name.endsWith('.ts')) fuentesWeb.push(ruta);
+    }
+  };
+  recorrer('apps');
+  recorrer('packages');
+
+  // Algunos tokens no los declara ninguna hoja porque su valor vive en la
+  // base: el color de una etiqueta o de una etapa lo pone el componente con
+  // `setProperty`. Eso es una declaración igual de válida, solo que en JS.
+  const declarados = new Set();
+  for (const fuente of fuentesWeb) {
+    for (const m of readFileSync(fuente, 'utf8').matchAll(/setProperty\(\s*'(--[\w-]+)'/g)) {
+      declarados.add(m[1]);
+    }
+  }
+  const usados = new Map();
+  for (const hoja of hojas) {
+    const texto = readFileSync(hoja, 'utf8');
+    for (const m of texto.matchAll(/(--[\w-]+)\s*:/g)) declarados.add(m[1]);
+    // Solo `var(--x)` a secas: con coma hay respaldo y es deliberado.
+    for (const m of texto.matchAll(/var\(\s*(--[\w-]+)\s*\)/g)) {
+      if (!usados.has(m[1])) usados.set(m[1], hoja);
+    }
+  }
+  for (const [token, hoja] of usados) {
+    if (!declarados.has(token) && !PERMITIDOS[token]) {
+      fallos.push(`token CSS "${token}" se usa en ${hoja} y no lo declara nadie`);
     }
   }
 }

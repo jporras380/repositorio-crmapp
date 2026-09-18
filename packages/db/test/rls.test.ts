@@ -50,7 +50,45 @@ describe('catálogo: toda tabla lleva RLS activada y forzada', () => {
     // Control del propio runner de migraciones. No contiene datos de
     // inquilinos y el rol de aplicación no tiene permisos sobre ella.
     'schema_migrations',
+    // Segundo factor (0035). No llevan `tenant_id` y no pueden llevarlo: el
+    // móvil es de la PERSONA, que puede estar en dos empresas, y se comprueba
+    // al iniciar sesión, cuando todavía no hay inquilino en el contexto. Una
+    // política por inquilino sería mentira, y `USING (true)` sería un adorno.
+    // Lo que las protege es el reparto de permisos, y eso lo comprueba el
+    // test de aquí abajo.
+    'user_mfa',
+    'user_mfa_recovery',
   ]);
+
+  /**
+   * Lo que sustituye a la RLS en las tablas del segundo factor.
+   *
+   * Si alguien concede permisos al rol de la aplicación «para depurar» y se
+   * le olvida quitarlos, una inyección SQL en cualquier endpoint de la
+   * bandeja podría leer los secretos TOTP de todo el mundo. La RLS no lo
+   * atraparía, porque no hay política que aplicar; esto sí.
+   */
+  it('las tablas del segundo factor no las toca el rol de la aplicación', async () => {
+    const ajenos = async () => {
+      const { rows } = await admin.query<{ tabla: string; grantee: string }>(`
+        SELECT table_name AS tabla, grantee
+          FROM information_schema.table_privileges
+         WHERE table_name IN ('user_mfa', 'user_mfa_recovery')
+           AND grantee NOT IN ('crmapp_auth', current_user)
+      `);
+      return rows.map((r) => `${r.tabla} → ${r.grantee}`);
+    };
+
+    expect(await ajenos()).toEqual([]);
+
+    // Y que esto de arriba no sea una consulta que siempre devuelve vacío:
+    // se concede el permiso que no debe existir y se comprueba que aparece.
+    // Un test que no puede fallar no protege de nada.
+    await admin.query('GRANT SELECT ON user_mfa TO crmapp_app');
+    expect(await ajenos()).toEqual(['user_mfa → crmapp_app']);
+    await admin.query('REVOKE SELECT ON user_mfa FROM crmapp_app');
+    expect(await ajenos()).toEqual([]);
+  });
 
   it('no hay tablas sin RLS', async () => {
     const { rows } = await admin.query<{

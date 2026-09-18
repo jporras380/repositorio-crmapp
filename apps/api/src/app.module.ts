@@ -180,10 +180,11 @@ export class AppModule {
         },
         {
           provide: TOKEN_AUTH,
-          inject: [TOKEN_DB],
-          useFactory: (db: BaseDeDatos) =>
+          inject: [TOKEN_DB, TOKEN_CIFRADOR],
+          useFactory: (db: BaseDeDatos, cifrador: Cifrador) =>
             new AuthService({
               db,
+              cifrador,
               jwtSecret: opciones.jwtSecret,
               ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
             }),

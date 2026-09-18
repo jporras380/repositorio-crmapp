@@ -132,10 +132,15 @@ function consulta(filtros: Record<string, string | boolean | number | undefined>
 export function crearApi(token: string | null) {
   const t = { token };
   return {
-    iniciarSesion: (email: string, contrasena: string) =>
+    /**
+     * `codigo` es el segundo factor, y solo va cuando la cuenta lo tiene
+     * activado: el servidor responde `codigo_requerido` y se vuelve a llamar
+     * con él. Vale tanto el del autenticador como uno de recuperación.
+     */
+    iniciarSesion: (email: string, contrasena: string, codigo?: string) =>
       peticion<Sesion & { expiraEn: number }>('/v1/sesiones', {
         metodo: 'POST',
-        cuerpo: { email, contrasena },
+        cuerpo: codigo ? { email, contrasena, codigo } : { email, contrasena },
       }),
     yo: () => peticion<Yo>('/v1/yo', t),
     panel: () => peticion<ResumenDelPanel>('/v1/panel', t),
@@ -459,6 +464,23 @@ export function crearApi(token: string | null) {
         ...t,
         metodo: 'POST',
         cuerpo: d,
+      }),
+    prepararDosPasos: () =>
+      peticion<{ secreto: string; enlace: string }>('/v1/perfil/dos-pasos', {
+        ...t,
+        metodo: 'POST',
+      }),
+    confirmarDosPasos: (codigo: string) =>
+      peticion<{ codigosDeRecuperacion: string[] }>('/v1/perfil/dos-pasos/confirmar', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { codigo },
+      }),
+    quitarDosPasos: (contrasenaActual: string) =>
+      peticion<void>('/v1/perfil/dos-pasos', {
+        ...t,
+        metodo: 'DELETE',
+        cuerpo: { contrasenaActual },
       }),
     sesiones: () => peticion<SesionAbierta[]>('/v1/sesiones', t),
     cerrarSesion: (id: string | 'otras') =>

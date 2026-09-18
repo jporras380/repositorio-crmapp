@@ -7,6 +7,7 @@
  * outbox— no existe fuera de la base.
  */
 import 'reflect-metadata';
+import { codigoTotp } from '@crmapp/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
 import { NestFactory } from '@nestjs/core';
@@ -456,5 +457,111 @@ describe('perfil de quien ha entrado (0034)', () => {
       .send({ contrasenaActual: 'una-contrasena-nueva-larga', email: 'duena@sesiones.test' })
       .expect(409);
     expect(r.body.codigo).toBe('email_en_uso');
+  });
+});
+
+describe('verificación en dos pasos (0035)', () => {
+  const CUENTA = alta('dospasos', 'duena@dospasos.test');
+  let token: string;
+  let secreto: string;
+  let recuperacion: string[];
+
+  const cabecera = (t = token) => ({ Authorization: `Bearer ${t}` });
+  /** El código de AHORA, igual que lo daría el móvil. */
+  const codigoAhora = () => codigoTotp(secreto, new Date());
+
+  beforeAll(async () => {
+    const r = await http.post('/v1/cuentas').send(CUENTA).expect(201);
+    token = r.body.token;
+  });
+
+  it('preparar da un secreto y un enlace, pero NO lo activa todavía', async () => {
+    const r = await http.post('/v1/perfil/dos-pasos').set(cabecera()).expect(200);
+    secreto = r.body.secreto;
+    expect(r.body.enlace.startsWith('otpauth://totp/')).toBe(true);
+
+    // Sin confirmar no protege nada: entrar sigue funcionando sin código.
+    await http
+      .post('/v1/sesiones')
+      .send({ email: CUENTA.email, contrasena: CUENTA.contrasena })
+      .expect(200);
+    expect((await http.get('/v1/perfil').set(cabecera())).body.dobleFactor).toBe(false);
+  });
+
+  it('un código inventado no lo activa', async () => {
+    const r = await http
+      .post('/v1/perfil/dos-pasos/confirmar')
+      .set(cabecera())
+      .send({ codigo: '000000' })
+      .expect(403);
+    expect(r.body.codigo).toBe('codigo_invalido');
+  });
+
+  it('con el código del autenticador se activa y entrega los de recuperación', async () => {
+    const r = await http
+      .post('/v1/perfil/dos-pasos/confirmar')
+      .set(cabecera())
+      .send({ codigo: codigoAhora() })
+      .expect(200);
+    recuperacion = r.body.codigosDeRecuperacion;
+    // Ocho, porque un móvil se pierde más de una vez en la vida de una cuenta.
+    expect(recuperacion).toHaveLength(8);
+    expect((await http.get('/v1/perfil').set(cabecera())).body.dobleFactor).toBe(true);
+  });
+
+  it('a partir de ahí, la contraseña sola NO entra', async () => {
+    const r = await http
+      .post('/v1/sesiones')
+      .send({ email: CUENTA.email, contrasena: CUENTA.contrasena })
+      .expect(401);
+    expect(r.body.codigo).toBe('codigo_requerido');
+  });
+
+  it('con el código del móvil entra', async () => {
+    await http
+      .post('/v1/sesiones')
+      .send({ email: CUENTA.email, contrasena: CUENTA.contrasena, codigo: codigoAhora() })
+      .expect(200);
+  });
+
+  it('un código de recuperación entra UNA vez y luego ya no', async () => {
+    const uno = recuperacion[0]!;
+    await http
+      .post('/v1/sesiones')
+      .send({ email: CUENTA.email, contrasena: CUENTA.contrasena, codigo: uno })
+      .expect(200);
+
+    // Quien lo apuntó en un papel y lo perdió no deja una llave viva.
+    await http
+      .post('/v1/sesiones')
+      .send({ email: CUENTA.email, contrasena: CUENTA.contrasena, codigo: uno })
+      .expect(403);
+  });
+
+  it('el código sin la contraseña buena tampoco entra', async () => {
+    await http
+      .post('/v1/sesiones')
+      .send({ email: CUENTA.email, contrasena: 'me-la-invento', codigo: codigoAhora() })
+      .expect(401);
+  });
+
+  it('quitarlo exige la contraseña: una sesión olvidada no lo desactiva', async () => {
+    await http
+      .delete('/v1/perfil/dos-pasos')
+      .set(cabecera())
+      .send({ contrasenaActual: 'me-la-invento' })
+      .expect(403);
+
+    await http
+      .delete('/v1/perfil/dos-pasos')
+      .set(cabecera())
+      .send({ contrasenaActual: CUENTA.contrasena })
+      .expect(204);
+
+    // Y se vuelve a entrar solo con contraseña.
+    await http
+      .post('/v1/sesiones')
+      .send({ email: CUENTA.email, contrasena: CUENTA.contrasena })
+      .expect(200);
   });
 });

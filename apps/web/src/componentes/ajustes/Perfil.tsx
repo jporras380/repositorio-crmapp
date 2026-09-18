@@ -149,6 +149,8 @@ export function Perfil({ api }: Props) {
 
       <CambiarAcceso api={api} email={datos.email} alHecho={cargar} />
 
+      <DosPasos api={api} activo={datos.dobleFactor} alHecho={cargar} />
+
       <section className={estilos.bloque}>
         <h3 className={estilos.titulo}>Dónde has entrado</h3>
         <p className={estilos.pista}>
@@ -287,4 +289,229 @@ function CambiarAcceso({
       )}
     </section>
   );
+}
+
+/**
+ * Verificación en dos pasos.
+ *
+ * ## Por qué no hay código QR
+ *
+ * Pintar un QR en el navegador exige una librería, y el acuerdo de este
+ * proyecto es no meter dependencias por comodidad. Las aplicaciones de
+ * autenticación (Google Authenticator, Authy, 1Password, el gestor del
+ * propio móvil) aceptan todas escribir la clave a mano. Cuesta veinte
+ * segundos una sola vez. Está apuntado como pendiente, no como olvido.
+ *
+ * ## Por qué los códigos de recuperación se enseñan una vez
+ *
+ * Se guardan hasheados, igual que las contraseñas: ni el servidor puede
+ * volver a leerlos. Es incómodo a propósito — si el CRM pudiera enseñarlos
+ * otra vez, quien entrara al CRM también podría.
+ */
+function DosPasos({
+  api,
+  activo,
+  alHecho,
+}: {
+  api: Api;
+  activo: boolean;
+  alHecho: () => Promise<void>;
+}) {
+  const [preparado, setPreparado] = useState<{ secreto: string; enlace: string } | null>(null);
+  const [codigo, setCodigo] = useState('');
+  const [recuperacion, setRecuperacion] = useState<string[] | null>(null);
+  const [quitando, setQuitando] = useState(false);
+  const [contrasena, setContrasena] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function fallo(e: unknown, porDefecto: string) {
+    setError(e instanceof ErrorDeApi ? e.message : porDefecto);
+  }
+
+  async function preparar() {
+    setError(null);
+    setOcupado(true);
+    try {
+      setPreparado(await api.prepararDosPasos());
+    } catch (e) {
+      fallo(e, 'No se pudo preparar la verificación.');
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function confirmar() {
+    setError(null);
+    setOcupado(true);
+    try {
+      const r = await api.confirmarDosPasos(codigo.trim());
+      setRecuperacion(r.codigosDeRecuperacion);
+      setPreparado(null);
+      setCodigo('');
+      await alHecho();
+    } catch (e) {
+      fallo(e, 'No se pudo activar la verificación.');
+      setCodigo('');
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function quitar() {
+    setError(null);
+    setOcupado(true);
+    try {
+      await api.quitarDosPasos(contrasena);
+      setQuitando(false);
+      setContrasena('');
+      setRecuperacion(null);
+      await alHecho();
+    } catch (e) {
+      fallo(e, 'No se pudo desactivar la verificación.');
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <section className={estilos.bloque}>
+      <h3 className={estilos.titulo}>Verificación en dos pasos</h3>
+      <p className={estilos.pista}>
+        {activo
+          ? 'Activada. Al entrar se te pedirá un código de tu aplicación de autenticación.'
+          : 'Una contraseña robada basta para entrar. Con esto, además hace falta tu móvil.'}
+      </p>
+
+      {/* Los códigos recién generados mandan sobre todo lo demás: si se van de
+          la pantalla sin copiarlos, no vuelven. */}
+      {recuperacion && (
+        <div className={estilos.recuperacion}>
+          <p className={estilos.avisoFuerte}>
+            Guarda estos códigos ahora. Es la única vez que se muestran, y son lo único que te deja
+            entrar si pierdes el móvil.
+          </p>
+          <ul className={estilos.codigos}>
+            {recuperacion.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+          <div className={estilos.acciones}>
+            <button
+              className={estilos.secundario}
+              onClick={() => void navigator.clipboard.writeText(recuperacion.join('\n'))}
+            >
+              Copiar los ocho
+            </button>
+            <button className={estilos.primario} onClick={() => setRecuperacion(null)}>
+              Ya los guardé
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!activo && !preparado && !recuperacion && (
+        <button className={estilos.primario} onClick={() => void preparar()} disabled={ocupado}>
+          {ocupado ? 'Preparando…' : 'Activar'}
+        </button>
+      )}
+
+      {preparado && (
+        <div className={estilos.preparado}>
+          <p className={estilos.pista}>
+            Escribe esta clave en tu aplicación de autenticación y luego teclea el código que te dé.
+            (Todavía no está activada: si cierras aquí, nada cambia.)
+          </p>
+          <code className={estilos.secreto}>{enGrupos(preparado.secreto)}</code>
+          <div className={estilos.acciones}>
+            <button
+              className={estilos.secundario}
+              onClick={() => void navigator.clipboard.writeText(preparado.secreto)}
+            >
+              Copiar la clave
+            </button>
+            {/* Desde el móvil, el enlace abre la app y la configura sin teclear. */}
+            <a className={estilos.secundario} href={preparado.enlace}>
+              Abrir en la app
+            </a>
+          </div>
+          <p className={estilos.pistaMenor}>
+            Todavía no hay código QR: pintarlo exigiría una librería nueva. Todas las aplicaciones
+            aceptan la clave escrita a mano.
+          </p>
+          <label className={estilos.campo}>
+            <span className={estilos.etiqueta}>Código de la aplicación</span>
+            <input
+              className={`${estilos.entrada} ${estilos.entradaCodigo}`}
+              autoComplete="one-time-code"
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+            />
+          </label>
+          <button
+            className={estilos.primario}
+            onClick={() => void confirmar()}
+            disabled={ocupado || codigo.trim().length < 6}
+          >
+            {ocupado ? 'Comprobando…' : 'Confirmar y activar'}
+          </button>
+        </div>
+      )}
+
+      {activo &&
+        !recuperacion &&
+        (quitando ? (
+          <div className={estilos.preparado}>
+            <label className={estilos.campo}>
+              <span className={estilos.etiqueta}>Tu contraseña</span>
+              <input
+                className={estilos.entrada}
+                type="password"
+                autoComplete="current-password"
+                value={contrasena}
+                onChange={(e) => setContrasena(e.target.value)}
+              />
+            </label>
+            <p className={estilos.pistaMenor}>
+              Se pide la contraseña porque si no, una sesión olvidada abierta bastaría para quitar
+              la protección.
+            </p>
+            <div className={estilos.acciones}>
+              <button
+                className={estilos.secundario}
+                onClick={() => {
+                  setQuitando(false);
+                  setContrasena('');
+                  setError(null);
+                }}
+              >
+                Dejarlo como está
+              </button>
+              <button
+                className={estilos.primario}
+                onClick={() => void quitar()}
+                disabled={ocupado || !contrasena}
+              >
+                {ocupado ? 'Quitando…' : 'Desactivar'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className={estilos.secundario} onClick={() => setQuitando(true)}>
+            Desactivar
+          </button>
+        ))}
+
+      {error && (
+        <p className={estilos.error} role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** La clave en grupos de cuatro: así se copia a mano sin perder la cuenta. */
+function enGrupos(secreto: string): string {
+  return (secreto.match(/.{1,4}/g) ?? [secreto]).join(' ');
 }
