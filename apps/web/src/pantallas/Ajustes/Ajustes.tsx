@@ -3,6 +3,7 @@ import { crearApi } from '../../api/cliente.ts';
 import type { Sesion, Yo } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
 import { Perfil } from '../../componentes/ajustes/Perfil.tsx';
+import { Apariencia } from '../../componentes/ajustes/Apariencia.tsx';
 import { Canales } from '../../componentes/ajustes/Canales.tsx';
 import { Plantillas } from '../../componentes/ajustes/Plantillas.tsx';
 import { RespuestasRapidas } from '../../componentes/ajustes/RespuestasRapidas.tsx';
@@ -25,6 +26,7 @@ interface Props {
 
 const SECCIONES: [Seccion, string, string][] = [
   ['perfil', 'Mi cuenta', 'Tu nombre, tu foto, tus llaves y tus sesiones'],
+  ['apariencia', 'Apariencia', 'Tema claro u oscuro y cuánta transparencia'],
   ['canales', 'Canales', 'Números y cuentas conectadas'],
   ['etiquetas', 'Etiquetas', 'Crear, renombrar, cambiar de color y borrar'],
   ['reparto', 'Reparto', 'Asignar solas las conversaciones nuevas'],
@@ -70,6 +72,7 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
       </nav>
       <main className={`glass ${estilos.contenido}`}>
         {seccion === 'perfil' && <Perfil api={api} />}
+        {seccion === 'apariencia' && <Apariencia />}
         {seccion === 'canales' && <Canales api={api} gestor={gestor} />}
         {seccion === 'etiquetas' && <Etiquetas api={api} gestor={gestor} />}
         {seccion === 'horario' && (

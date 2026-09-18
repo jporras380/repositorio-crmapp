@@ -1,0 +1,95 @@
+/* Apariencia: tema y transparencia. */
+@layer components {
+  .apariencia {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .bloque {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.9rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .titulo {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .pista {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--fg-muted);
+    max-width: 34rem;
+  }
+
+  /* Las tres caben en una fila en el escritorio y se apilan en el móvil sin
+     ningún punto de corte escrito a mano. */
+  .opciones {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.5rem;
+    margin-block-start: 0.25rem;
+  }
+
+  .opcion {
+    display: grid;
+    gap: 0.15rem;
+    align-content: start;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    cursor: pointer;
+  }
+
+  .opcion:hover {
+    border-color: var(--accent);
+  }
+
+  /* La elegida se marca con borde y fondo, no solo con color: quien no
+     distingue el acento del gris también tiene que saber cuál está puesta. */
+  .opcionElegida {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: var(--ring);
+  }
+
+  /* El radio va oculto pero recibe el foco: el aro tiene que verse en la
+     tarjeta, o navegar con teclado es ir a ciegas. */
+  .opcion:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .opcionTitulo {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  .opcionDetalle {
+    font-size: 0.68rem;
+    color: var(--fg-muted);
+    line-height: var(--leading-normal, 1.45);
+  }
+
+  .nota {
+    margin: 0;
+    font-size: 0.7rem;
+    color: var(--fg-muted);
+    padding: 0.45rem 0.6rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+  }
+
+  .aviso {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--accent);
+  }
+}

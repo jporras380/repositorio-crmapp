@@ -144,6 +144,46 @@
   }
 
   /*
+   * --- Cuánto vidrio, a elección de quien mira --------------------------
+   *
+   * El aspecto de vidrio cuesta contraste: el fondo semitransparente deja
+   * pasar manchas de color, y sobre una pantalla con reflejos eso no es
+   * elegante, es un estorbo. Quien está ocho horas delante decide.
+   *
+   * `data-vidrio="vidrio"` es lo de siempre y no hace falta escribirlo.
+   */
+
+  /* Sólido: cero transparencia y cero desenfoque. Lo mismo que se aplica
+     cuando el sistema pide menos transparencia, pero porque se ha elegido.
+     Es el nivel que hay que ofrecer a quien fuerza la vista. */
+  :root[data-vidrio='solido'] {
+    --glass: light-dark(oklch(99% 0.004 255), var(--graphite-800));
+    --glass-strong: light-dark(oklch(100% 0 0), var(--graphite-800));
+    --surface: light-dark(oklch(99% 0.004 255), var(--graphite-800));
+    --surface-raised: light-dark(oklch(100% 0 0), var(--graphite-700));
+    --surface-2: light-dark(oklch(96% 0.006 255), oklch(22% 0.02 262));
+    --blur: 0px;
+    --saturate: 100%;
+    /* Sin vidrio no hay reflejo que imitar: el brillo del borde sobraría. */
+    --glass-brillo: transparent;
+  }
+
+  /* Cristal: más transparente y más desenfoque, como el panel de un iPhone.
+     Es lo más bonito y lo menos legible; por eso no es lo de fábrica. */
+  :root[data-vidrio='cristal'] {
+    --glass: light-dark(oklch(100% 0 0 / 0.1), oklch(30% 0.035 262 / 0.12));
+    --glass-strong: light-dark(oklch(100% 0 0 / 0.3), oklch(26% 0.035 262 / 0.3));
+    --glass-border: light-dark(oklch(100% 0 0 / 0.68), oklch(100% 0 0 / 0.14));
+    --glass-brillo: light-dark(oklch(100% 0 0 / 1), oklch(100% 0 0 / 0.2));
+    --surface: light-dark(oklch(100% 0 0 / 0.34), oklch(26% 0.025 262 / 0.3));
+    --surface-raised: light-dark(oklch(100% 0 0 / 0.62), oklch(32% 0.025 262 / 0.55));
+    /* Más desenfoque, no menos: al bajar la opacidad, es lo único que
+       impide que el texto se apoye sobre las manchas del fondo. */
+    --blur: 40px;
+    --saturate: 200%;
+  }
+
+  /*
    * Sin transparencia cuando el sistema lo pide o el navegador no desenfoca:
    * el vidrio pasa a superficie opaca y el texto conserva el contraste. Se
    * decide aquí, una vez, y no componente a componente.

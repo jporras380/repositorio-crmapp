@@ -12,6 +12,7 @@ export type Ruta =
       pantalla: 'ajustes';
       seccion:
         | 'perfil'
+        | 'apariencia'
         | 'canales'
         | 'etiquetas'
         | 'reparto'
@@ -35,6 +36,7 @@ export type Ruta =
 
 const SECCIONES = new Set([
   'perfil',
+  'apariencia',
   'canales',
   'etiquetas',
   'reparto',

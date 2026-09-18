@@ -371,3 +371,44 @@ Se enseña la clave en grupos de cuatro y un enlace `otpauth://` que en el móvi
 5. **Desactivar** pide la contraseña; con una equivocada no se quita.
 
 7 tests de pantalla (perfil), 5 de acceso, 8 de servidor, 14 del algoritmo TOTP contra el RFC.
+
+## Apariencia: tema y transparencia (PR-79, 2026-09-18)
+
+El usuario lo pidió dos veces: **«hazlo glass transparente así como la del iPhone, y un apartado donde pueda cambiar a más oscuro o más transparente»**. Lo segundo no existía de ninguna forma — la aplicación seguía al sistema y no había manera de decirle otra cosa.
+
+Ajustes → **Apariencia**, con dos elecciones:
+
+- **Tema**: Automático · Claro · Oscuro.
+- **Transparencia**: Sólido · Vidrio · Cristal.
+
+### Por qué tres niveles y no un interruptor
+
+El aspecto de vidrio **cuesta contraste**, y cuánto cuesta depende de dónde se mire: no es lo mismo el PC del mostrador con el ventanal detrás que un portátil de noche. Un interruptor obliga a elegir entre bonito e ilegible; tres niveles dejan quedarse en medio, que es donde está casi todo el mundo. «Vidrio» sigue siendo lo de fábrica.
+
+Y se dice lo que cuesta cada uno en la propia tarjeta: «Cristal» se ve mejor en una captura y peor en una jornada de ocho horas. Ofrecerlo sin decirlo sería vender lo bonito y callar la letra pequeña.
+
+### Lo que está por defecto NO escribe atributo
+
+`aplicarApariencia` quita `data-theme` en «Automático» y quita `data-vidrio` en «Vidrio». De eso depende algo que no se ve: mientras no haya atributo, siguen mandando `prefers-color-scheme` y **`prefers-reduced-transparency`**. Quien tiene puesto en su sistema «menos transparencia» y nunca tocó este ajuste lo sigue teniendo. En cuanto elige aquí, su elección pesa más —que es lo que se espera de un ajuste que uno ha tocado— y se le avisa en pantalla, solo a quien le afecta.
+
+### Se guarda en el navegador, no en la cuenta
+
+Es una preferencia del **aparato**, no de la persona: la misma recepcionista usa el PC del mostrador y su móvil por la noche. Guardarlo en la cuenta le impondría en uno lo que eligió en el otro. Consecuencia aceptada y dicha en pantalla: **cambiar de ordenador vuelve a empezar**. Son dos clics.
+
+Todo lo que viene de `localStorage` se trata como de fuera: un valor inventado, un JSON roto o el almacenamiento bloqueado vuelven a lo de siempre en vez de dejar la pantalla ilegible.
+
+### Se aplica antes de pintar
+
+`arrancarApariencia()` corre en `main.tsx`, no dentro de un componente. Si se aplicara al montar, la primera imagen sería la del tema por defecto y cambiaría a la vista: el parpadeo blanco que hace daño de noche.
+
+### La prueba que me engañé a mí mismo
+
+Para comprobar los tres niveles cambié el valor por defecto a «cristal» y capturé. Salían **idénticos**, y estuve a punto de subir los valores a ciegas. El motivo era mi propia lógica: al ser «cristal» el nuevo valor por defecto, `aplicarApariencia` **quitaba** el atributo, así que nunca se aplicó nada.
+
+Forzando el atributo de verdad, los tres niveles se distinguen sin lugar a dudas: en «Sólido» los paneles son blancos planos, en «Cristal» se ve el degradado azul a través. Queda como recordatorio: una captura que no cambia puede significar que el cambio no llegó, no que no sirva.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Ajustes → Apariencia. Pulsa «Oscuro»: cambia al momento, sin recargar. Pulsa «Cristal» y vuelve a la bandeja: los paneles dejan ver el fondo. Pulsa «Sólido»: se vuelven opacos y el texto se lee mejor que de ninguna otra forma. Recarga: sigue como lo dejaste.
+
+11 tests de pantalla y 12 del módulo de preferencia. Capturas de los tres niveles en claro y en oscuro.
