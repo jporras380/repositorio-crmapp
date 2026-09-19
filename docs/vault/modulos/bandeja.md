@@ -389,3 +389,19 @@ La corrección vale para lo que se cierre a partir de ahora; lo que ya estaba ce
 Abre una conversación con globo azul y **no contestes**: el globo se apaga solo, pero la conversación sigue en «Sin respuesta». Marca varias con las casillas y pulsa **Cerrar**: desaparecen los globos de todas.
 
 7 tests nuevos (4 de API, 3 de pantalla). Comprobado además contra la aplicación real: `caro.rp` pasó de 2 a 0 con solo abrir el hilo en el navegador.
+
+### Corrección: abrir NO marca como leído (PR-83, 2026-09-19)
+
+PR-82 apagaba el globo al abrir el hilo, copiando a WhatsApp. El usuario lo corrigió el mismo día, y tenía razón: **en una mensajería personal abrir es leer; en una bandeja compartida abrir es MIRAR.** Se entra a ver de qué va, a comprobar si es para uno, a buscar un dato de un cliente. Apagar el aviso al pasar por encima lo borra sin que nadie haya decidido nada, y al siguiente compañero le llega la conversación con pinta de atendida.
+
+El globo se apaga solo con un gesto, donde hay una decisión detrás:
+
+- **Poner en espera**
+- **Marcar resuelto**
+- **Cerrar en bloque** desde las casillas de la lista
+
+Con el efecto fuera, `PATCH /v1/conversaciones/:id/leida` no lo llamaba nadie, así que **se ha borrado entero** —endpoint, método del cliente web y su método de servicio— en vez de dejarlo esperando a un botón que nadie pidió. Es exactamente lo que `check-puertas.mjs` habría marcado al día siguiente.
+
+El test que decía «abrir apaga el globo» se sustituyó por el contrario, que es ahora la regla: **pedir los mensajes no cambia el contador**.
+
+Comprobado contra la aplicación real: con el contador sembrado en 3, abrir el hilo en el navegador lo deja en 3; poner en espera lo deja en 0.

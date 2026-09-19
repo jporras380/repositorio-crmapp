@@ -197,13 +197,6 @@ export class BandejaController {
     );
   }
 
-  /** «Ya lo he visto»: apaga el globo de sin leer, sin responder nada. */
-  @Patch('conversaciones/:id/leida')
-  @HttpCode(204)
-  async leida(@Req() req: Req, @Param('id') id: string) {
-    await conContextoDePeticion(req, () => this.bandeja.marcarLeida(id));
-  }
-
   /**
    * Poner en espera o levantarla.
    *

@@ -61,24 +61,18 @@ export function Hilo({
   }, [api, conversacion.id]);
 
   /*
-    Abrir el hilo es leerlo, como en cualquier mensajería: el globo de sin
-    leer se apaga aunque no se conteste. Antes solo lo apagaba enviar un
-    mensaje, así que quien leía y decidía no responder se quedaba el aviso
-    encima para siempre.
+    Abrir el hilo NO lo marca como leído, a propósito.
 
-    Solo se llama si hay algo que apagar: esta pantalla recarga cada 30
-    segundos y una escritura por vuelta no compraría nada.
+    Lo hacía, imitando a WhatsApp, y estaba mal aquí: en una mensajería
+    personal abrir es leer, pero en una bandeja compartida abrir es MIRAR —se
+    entra a ver de qué va, a comprobar si es para uno, a buscar un dato— y el
+    globo es lo único que le dice al equipo que ahí queda algo por atender.
+    Apagarlo al pasar por encima lo borraría sin que nadie haya decidido nada,
+    y al siguiente le llegaría la conversación con pinta de resuelta.
+
+    Se apaga con un gesto, que es donde hay una decisión detrás: poner en
+    espera, marcar resuelto, o cerrar en bloque desde las casillas de la lista.
   */
-  const noLeidos = conversacion.noLeidos;
-  useEffect(() => {
-    if (noLeidos === 0) return;
-    api
-      .marcarLeida(conversacion.id)
-      .then(alCambiar)
-      // Que falle no debe estropear la lectura: el hilo ya está en pantalla y
-      // el globo se apagará al siguiente intento.
-      .catch(() => undefined);
-  }, [api, conversacion.id, noLeidos, alCambiar]);
 
   useEffect(() => {
     void cargar();

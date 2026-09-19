@@ -71,7 +71,6 @@ function pintar(mensajes: Mensaje[], extra: Record<string, unknown> = {}, conv =
       porCanal: {},
     }),
     ponerEnEspera: vi.fn().mockResolvedValue(undefined),
-    marcarLeida: vi.fn().mockResolvedValue(undefined),
     cambiarEstado: vi.fn().mockResolvedValue(undefined),
     ...extra,
   } as unknown as Api;
@@ -254,14 +253,14 @@ describe('Hilo · poner en espera y marcar resuelto', () => {
 });
 
 /**
- * El globo de sin leer (PR-82).
+ * El globo de sin leer.
  *
- * Es lo que se hace a diario en WhatsApp: entras, lo lees, decides no
- * contestar y lo dejas en visto. Antes el contador solo bajaba al ENVIAR, así
- * que quien leía sin responder se quedaba el aviso encima para siempre.
+ * Abrir un hilo NO lo apaga, y eso es una decisión: en una bandeja compartida
+ * abrir es MIRAR —ver de qué va, comprobar si es para uno—, y el globo es lo
+ * único que le dice al equipo que ahí queda algo por atender.
  */
-describe('Hilo · marcar leída al abrir', () => {
-  it('abrir un hilo con mensajes sin leer lo marca leído y refresca la lista', async () => {
+describe('Hilo · abrir no marca como leído', () => {
+  it('entrar a un hilo con globo no lo apaga', async () => {
     const { api, alCambiar } = pintar(
       [mensaje({ texto: 'Hola' })],
       {},
@@ -271,27 +270,17 @@ describe('Hilo · marcar leída al abrir', () => {
       },
     );
     await screen.findByText('Hola');
-    expect(api.marcarLeida).toHaveBeenCalledWith('c1');
-    // La lista de la izquierda tiene que enterarse, o el globo sigue pintado.
-    await waitFor(() => expect(alCambiar).toHaveBeenCalled());
+    // Ni por un endpoint propio ni de rebote refrescando la lista: mirar no
+    // cambia nada en el servidor.
+    expect((api as unknown as Record<string, unknown>).marcarLeida).toBeUndefined();
+    expect(alCambiar).not.toHaveBeenCalled();
   });
 
-  it('sin nada que apagar no escribe: la pantalla recarga cada 30 segundos', async () => {
-    const { api } = pintar([mensaje({ texto: 'Hola' })], {}, { ...conversacion, noLeidos: 0 });
-    await screen.findByText('Hola');
-    expect(api.marcarLeida).not.toHaveBeenCalled();
-  });
-
-  it('si marcar leída falla, el hilo se lee igual', async () => {
-    pintar(
-      [mensaje({ texto: 'Hola' })],
-      { marcarLeida: vi.fn().mockRejectedValue(new Error('x')) },
-      {
-        ...conversacion,
-        noLeidos: 2,
-      },
-    );
-    // Lo que importa es leer; el globo se apagará al siguiente intento.
-    expect(await screen.findByText('Hola')).toBeTruthy();
+  it('se apaga con un gesto: poner en espera', async () => {
+    const { api } = pintar([mensaje({ texto: 'Hola' })], {}, { ...conversacion, noLeidos: 3 });
+    await userEvent.click(await screen.findByRole('button', { name: 'Poner en espera' }));
+    // El contador lo apaga el servidor dentro del mismo gesto; aquí basta con
+    // que el gesto llegue.
+    expect(api.ponerEnEspera).toHaveBeenCalledWith('c1', true);
   });
 });

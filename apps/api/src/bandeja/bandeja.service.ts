@@ -445,39 +445,6 @@ export class BandejaService {
   }
 
   /**
-   * Marca la conversación como leída: apaga el globo de sin leer.
-   *
-   * ## Por qué hacía falta
-   *
-   * El contador solo bajaba a cero **al enviar un mensaje**. O sea que se
-   * llamaba «sin leer» pero significaba «sin responder», y el agente que abría
-   * un hilo, lo leía entero y decidía no contestar se quedaba con el globo
-   * puesto para siempre. Es lo que en WhatsApp se hace a diario: entras, lo
-   * lees, lo dejas en visto.
-   *
-   * ## Por qué es un endpoint aparte y no un efecto de pedir los mensajes
-   *
-   * Leer los mensajes es un GET y debe poder repetirse sin cambiar nada. Un
-   * GET que escribe rompe el reintento, el prefetch del navegador y cualquier
-   * caché que se ponga delante. La interfaz dice explícitamente «esto ya lo
-   * ha visto una persona», que además es la verdad que se quiere guardar.
-   *
-   * Se escribe solo si hay algo que apagar: la pantalla recarga cada 30
-   * segundos y no tiene sentido una escritura por vuelta.
-   */
-  async marcarLeida(conversationId: string): Promise<void> {
-    this.#exigirContexto();
-    await this.#db.enTransaccion(async (c) => {
-      await this.#exigirConversacion(c, conversationId);
-      await c.query(
-        `UPDATE conversations SET unread_count = 0, updated_at = now()
-          WHERE id = $1 AND unread_count > 0`,
-        [conversationId],
-      );
-    });
-  }
-
-  /**
    * Pone (o quita) una conversación en espera.
    *
    * ## Qué hace y qué NO hace

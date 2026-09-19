@@ -482,8 +482,6 @@ export function crearApi(token: string | null) {
         metodo: 'DELETE',
         cuerpo: { contrasenaActual },
       }),
-    marcarLeida: (id: string) =>
-      peticion<void>(`/v1/conversaciones/${id}/leida`, { ...t, metodo: 'PATCH' }),
     ponerEnEspera: (id: string, enEspera: boolean) =>
       peticion<void>(`/v1/conversaciones/${id}/espera`, {
         ...t,

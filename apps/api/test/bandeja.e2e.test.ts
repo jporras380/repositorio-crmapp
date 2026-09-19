@@ -889,17 +889,17 @@ describe('estado de atención, aplazar, notas y vistas (0020)', () => {
       [id],
     );
 
-  it('abrir y marcar leída apaga el globo sin responder nada', async () => {
-    const id = await conversacion('Leído Sin Más');
+  it('LEER los mensajes no apaga el globo: mirar no es decidir', async () => {
+    const id = await conversacion('Solo Miraba');
     await llegaUnMensaje(id);
-    expect(await sinLeerDe(id)).toBeGreaterThan(0);
+    const antes = await sinLeerDe(id);
+    expect(antes).toBeGreaterThan(0);
 
-    await http.patch(`/v1/conversaciones/${id}/leida`).set(auth()).expect(204);
-    expect(await sinLeerDe(id)).toBe(0);
-
-    // Pero sigue esperando respuesta de una persona: leer no es contestar, y
-    // confundirlo vaciaría la bandeja de pendientes de golpe.
-    expect((await listar('?sinRespuesta=true')).items.map((x) => x.id)).toContain(id);
+    // Abrir el hilo es un GET, y un GET no cambia nada. En una bandeja
+    // compartida, quien entra a ver de qué va no ha atendido nada: borrarle
+    // el aviso al equipo dejaría la conversación con pinta de resuelta.
+    await http.get(`/v1/conversaciones/${id}/mensajes`).set(auth()).expect(200);
+    expect(await sinLeerDe(id)).toBe(antes);
   });
 
   it('poner en espera apaga el globo; quitarla no lo devuelve', async () => {
