@@ -5,6 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
+import { reintentandoSiChocaElCatalogo } from '../src/roles.js';
 import { poolAdmin, prepararBaseDeDatos, urlApp } from './setup.js';
 import { withSystemTransaction, withTenant } from '../src/client.js';
 import { etiquetaDePeriodo, inicioDePeriodo, leerUsoDelPeriodo, registrarUso } from '../src/uso.js';
@@ -23,7 +24,9 @@ beforeAll(async () => {
   await prepararBaseDeDatos(DB);
   admin = poolAdmin(DB);
   app = new Pool({ connectionString: urlApp(DB) });
-  await admin.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD 'crmapp_dev'`);
+  await reintentandoSiChocaElCatalogo(() =>
+    admin.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD 'crmapp_dev'`),
+  );
   await admin.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_relay`);
   relay = new Pool({
     connectionString: `postgres://crmapp_relay:crmapp_dev@${HOST}:${PORT}/${DB}`,

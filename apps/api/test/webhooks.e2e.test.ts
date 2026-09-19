@@ -12,7 +12,7 @@ import { Client, Pool } from 'pg';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { migrar } from '@crmapp/db';
+import { migrar, reintentandoSiChocaElCatalogo } from '@crmapp/db';
 import { AppModule } from '../src/app.module.js';
 import { FiltroDeErrores } from '../src/errores.js';
 import type { CuentaResuelta } from '../src/webhooks/ingesta.service.js';
@@ -50,8 +50,12 @@ beforeAll(async () => {
 
   const conf = new Client({ connectionString: url(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD '${CLAVE_APP}'`);
-  await conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD '${CLAVE_AUTH}'`);
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD '${CLAVE_APP}'`),
+  );
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD '${CLAVE_AUTH}'`),
+  );
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app, crmapp_auth`);
 
   const { rows: t } = await conf.query<{ id: string }>(

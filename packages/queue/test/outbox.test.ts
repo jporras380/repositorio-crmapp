@@ -8,7 +8,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
-import { migrar } from '@crmapp/db';
+import { migrar, reintentandoSiChocaElCatalogo } from '@crmapp/db';
 import { escribirEnOutbox, procesarVuelta, type EventoDeOutbox } from '../src/outbox.js';
 
 const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
@@ -39,8 +39,16 @@ beforeAll(async () => {
 
   const conf = new Client({ connectionString: url(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD '${CLAVE_APP}'`);
-  await conf.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD '${CLAVE_RELAY}'`);
+  // `ALTER ROLE` toca un catálogo del CLÚSTER, no de esta base: en CI corren
+  // varias suites a la vez y todas ponen las mismas contraseñas, así que dos
+  // pueden pisarse. Reintentar es la respuesta correcta — poner dos veces la
+  // misma contraseña deja lo mismo.
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD '${CLAVE_APP}'`),
+  );
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD '${CLAVE_RELAY}'`),
+  );
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app, crmapp_relay`);
   const { rows } = await conf.query<{ id: string }>(
     `INSERT INTO tenants (name, slug) VALUES ('A', 'a'), ('B', 'b') RETURNING id`,

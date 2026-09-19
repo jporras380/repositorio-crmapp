@@ -7,6 +7,7 @@
  */
 import { Client, Pool } from 'pg';
 import { migrar } from '../src/migrate.js';
+import { reintentandoSiChocaElCatalogo } from '../src/roles.js';
 
 const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
 // 55432 en local (ver docker-compose); en CI el service container usa 5432.
@@ -44,7 +45,11 @@ export async function prepararBaseDeDatos(DB: string): Promise<void> {
   // secreto en el repositorio.
   const conf = new Client({ connectionString: urlAdmin(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD '${APP_PASS}'`);
+  // Con reintento: el catálogo de roles es del clúster y en CI hay varias
+  // suites poniéndolo a la vez (ver `roles.ts`).
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD '${APP_PASS}'`),
+  );
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app`);
   await conf.end();
 }
