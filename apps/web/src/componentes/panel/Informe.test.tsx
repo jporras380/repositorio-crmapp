@@ -22,7 +22,14 @@ const INFORME: InformeDelPeriodo = {
       { canal: 'whatsapp', nuevas: 3 },
       { canal: 'instagram', nuevas: 1 },
     ],
-    atencionAhora: { nueva: 2, por_responder: 1, esperando_cliente: 3, seguimiento: 0, cerrada: 5 },
+    atencionAhora: {
+      nueva: 2,
+      por_responder: 1,
+      esperando_cliente: 3,
+      seguimiento: 0,
+      en_espera: 0,
+      cerrada: 5,
+    },
   },
   respuesta: { medianaSegundos: 600, p90Segundos: 3000, medidas: 3 },
   agentes: [

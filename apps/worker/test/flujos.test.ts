@@ -564,6 +564,55 @@ describe('el bot se aparta cuando entra una persona', () => {
     });
     expect(r.ejecucionesIniciadas).toBe(1);
   });
+
+  /*
+   * «Poner en espera» (0036) contra «marcar resuelto».
+   *
+   * Los dos sacan la conversación de pendientes. La diferencia entera está
+   * aquí: en espera el bot NO vuelve a hablarle aunque nadie del equipo haya
+   * contestado nunca; cerrada, sí. Sin esta distinción, la única forma de
+   * quitarse de encima un cliente difícil era cerrarle, y el bot le saludaba
+   * al siguiente mensaje.
+   */
+  it('en espera el bot se calla, aunque NADIE haya respondido nunca', async () => {
+    await crearFlujo(CALIFICAR(), 'palabra_clave');
+    // Ni `respondeUnAgente` ni nada: la conversación está virgen.
+    await admin.query(`UPDATE conversations SET on_hold_at = now() WHERE id = $1`, [
+      conversationId,
+    ]);
+
+    const id = await entrante('quiero el precio');
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'e1',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+    expect(r.ignorado).toBe('la_lleva_una_persona');
+    expect(await ejecucion()).toHaveLength(0);
+  });
+
+  it('cerrar levanta la espera y el bot vuelve a atender', async () => {
+    await crearFlujo(CALIFICAR(), 'palabra_clave');
+    await admin.query(`UPDATE conversations SET on_hold_at = now() WHERE id = $1`, [
+      conversationId,
+    ]);
+    // Marcar resuelto, tal como lo hace la bandeja.
+    await admin.query(
+      `UPDATE conversations
+          SET status = 'closed', closed_at = now(), human_reply_at = NULL, on_hold_at = NULL
+        WHERE id = $1`,
+      [conversationId],
+    );
+
+    const id = await entrante('precio');
+    await admin.query(`UPDATE conversations SET status = 'open' WHERE id = $1`, [conversationId]);
+    const r = await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'e2',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: id },
+    });
+    expect(r.ejecucionesIniciadas).toBe(1);
+  });
 });
 
 describe('el motor no se deja engañar', () => {

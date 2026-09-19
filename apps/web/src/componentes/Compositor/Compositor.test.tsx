@@ -22,6 +22,7 @@ const conversacion: ResumenDeConversacion = {
   vistaPrevia: null,
   atencion: 'nueva',
   aplazadaHasta: null,
+  enEspera: false,
   relevo: null,
 };
 

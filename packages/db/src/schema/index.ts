@@ -345,6 +345,11 @@ export const conversations = pgTable(
     handoffReason: text('handoff_reason'),
     handoffAt: timestamp('handoff_at', { withTimezone: true }),
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
+    /**
+     * En espera: fuera de pendientes y con el bot callado, sin cerrar (0036).
+     * Distinto de `snoozedUntil`, que es un recordatorio con fecha.
+     */
+    onHoldAt: timestamp('on_hold_at', { withTimezone: true }),
     unreadCount: integer('unread_count').notNull().default(0),
     createdAt: creado,
     updatedAt: actualizado,

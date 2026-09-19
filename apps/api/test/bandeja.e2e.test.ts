@@ -734,7 +734,12 @@ describe('aislamiento y acciones', () => {
 describe('estado de atención, aplazar, notas y vistas (0020)', () => {
   const listar = async (query = '') =>
     (await http.get(`/v1/conversaciones${query}`).set(auth()).expect(200)).body as {
-      items: { id: string; atencion: string; aplazadaHasta: string | null }[];
+      items: {
+        id: string;
+        atencion: string;
+        aplazadaHasta: string | null;
+        enEspera: boolean;
+      }[];
     };
 
   it('el estado se DEDUCE: nueva → por responder → esperando cliente → cerrada', async () => {
@@ -785,6 +790,85 @@ describe('estado de atención, aplazar, notas y vistas (0020)', () => {
       .send({ hasta: null })
       .expect(204);
     expect((await listar()).items.find((x) => x.id === id)!.atencion).toBe('nueva');
+  });
+
+  it('en espera la saca de pendientes y no la cierra', async () => {
+    const id = await conversacion('Cliente Difícil');
+    const de = async () => (await listar()).items.find((x) => x.id === id)!;
+    expect((await de()).atencion).toBe('nueva');
+
+    await http
+      .patch(`/v1/conversaciones/${id}/espera`)
+      .set(auth())
+      .send({ enEspera: true })
+      .expect(204);
+
+    const enEspera = await de();
+    expect(enEspera.atencion).toBe('en_espera');
+    expect(enEspera.enEspera).toBe(true);
+    // Sale de «sin respuesta», que es el motivo de existir del gesto.
+    expect((await listar('?sinRespuesta=true')).items.map((x) => x.id)).not.toContain(id);
+    // Pero NO está cerrada: sigue en la bandeja de todas.
+    expect((await listar()).items.map((x) => x.id)).toContain(id);
+  });
+
+  it('si el cliente vuelve a escribir, reaparece: callar al bot no es esconderlo', async () => {
+    const id = await conversacion('Insiste Pérez');
+    await http
+      .patch(`/v1/conversaciones/${id}/espera`)
+      .set(auth())
+      .send({ enEspera: true })
+      .expect(204);
+    expect((await listar()).items.find((x) => x.id === id)!.atencion).toBe('en_espera');
+
+    await admin.query(
+      `UPDATE conversations SET last_inbound_at = now() + interval '1 minute' WHERE id = $1`,
+      [id],
+    );
+
+    const despues = (await listar()).items.find((x) => x.id === id)!;
+    // Vuelve a verse, porque cinco mensajes sin que nadie se entere sería una
+    // trampa. Pero sigue en espera: el bot no le va a contestar.
+    expect(despues.atencion).not.toBe('en_espera');
+    expect(despues.enEspera).toBe(true);
+  });
+
+  it('quitar la espera la devuelve al estado que le toque', async () => {
+    const id = await conversacion('Ya Le Contesto');
+    await http
+      .patch(`/v1/conversaciones/${id}/espera`)
+      .set(auth())
+      .send({ enEspera: true })
+      .expect(204);
+    await http
+      .patch(`/v1/conversaciones/${id}/espera`)
+      .set(auth())
+      .send({ enEspera: false })
+      .expect(204);
+
+    const vuelta = (await listar()).items.find((x) => x.id === id)!;
+    expect(vuelta.atencion).toBe('nueva');
+    expect(vuelta.enEspera).toBe(false);
+  });
+
+  it('cerrar levanta la espera: «resuelto» empieza de cero, bot incluido', async () => {
+    const id = await conversacion('Resuelto Ramírez');
+    await http
+      .patch(`/v1/conversaciones/${id}/espera`)
+      .set(auth())
+      .send({ enEspera: true })
+      .expect(204);
+    await http
+      .patch(`/v1/conversaciones/${id}/estado`)
+      .set(auth())
+      .send({ estado: 'closed' })
+      .expect(204);
+
+    const cerrada = (await listar()).items.find((x) => x.id === id)!;
+    expect(cerrada.atencion).toBe('cerrada');
+    // La diferencia entera entre «resuelto» y «en espera» vive aquí: sin esta
+    // marca levantada, el bot seguiría mudo para siempre.
+    expect(cerrada.enEspera).toBe(false);
   });
 
   it('aplazar hacia atrás no aplaza nada', async () => {

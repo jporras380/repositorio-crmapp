@@ -308,3 +308,46 @@ Cerrar ya resolvía las dos cosas que pedía el usuario: la conversación sale d
 El test de aislamiento entre cuentas falló diciendo que otra cuenta había cerrado una conversación ajena. No era eso: el ayudante `auth()` de ese fichero **usa siempre el token de la cuenta principal e ignora lo que se le pase**, así que la petición iba como uno mismo. Se pone la cabecera a mano y queda anotado, porque el siguiente que escriba un test de aislamiento ahí va a tropezar igual.
 
 5 tests de servidor.
+
+## Poner en espera y marcar resuelto (PR-81, 2026-09-19)
+
+Hasta hoy, quitarse una conversación de encima tenía dos salidas y las dos eran malas para el cliente difícil —el que discute cada precio, el que escribe a las tres de la mañana, el que ya dijo que no:
+
+- **Dejarla abierta**: sigue contando como «sin responder» y el panel deja de significar nada.
+- **Cerrarla**: cerrar borra `human_reply_at`, así que **el bot vuelve a hablarle** en cuanto escriba. Justo lo que no se quería.
+
+Ahora hay dos botones encima del compositor, que es el momento en que se decide: se acaba de leer el hilo y hay que hacer algo con él.
+
+| | Sale de pendientes | Si el cliente vuelve a escribir | El bot |
+|---|---|---|---|
+| **Poner en espera** | sí | se ve el mensaje, vuelve a pendientes | **callado** |
+| **Marcar resuelto** | sí (cerrada) | empieza de cero | **puede atender** |
+
+### Por qué una columna nueva y no `human_reply_at`
+
+Poner `human_reply_at` callaría al bot con una línea, porque la regla ya existía. Pero esa marca significa «una persona respondió», y en una conversación que nadie contestó sería mentira: la bandeja diría que está atendida mientras el cliente sigue esperando. Una marca que miente se descubre tarde y en el peor sitio.
+
+Tampoco es `snoozed_until`: aplazar es un recordatorio con fecha —«vuelve a esto el jueves»—. Esto no tiene fecha ni la quiere; dura hasta que alguien la retome o la cierre.
+
+Migración 0036: `conversations.on_hold_at`, con índice parcial porque las que están en espera son pocas y es la condición que pregunta el motor de bots antes de arrancar.
+
+### Callar al bot no es esconder al cliente
+
+`on_hold_at` guarda **la hora**, no un `true`, y eso es lo que permite la regla importante: la conversación se lee como `en_espera` **solo mientras el último mensaje entrante sea anterior a la espera**. Si el cliente escribe después, reaparece en pendientes por las reglas normales — pero el bot sigue mudo, porque `on_hold_at` no se ha levantado.
+
+Con un booleano, un cliente podría escribir cinco veces sin que nadie se entere. Eso sería una trampa, no una decisión del equipo.
+
+### La regla del bot cambió de nombre
+
+`bloqueadaPorHumano` pasó a `elBotDebeCallarse`: ahora hay dos motivos distintos —una persona respondió, o está en espera— y el nombre viejo habría mentido en el segundo, que es justo el caso donde **puede que nadie haya respondido nunca**.
+
+Cerrar levanta las dos marcas, en los tres sitios donde se cierra: la bandeja de una en una, el cierre en bloque y el motor de flujos. Es la diferencia entera entre los dos gestos; si faltara en uno, «resuelto» se comportaría como «en espera» según por dónde se hubiera cerrado.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Abre una conversación con «Por responder». Pulsa **Poner en espera**: la etiqueta desaparece de la lista y el botón se marca en ámbar con «El bot no le contesta mientras esté en espera».
+2. Escribe al CRM desde el móvil como si fueras el cliente: el mensaje aparece y vuelve a pendientes, pero ningún bot contesta.
+3. Pulsa **Quitar de espera** y vuelve a escribir: el bot ya puede entrar.
+4. **Marcar resuelto** en otra, y escribe otra vez: entra como consulta nueva y el bot la atiende.
+
+6 tests de pantalla, 4 de API y 2 del motor de flujos. Comprobado además contra la API real y capturado.

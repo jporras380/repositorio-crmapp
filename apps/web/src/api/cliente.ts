@@ -482,6 +482,12 @@ export function crearApi(token: string | null) {
         metodo: 'DELETE',
         cuerpo: { contrasenaActual },
       }),
+    ponerEnEspera: (id: string, enEspera: boolean) =>
+      peticion<void>(`/v1/conversaciones/${id}/espera`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { enEspera },
+      }),
     sesiones: () => peticion<SesionAbierta[]>('/v1/sesiones', t),
     cerrarSesion: (id: string | 'otras') =>
       peticion<{ cerradas: number }>(`/v1/sesiones/${id}`, { ...t, metodo: 'DELETE' }),

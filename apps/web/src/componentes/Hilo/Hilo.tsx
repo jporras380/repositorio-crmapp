@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Api } from '../../api/cliente.ts';
+import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { Mensaje, ResumenDeConversacion } from '../../api/tipos.ts';
 import { diaDeMensaje, horaDeMensaje, inicial, ventana } from '../../vista/tiempo.ts';
 import { Compositor } from '../Compositor/Compositor.tsx';
@@ -190,6 +190,8 @@ export function Hilo({
         <div ref={fondo} />
       </div>
 
+      <Cierre api={api} conversacion={conversacion} alCambiar={alCambiar} />
+
       {conversacion.tipo === 'comment_thread' ? (
         <CompositorDeComentario
           api={api}
@@ -319,5 +321,92 @@ function IconoFicha() {
         strokeLinecap="round"
       />
     </svg>
+  );
+}
+
+/**
+ * Las dos formas de quitarse una conversación de encima.
+ *
+ * Están aquí, justo encima del compositor, porque es el momento en que se
+ * decide: se acaba de leer el hilo y hay que hacer algo con él. En un menú
+ * escondido nadie las usaría, y la bandeja seguiría llena de conversaciones
+ * viejas que ya nadie va a contestar.
+ *
+ * ## Las dos no son lo mismo, y la diferencia importa
+ *
+ * - **Poner en espera**: sale de pendientes y **el bot se calla**. Si el
+ *   cliente vuelve a escribir, el mensaje se ve —no se esconde a nadie—, pero
+ *   nadie automático le contesta. Es para el cliente al que se decidió no
+ *   atender por ahora.
+ * - **Marcar resuelto**: esto terminó. Si vuelve a escribir, empieza de cero
+ *   y **el bot puede atenderle** como a cualquiera.
+ *
+ * Antes solo existía cerrar, y quitarse de encima a un cliente difícil
+ * significaba que el bot le saludara al día siguiente.
+ */
+function Cierre({
+  api,
+  conversacion,
+  alCambiar,
+}: {
+  api: Api;
+  conversacion: ResumenDeConversacion;
+  alCambiar: () => void;
+}) {
+  const [ocupado, setOcupado] = useState<'espera' | 'resuelto' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const cerrada = conversacion.estado === 'closed';
+
+  async function hacer(cual: 'espera' | 'resuelto', accion: () => Promise<unknown>) {
+    setOcupado(cual);
+    setError(null);
+    try {
+      await accion();
+      alCambiar();
+    } catch (e) {
+      setError(e instanceof ErrorDeApi ? e.message : 'No se pudo. Reintenta.');
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  return (
+    <div className={estilos.cierre}>
+      <button
+        className={`${estilos.accion} ${conversacion.enEspera ? estilos.accionActiva : ''}`}
+        disabled={ocupado !== null}
+        /* El título explica la consecuencia, que es lo que no se ve. */
+        title={
+          conversacion.enEspera
+            ? 'Quitar la espera: el bot volverá a poder contestarle'
+            : 'Sale de pendientes y el bot deja de contestarle'
+        }
+        onClick={() =>
+          void hacer('espera', () => api.ponerEnEspera(conversacion.id, !conversacion.enEspera))
+        }
+      >
+        {conversacion.enEspera ? 'Quitar de espera' : 'Poner en espera'}
+      </button>
+
+      {!cerrada && (
+        <button
+          className={estilos.accion}
+          disabled={ocupado !== null}
+          title="Se da por terminada. Si vuelve a escribir, el bot podrá atenderle"
+          onClick={() => void hacer('resuelto', () => api.cambiarEstado(conversacion.id, 'closed'))}
+        >
+          Marcar resuelto
+        </button>
+      )}
+
+      {conversacion.enEspera && (
+        <span className={estilos.nota}>El bot no le contesta mientras esté en espera.</span>
+      )}
+      {error && (
+        <span className={estilos.errorCierre} role="alert">
+          {error}
+        </span>
+      )}
+    </div>
   );
 }

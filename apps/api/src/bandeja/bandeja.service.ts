@@ -88,6 +88,12 @@ export interface ResumenDeConversacion {
    */
   atencion: EstadoDeAtencion;
   aplazadaHasta: Date | null;
+  /**
+   * Puesta en espera a propósito (0036): fuera de pendientes y con el bot
+   * callado. Sigue siendo `true` aunque el cliente vuelva a escribir —el bot
+   * sigue mudo—, aunque entonces `atencion` deje de decir `en_espera`.
+   */
+  enEspera: boolean;
   ventanaAbierta: boolean;
   etiquetas: { id: string; nombre: string; color: string | null }[];
   vistaPrevia: string | null;
@@ -117,7 +123,7 @@ const LIMITE_POR_DEFECTO = 30;
 const LIMITE_MAXIMO = 100;
 
 export type EstadoDeAtencion =
-  'nueva' | 'por_responder' | 'esperando_cliente' | 'seguimiento' | 'cerrada';
+  'nueva' | 'por_responder' | 'esperando_cliente' | 'seguimiento' | 'en_espera' | 'cerrada';
 
 /**
  * El estado de atención, en SQL y en UN solo sitio.
@@ -131,6 +137,13 @@ export type EstadoDeAtencion =
  */
 export const ESTADO_DE_ATENCION = `CASE
   WHEN c.status = 'closed' THEN 'cerrada'
+  -- En espera (0036), **solo mientras el cliente no vuelva a escribir**. Si
+  -- escribe después de ponerla en espera, reaparece por las reglas normales:
+  -- callar al bot no es esconder al cliente. Que alguien pueda escribir cinco
+  -- veces sin que nadie se entere sería una trampa, no una decisión.
+  WHEN c.on_hold_at IS NOT NULL
+    AND COALESCE(c.last_inbound_at, '-infinity'::timestamptz) <= c.on_hold_at
+    THEN 'en_espera'
   WHEN c.snoozed_until > now() THEN 'seguimiento'
   WHEN c.human_reply_at IS NULL THEN 'nueva'
   WHEN c.last_inbound_at > COALESCE(c.last_outbound_at, '-infinity'::timestamptz)
@@ -272,7 +285,7 @@ export class BandejaService {
                 ${ESTADO_DE_ATENCION} AS atencion,
                 c.unread_count, c.last_inbound_at, c.last_outbound_at,
                 c.session_expires_at, c.created_at,
-                c.handoff_reason, c.handoff_at,
+                c.handoff_reason, c.handoff_at, c.on_hold_at,
                 co.id AS contact_id, co.display_name, ci.handle,
                 -- Separados, no en una cadena ya unida: la interfaz los pinta
                 -- en dos líneas y ofrece copiar cada uno. Unirlos aquí obliga
@@ -427,6 +440,47 @@ export class BandejaService {
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
          VALUES ($1, $2, 'conversacion.aplazada', 'conversation', $3, $4)`,
         [ctx.tenantId, ctx.userId, conversationId, JSON.stringify({ hasta })],
+      );
+    });
+  }
+
+  /**
+   * Pone (o quita) una conversación en espera.
+   *
+   * ## Qué hace y qué NO hace
+   *
+   * Hace dos cosas: la saca de pendientes y **calla al bot**. No cierra nada,
+   * no borra nada y no impide que el equipo conteste cuando quiera.
+   *
+   * ## En qué se diferencia de cerrar
+   *
+   * Cerrar dice «esto terminó»: la próxima vez que escriba el cliente es una
+   * consulta nueva y **el bot puede atenderla**. En espera dice «a esta
+   * persona no le contestamos por ahora»: si vuelve a escribir, se ve el
+   * mensaje —no se esconde a nadie— pero el bot sigue mudo.
+   *
+   * Sin este gesto solo había dos salidas malas para el cliente difícil:
+   * dejarla abierta y que ensucie el panel de «sin responder», o cerrarla y
+   * que el bot le hable en cuanto vuelva.
+   *
+   * ## Por qué se guarda la hora y no un `true`
+   *
+   * Porque la bandeja necesita comparar: mientras el último mensaje entrante
+   * sea anterior a la espera, la conversación está tranquila; en cuanto llega
+   * uno después, reaparece. Con un booleano no se podría distinguir.
+   */
+  async ponerEnEspera(conversationId: string, enEspera: boolean): Promise<void> {
+    const ctx = this.#exigirContexto();
+    await this.#db.enTransaccion(async (c) => {
+      await this.#exigirConversacion(c, conversationId);
+      await c.query(`UPDATE conversations SET on_hold_at = $2, updated_at = now() WHERE id = $1`, [
+        conversationId,
+        enEspera ? this.#ahora() : null,
+      ]);
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'conversacion.espera', 'conversation', $3, $4)`,
+        [ctx.tenantId, ctx.userId, conversationId, JSON.stringify({ enEspera })],
       );
     });
   }
@@ -595,6 +649,9 @@ export class BandejaService {
                 -- nadie, y el siguiente mensaje del contacto es una consulta
                 -- nueva (ver relevo.ts en packages/envio).
                 human_reply_at = CASE WHEN $2 = 'closed' THEN NULL ELSE human_reply_at END,
+                -- Y levanta la espera: «resuelto» significa que la próxima vez
+                -- se empieza de cero, bot incluido.
+                on_hold_at = CASE WHEN $2 = 'closed' THEN NULL ELSE on_hold_at END,
                 updated_at = now()
           WHERE id = $1`,
         [conversationId, estado],
@@ -639,7 +696,7 @@ export class BandejaService {
             SET status = 'closed', closed_at = now(),
                 -- Cerrar devuelve el turno a los bots, igual que cerrar una
                 -- sola: el siguiente mensaje es una consulta nueva.
-                human_reply_at = NULL,
+                human_reply_at = NULL, on_hold_at = NULL,
                 updated_at = now()
           WHERE id = ANY($1::uuid[]) AND status <> 'closed'
         RETURNING id`,
@@ -1063,6 +1120,7 @@ interface FilaResumen {
   snoozed_until: Date | null;
   handoff_reason: string | null;
   handoff_at: Date | null;
+  on_hold_at: Date | null;
 }
 
 export interface MensajeDeConversacion {
@@ -1115,6 +1173,7 @@ function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
     vistaPrevia: f.vista_previa,
     atencion: f.atencion,
     aplazadaHasta: f.snoozed_until,
+    enEspera: f.on_hold_at !== null,
     relevo: f.handoff_reason ? { motivo: f.handoff_reason, en: f.handoff_at } : null,
   };
 }

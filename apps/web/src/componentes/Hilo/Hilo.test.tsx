@@ -6,8 +6,9 @@
  * quién le prometió qué al cliente.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen } from '@testing-library/react';
-import type { Api } from '../../api/cliente.ts';
+import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { Mensaje, ResumenDeConversacion } from '../../api/tipos.ts';
 import { Hilo } from './Hilo.tsx';
 
@@ -30,6 +31,7 @@ const conversacion: ResumenDeConversacion = {
   vistaPrevia: null,
   atencion: 'nueva',
   aplazadaHasta: null,
+  enEspera: false,
   relevo: null,
 };
 
@@ -57,7 +59,7 @@ function mensaje(m: Partial<Mensaje>): Mensaje {
 }
 
 /** La API devuelve del más nuevo al más antiguo; el hilo los da la vuelta. */
-function pintar(mensajes: Mensaje[]) {
+function pintar(mensajes: Mensaje[], extra: Record<string, unknown> = {}, conv = conversacion) {
   const api = {
     mensajes: vi.fn().mockResolvedValue({ items: [...mensajes].reverse(), siguienteCursor: null }),
     urlDeMedio: vi.fn().mockResolvedValue({ url: 'blob:cara', expiraEnSegundos: 300, mime: null }),
@@ -68,17 +70,22 @@ function pintar(mensajes: Mensaje[]) {
       tamanoMaximo: 1,
       porCanal: {},
     }),
+    ponerEnEspera: vi.fn().mockResolvedValue(undefined),
+    cambiarEstado: vi.fn().mockResolvedValue(undefined),
+    ...extra,
   } as unknown as Api;
+  const alCambiar = vi.fn();
   render(
     <Hilo
       api={api}
-      conversacion={conversacion}
+      conversacion={conv}
       fichaAbierta={false}
       alAlternarFicha={vi.fn()}
       alVolver={vi.fn()}
-      alCambiar={vi.fn()}
+      alCambiar={alCambiar}
     />,
   );
+  return { api, alCambiar };
 }
 
 describe('Hilo', () => {
@@ -186,5 +193,61 @@ describe('Hilo', () => {
     pintar([mensaje({ texto: 'Sin foto', autor: 'Marta', autor_id: 'u1', autor_foto_id: null })]);
     await screen.findByText('Sin foto');
     expect(document.querySelector('.avatarAutor')?.textContent).toBe('M');
+  });
+});
+
+/**
+ * Las dos salidas (0036).
+ *
+ * Lo que se prueba es que se distingan: las dos quitan la conversación de
+ * pendientes, pero solo una deja que el bot vuelva a hablarle. Confundirlas
+ * significa que un cliente al que se decidió no contestar reciba un saludo
+ * automático al día siguiente.
+ */
+describe('Hilo · poner en espera y marcar resuelto', () => {
+  it('ofrece las dos, con lo que hace cada una a la vista', async () => {
+    pintar([mensaje({ texto: 'Hola' })]);
+    const espera = await screen.findByRole('button', { name: 'Poner en espera' });
+    expect(espera.getAttribute('title')).toContain('el bot deja de contestarle');
+    expect(screen.getByRole('button', { name: 'Marcar resuelto' }).getAttribute('title')).toContain(
+      'el bot podrá atenderle',
+    );
+  });
+
+  it('poner en espera se lo pide al servidor y refresca la bandeja', async () => {
+    const { api, alCambiar } = pintar([mensaje({ texto: 'Hola' })]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Poner en espera' }));
+    expect(api.ponerEnEspera).toHaveBeenCalledWith('c1', true);
+    expect(alCambiar).toHaveBeenCalled();
+  });
+
+  it('ya en espera, el botón la quita y se dice que el bot está callado', async () => {
+    const { api } = pintar([mensaje({ texto: 'Hola' })], {}, { ...conversacion, enEspera: true });
+    expect(await screen.findByText(/El bot no le contesta/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar de espera' }));
+    expect(api.ponerEnEspera).toHaveBeenCalledWith('c1', false);
+  });
+
+  it('marcar resuelto cierra la conversación', async () => {
+    const { api } = pintar([mensaje({ texto: 'Hola' })]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Marcar resuelto' }));
+    expect(api.cambiarEstado).toHaveBeenCalledWith('c1', 'closed');
+  });
+
+  it('una ya cerrada no se ofrece cerrar otra vez, pero sí ponerse en espera', async () => {
+    pintar([mensaje({ texto: 'Hola' })], {}, { ...conversacion, estado: 'closed' });
+    await screen.findByRole('button', { name: 'Poner en espera' });
+    expect(screen.queryByRole('button', { name: 'Marcar resuelto' })).toBeNull();
+  });
+
+  it('si el servidor falla, se dice y no se finge que salió bien', async () => {
+    const { alCambiar } = pintar([mensaje({ texto: 'Hola' })], {
+      ponerEnEspera: vi
+        .fn()
+        .mockRejectedValue(new ErrorDeApi(409, 'no_se_pudo', 'Esa conversación ya no existe.')),
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Poner en espera' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('ya no existe');
+    expect(alCambiar).not.toHaveBeenCalled();
   });
 });

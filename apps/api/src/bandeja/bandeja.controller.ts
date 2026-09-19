@@ -50,6 +50,8 @@ const Filtros = z.object({
 
 const Aplazar = z.object({ hasta: z.string().datetime().nullable() });
 
+const Espera = z.object({ enEspera: z.boolean() });
+
 const Nota = z.object({ cuerpo: z.string().min(1).max(4000) });
 
 const Vista = z.object({
@@ -193,6 +195,20 @@ export class BandejaController {
     await conContextoDePeticion(req, () =>
       this.bandeja.aplazar(id, hasta ? new Date(hasta) : null),
     );
+  }
+
+  /**
+   * Poner en espera o levantarla.
+   *
+   * Un solo endpoint con un booleano, y no dos verbos: quien lo llama tiene
+   * delante un interruptor, y dos rutas obligarían a mirar el estado actual
+   * para saber cuál pulsar.
+   */
+  @Patch('conversaciones/:id/espera')
+  @HttpCode(204)
+  async espera(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const { enEspera } = validar(Espera, body);
+    await conContextoDePeticion(req, () => this.bandeja.ponerEnEspera(id, enEspera));
   }
 
   @Get('conversaciones/:id/notas')

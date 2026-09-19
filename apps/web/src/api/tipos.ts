@@ -103,6 +103,11 @@ export interface ResumenDeConversacion {
   /** Calculado al leer, nunca guardado a mano: por eso no puede mentir. */
   atencion: EstadoDeAtencion;
   aplazadaHasta: string | null;
+  /**
+   * Puesta en espera a propósito: el bot no le contesta. Sigue siendo `true`
+   * aunque el cliente vuelva a escribir y `atencion` deje de decirlo.
+   */
+  enEspera: boolean;
   ventanaAbierta: boolean;
   etiquetas: Etiqueta[];
   vistaPrevia: string | null;
@@ -327,7 +332,7 @@ export interface FiltrosDeBandeja {
 }
 
 export type EstadoDeAtencion =
-  'nueva' | 'por_responder' | 'esperando_cliente' | 'seguimiento' | 'cerrada';
+  'nueva' | 'por_responder' | 'esperando_cliente' | 'seguimiento' | 'en_espera' | 'cerrada';
 
 /** Un filtro compuesto con nombre, guardado por agente. */
 export interface VistaDeBandeja {

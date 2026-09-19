@@ -245,6 +245,11 @@ export class PanelService {
         por_responder: 0,
         esperando_cliente: 0,
         seguimiento: 0,
+        // En espera (0036): las que el equipo decidió no contestar por ahora.
+        // Cuentan aparte a propósito — si se sumaran a «esperando cliente»,
+        // el panel diría que la pelota la tiene el cliente, y la tiene el
+        // equipo, que decidió no jugarla.
+        en_espera: 0,
         cerrada: 0,
       };
       for (const f of atencion.rows) atencionAhora[f.atencion] = Number(f.n);

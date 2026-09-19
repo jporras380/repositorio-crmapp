@@ -26,6 +26,7 @@ const base: ResumenDeConversacion = {
   vistaPrevia: 'Tiene el filtro GA16?',
   atencion: 'nueva',
   aplazadaHasta: null,
+  enEspera: false,
   relevo: null,
 };
 

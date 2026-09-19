@@ -80,20 +80,27 @@ export async function cederElTurnoAlHumano(
 /**
  * ¿Puede arrancar un bot en esta conversación?
  *
- * No, si una persona ya respondió en ella. La regla es deliberadamente de la
- * CONVERSACIÓN y no de una ventana de tiempo: mientras el hilo lo lleve
- * alguien, es suyo. **Cerrar la conversación** —el gesto que el agente ya hace
- * cuando termina— es lo que devuelve el turno a los bots, y así no hay ningún
- * plazo mágico que explicar ni que afinar después.
+ * No, por dos motivos distintos que acaban en lo mismo —el bot se calla—:
  *
- * El costo: un bot de palabra clave no volverá a saltar en un hilo abierto que
- * un humano atendió, aunque hayan pasado semanas. Se arregla cerrando la
- * conversación, que es lo que debería haber pasado.
+ * 1. **Una persona ya respondió.** La regla es deliberadamente de la
+ *    CONVERSACIÓN y no de una ventana de tiempo: mientras el hilo lo lleve
+ *    alguien, es suyo. **Cerrar la conversación** —el gesto que el agente ya
+ *    hace cuando termina— devuelve el turno a los bots, y así no hay ningún
+ *    plazo mágico que explicar ni que afinar después.
+ *
+ * 2. **Está en espera** (0036). Aquí puede que nadie haya respondido nunca, y
+ *    eso es justo el caso: el cliente al que se decidió no contestar todavía.
+ *    Si el bot le hablara, la decisión del equipo no habría servido de nada.
+ *
+ * El costo del punto 1: un bot de palabra clave no volverá a saltar en un hilo
+ * abierto que un humano atendió, aunque hayan pasado semanas. Se arregla
+ * cerrando la conversación, que es lo que debería haber pasado.
  */
-export async function bloqueadaPorHumano(c: PoolClient, conversationId: string): Promise<boolean> {
-  const { rows } = await c.query<{ human_reply_at: Date | null }>(
-    `SELECT human_reply_at FROM conversations WHERE id = $1`,
+export async function elBotDebeCallarse(c: PoolClient, conversationId: string): Promise<boolean> {
+  const { rows } = await c.query<{ human_reply_at: Date | null; on_hold_at: Date | null }>(
+    `SELECT human_reply_at, on_hold_at FROM conversations WHERE id = $1`,
     [conversationId],
   );
-  return rows[0]?.human_reply_at != null;
+  const f = rows[0];
+  return f?.human_reply_at != null || f?.on_hold_at != null;
 }
