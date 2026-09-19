@@ -47,7 +47,12 @@ services:
 
   minio:
     # S3 compatible en desarrollo. En producción, R2.
-    image: minio/minio:latest
+    #
+    # Desde quay.io y con versión fija: `minio/minio:latest` de Docker Hub
+    # **dejó de existir** el 16/09/2026 (MinIO retiró de ahí la edición
+    # comunitaria). Aquí seguía funcionando solo porque la imagen estaba en
+    # la caché local de esta máquina; en una máquina nueva no arrancaba.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z.hotfix.7aa24e772
     command: ['server', '/data', '--console-address', ':9001']
     environment:
       MINIO_ROOT_USER: crmapp
@@ -66,7 +71,7 @@ services:
   minio-init:
     # Crea el bucket al arrancar. Sin esto, el primer envío de media falla
     # con un error de S3 que no dice que falta el bucket.
-    image: minio/mc:latest
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy
