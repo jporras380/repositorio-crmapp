@@ -739,6 +739,7 @@ describe('estado de atención, aplazar, notas y vistas (0020)', () => {
         atencion: string;
         aplazadaHasta: string | null;
         enEspera: boolean;
+        noLeidos: number;
       }[];
     };
 
@@ -869,6 +870,82 @@ describe('estado de atención, aplazar, notas y vistas (0020)', () => {
     // La diferencia entera entre «resuelto» y «en espera» vive aquí: sin esta
     // marca levantada, el bot seguiría mudo para siempre.
     expect(cerrada.enEspera).toBe(false);
+  });
+
+  /*
+   * El globo de sin leer (0036/PR-82).
+   *
+   * Antes solo lo apagaba ENVIAR un mensaje, así que se llamaba «sin leer» y
+   * significaba «sin responder»: quien abría un hilo, lo leía y decidía no
+   * contestar se quedaba el aviso puesto para siempre.
+   */
+  const sinLeerDe = async (id: string) => (await listar()).items.find((x) => x.id === id)!.noLeidos;
+
+  const llegaUnMensaje = async (id: string) =>
+    admin.query(
+      `UPDATE conversations
+          SET unread_count = unread_count + 1, last_inbound_at = now()
+        WHERE id = $1`,
+      [id],
+    );
+
+  it('abrir y marcar leída apaga el globo sin responder nada', async () => {
+    const id = await conversacion('Leído Sin Más');
+    await llegaUnMensaje(id);
+    expect(await sinLeerDe(id)).toBeGreaterThan(0);
+
+    await http.patch(`/v1/conversaciones/${id}/leida`).set(auth()).expect(204);
+    expect(await sinLeerDe(id)).toBe(0);
+
+    // Pero sigue esperando respuesta de una persona: leer no es contestar, y
+    // confundirlo vaciaría la bandeja de pendientes de golpe.
+    expect((await listar('?sinRespuesta=true')).items.map((x) => x.id)).toContain(id);
+  });
+
+  it('poner en espera apaga el globo; quitarla no lo devuelve', async () => {
+    const id = await conversacion('Espera Sin Globo');
+    await llegaUnMensaje(id);
+    await http
+      .patch(`/v1/conversaciones/${id}/espera`)
+      .set(auth())
+      .send({ enEspera: true })
+      .expect(204);
+    expect(await sinLeerDe(id)).toBe(0);
+
+    await http
+      .patch(`/v1/conversaciones/${id}/espera`)
+      .set(auth())
+      .send({ enEspera: false })
+      .expect(204);
+    // Lo que estaba leído sigue leído: devolver el aviso sería inventarse que
+    // hay algo nuevo que nadie ha visto.
+    expect(await sinLeerDe(id)).toBe(0);
+  });
+
+  it('marcar resuelto apaga el globo', async () => {
+    const id = await conversacion('Resuelto Sin Globo');
+    await llegaUnMensaje(id);
+    await http
+      .patch(`/v1/conversaciones/${id}/estado`)
+      .set(auth())
+      .send({ estado: 'closed' })
+      .expect(204);
+    expect(await sinLeerDe(id)).toBe(0);
+  });
+
+  it('cerrar en bloque también: cincuenta cerradas no pueden seguir pidiendo atención', async () => {
+    const a = await conversacion('Bloque Uno');
+    const b = await conversacion('Bloque Dos');
+    await llegaUnMensaje(a);
+    await llegaUnMensaje(b);
+
+    await http
+      .post('/v1/conversaciones/cerrar')
+      .set(auth())
+      .send({ ids: [a, b] })
+      .expect(200);
+    expect(await sinLeerDe(a)).toBe(0);
+    expect(await sinLeerDe(b)).toBe(0);
   });
 
   it('aplazar hacia atrás no aplaza nada', async () => {

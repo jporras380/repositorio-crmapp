@@ -445,6 +445,39 @@ export class BandejaService {
   }
 
   /**
+   * Marca la conversación como leída: apaga el globo de sin leer.
+   *
+   * ## Por qué hacía falta
+   *
+   * El contador solo bajaba a cero **al enviar un mensaje**. O sea que se
+   * llamaba «sin leer» pero significaba «sin responder», y el agente que abría
+   * un hilo, lo leía entero y decidía no contestar se quedaba con el globo
+   * puesto para siempre. Es lo que en WhatsApp se hace a diario: entras, lo
+   * lees, lo dejas en visto.
+   *
+   * ## Por qué es un endpoint aparte y no un efecto de pedir los mensajes
+   *
+   * Leer los mensajes es un GET y debe poder repetirse sin cambiar nada. Un
+   * GET que escribe rompe el reintento, el prefetch del navegador y cualquier
+   * caché que se ponga delante. La interfaz dice explícitamente «esto ya lo
+   * ha visto una persona», que además es la verdad que se quiere guardar.
+   *
+   * Se escribe solo si hay algo que apagar: la pantalla recarga cada 30
+   * segundos y no tiene sentido una escritura por vuelta.
+   */
+  async marcarLeida(conversationId: string): Promise<void> {
+    this.#exigirContexto();
+    await this.#db.enTransaccion(async (c) => {
+      await this.#exigirConversacion(c, conversationId);
+      await c.query(
+        `UPDATE conversations SET unread_count = 0, updated_at = now()
+          WHERE id = $1 AND unread_count > 0`,
+        [conversationId],
+      );
+    });
+  }
+
+  /**
    * Pone (o quita) una conversación en espera.
    *
    * ## Qué hace y qué NO hace
@@ -473,10 +506,20 @@ export class BandejaService {
     const ctx = this.#exigirContexto();
     await this.#db.enTransaccion(async (c) => {
       await this.#exigirConversacion(c, conversationId);
-      await c.query(`UPDATE conversations SET on_hold_at = $2, updated_at = now() WHERE id = $1`, [
-        conversationId,
-        enEspera ? this.#ahora() : null,
-      ]);
+      await c.query(
+        // Poner en espera es una decisión ya tomada sobre este hilo, así que
+        // el globo de sin leer se apaga. Quitarla NO lo devuelve: lo que
+        // estaba leído sigue leído, y resucitar el aviso sería inventarse que
+        // hay algo nuevo que nadie ha visto.
+        // El tipo va escrito: usado en dos sitios, PostgreSQL no puede
+        // deducirlo y responde «could not determine data type of parameter».
+        `UPDATE conversations
+            SET on_hold_at = $2::timestamptz,
+                unread_count = CASE WHEN $2::timestamptz IS NOT NULL THEN 0 ELSE unread_count END,
+                updated_at = now()
+          WHERE id = $1`,
+        [conversationId, enEspera ? this.#ahora() : null],
+      );
       await c.query(
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
          VALUES ($1, $2, 'conversacion.espera', 'conversation', $3, $4)`,
@@ -652,6 +695,10 @@ export class BandejaService {
                 -- Y levanta la espera: «resuelto» significa que la próxima vez
                 -- se empieza de cero, bot incluido.
                 on_hold_at = CASE WHEN $2 = 'closed' THEN NULL ELSE on_hold_at END,
+                -- Y el contador de sin leer se va con ella: una conversación
+                -- dada por terminada que sigue con el globo azul es un aviso
+                -- que no lleva a ninguna parte.
+                unread_count = CASE WHEN $2 = 'closed' THEN 0 ELSE unread_count END,
                 updated_at = now()
           WHERE id = $1`,
         [conversationId, estado],
@@ -697,6 +744,10 @@ export class BandejaService {
                 -- Cerrar devuelve el turno a los bots, igual que cerrar una
                 -- sola: el siguiente mensaje es una consulta nueva.
                 human_reply_at = NULL, on_hold_at = NULL,
+                -- Igual que al cerrar de una en una: marcar cincuenta como
+                -- terminadas y que sigan pidiendo atención sería peor que no
+                -- haberlas cerrado.
+                unread_count = 0,
                 updated_at = now()
           WHERE id = ANY($1::uuid[]) AND status <> 'closed'
         RETURNING id`,

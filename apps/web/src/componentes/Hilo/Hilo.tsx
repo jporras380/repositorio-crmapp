@@ -60,6 +60,26 @@ export function Hilo({
     setCargando(false);
   }, [api, conversacion.id]);
 
+  /*
+    Abrir el hilo es leerlo, como en cualquier mensajería: el globo de sin
+    leer se apaga aunque no se conteste. Antes solo lo apagaba enviar un
+    mensaje, así que quien leía y decidía no responder se quedaba el aviso
+    encima para siempre.
+
+    Solo se llama si hay algo que apagar: esta pantalla recarga cada 30
+    segundos y una escritura por vuelta no compraría nada.
+  */
+  const noLeidos = conversacion.noLeidos;
+  useEffect(() => {
+    if (noLeidos === 0) return;
+    api
+      .marcarLeida(conversacion.id)
+      .then(alCambiar)
+      // Que falle no debe estropear la lectura: el hilo ya está en pantalla y
+      // el globo se apagará al siguiente intento.
+      .catch(() => undefined);
+  }, [api, conversacion.id, noLeidos, alCambiar]);
+
   useEffect(() => {
     void cargar();
     const id = setInterval(() => void cargar(), CADA_MS);

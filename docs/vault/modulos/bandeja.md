@@ -351,3 +351,41 @@ Cerrar levanta las dos marcas, en los tres sitios donde se cierra: la bandeja de
 4. **Marcar resuelto** en otra, y escribe otra vez: entra como consulta nueva y el bot la atiende.
 
 6 tests de pantalla, 4 de API y 2 del motor de flujos. Comprobado además contra la API real y capturado.
+
+## El globo de «sin leer» decía otra cosa (PR-82, 2026-09-19)
+
+El usuario señaló el «1» azul de una conversación que acababa de poner en espera. Tenía razón, y el fondo era peor de lo que parecía: **el contador solo bajaba a cero al ENVIAR un mensaje**. Se llamaba `unread_count` y `noLeidos`, pero significaba «sin responder».
+
+Consecuencia diaria: entras a un hilo, lo lees entero, decides no contestar —que es exactamente lo que se hace en WhatsApp cuando lo dejas en visto— y el aviso se queda encima para siempre. Un aviso que no lleva a ninguna parte enseña al equipo a ignorar los avisos, y así un día se ignora uno que sí importaba.
+
+Ahora el globo se apaga en cuatro sitios:
+
+- **Al abrir el hilo**, si había algo que apagar.
+- **Al poner en espera.** Quitarla NO lo devuelve: lo leído sigue leído.
+- **Al marcar resuelto.**
+- **Al cerrar en bloque** desde las casillas de la lista.
+
+Leer no es contestar: la conversación sigue en «Sin respuesta» hasta que alguien escriba. Confundir las dos cosas vaciaría la bandeja de pendientes de golpe, y hay un test que lo fija.
+
+### Por qué «marcar leída» es un endpoint y no un efecto de pedir los mensajes
+
+Habría bastado con poner el `UPDATE` dentro del GET de mensajes. Pero un GET debe poder repetirse sin cambiar nada: si escribe, se rompe el reintento, el prefetch del navegador y cualquier caché que se ponga delante. La interfaz dice explícitamente «esto ya lo ha visto una persona», que además es la verdad que se quiere guardar.
+
+Se llama solo si `noLeidos > 0`. El hilo recarga cada 30 segundos y una escritura por vuelta no compraría nada.
+
+### Lo cerrado antes arrastraba su contador
+
+La corrección vale para lo que se cierre a partir de ahora; lo que ya estaba cerrado seguía enseñando el globo, y eso es lo que el usuario veía en pantalla. Migración 0037, un `UPDATE`.
+
+**La reversa no devuelve esos números y está escrito en el archivo**: no se guardaron en ninguna parte. Se acepta porque el número que se pierde ya era falso —decía «hay mensajes que nadie ha visto» de un hilo que alguien leyó y cerró a mano— y porque no es un dato del cliente, sino un adorno de la lista que se recalcula solo con el siguiente mensaje entrante.
+
+### Dos tropiezos del camino
+
+1. Un `python replace` no encontró su patrón porque prettier había reformateado la consulta el día anterior, y como no comprobé el resultado, di por hecho el cambio. Lo cazó el test. Desde aquí, los reemplazos van con `assert`.
+2. `SET on_hold_at = $2 … CASE WHEN $2 IS NOT NULL` → *could not determine data type of parameter $2*. Un parámetro usado en dos sitios necesita el tipo escrito: `$2::timestamptz`.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Abre una conversación con globo azul y **no contestes**: el globo se apaga solo, pero la conversación sigue en «Sin respuesta». Marca varias con las casillas y pulsa **Cerrar**: desaparecen los globos de todas.
+
+7 tests nuevos (4 de API, 3 de pantalla). Comprobado además contra la aplicación real: `caro.rp` pasó de 2 a 0 con solo abrir el hilo en el navegador.
