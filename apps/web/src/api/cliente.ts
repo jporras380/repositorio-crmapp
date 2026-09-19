@@ -293,7 +293,12 @@ export function crearApi(token: string | null) {
       ),
     crearRapida: (d: { atajo: string; titulo: string; cuerpo: string; mediaAssetId?: string }) =>
       peticion<RespuestaRapida>('/v1/respuestas-rapidas', { ...t, metodo: 'POST', cuerpo: d }),
-    editarRapida: (id: string, d: { atajo?: string; titulo?: string; cuerpo?: string }) =>
+    editarRapida: (
+      id: string,
+      // `mediaAssetId: null` QUITA el adjunto y omitirlo lo deja como estaba:
+      // el servidor distingue las dos cosas, así que el tipo también.
+      d: { atajo?: string; titulo?: string; cuerpo?: string; mediaAssetId?: string | null },
+    ) =>
       peticion<RespuestaRapida>(`/v1/respuestas-rapidas/${id}`, {
         ...t,
         metodo: 'PATCH',

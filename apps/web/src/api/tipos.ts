@@ -27,6 +27,7 @@ export interface EtiquetaConUso {
   color: string | null;
   usos: { conversaciones: number; clientes: number; leads: number };
   bots: string[];
+  creadaEn: string;
 }
 
 /** Reparto automático de conversaciones: modo de la cuenta y quién entra. */
@@ -172,6 +173,7 @@ export interface RespuestaRapida {
   cuerpo: string;
   medioId: string | null;
   version: number;
+  actualizadoEn: string;
 }
 
 export type PeticionDeEnvio =

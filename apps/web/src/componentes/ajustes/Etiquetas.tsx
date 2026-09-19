@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { EtiquetaConUso } from '../../api/tipos.ts';
+import { useListaFiltrable, type ListaFiltrada } from '../../vista/listaFiltrable.ts';
+import { BarraDeFiltro, ContadorYPaginas } from './FiltroDeLista.tsx';
 import compartidos from './ajustes.module.css';
 import estilos from './Etiquetas.module.css';
 
@@ -74,6 +76,17 @@ export function Etiquetas({ api, gestor }: Props) {
     void hacer(() => api.borrarEtiqueta(e.id));
   }
 
+  /*
+    Se busca por nombre y por los bots que la usan: «¿qué etiqueta pone el bot
+    de bienvenida?» es una pregunta real cuando hay varios flujos, y hasta
+    ahora obligaba a abrirlos uno a uno.
+  */
+  const filtrada = useListaFiltrable(
+    etiquetas,
+    (e) => [e.nombre, ...e.bots],
+    (e) => e.creadaEn,
+  );
+
   return (
     <section className={compartidos.seccion}>
       <header className={compartidos.cabecera}>
@@ -119,8 +132,20 @@ export function Etiquetas({ api, gestor }: Props) {
         <p className={compartidos.vacio}>Todavía no hay etiquetas.</p>
       )}
 
+      {etiquetas && etiquetas.length > 0 && (
+        <BarraDeFiltro
+          lista={filtrada as ListaFiltrada<unknown>}
+          nombre={{ uno: 'etiqueta', varios: 'etiquetas' }}
+          ejemplo="Buscar por nombre o por el bot que la usa…"
+        />
+      )}
+
+      {filtrada.total > 0 && filtrada.encontrados === 0 && (
+        <p className={compartidos.vacio}>Ninguna etiqueta coincide con lo que buscas.</p>
+      )}
+
       <ul className={estilos.lista}>
-        {etiquetas?.map((e) => (
+        {filtrada.visibles.map((e) => (
           <Fila
             key={`${e.id}:${e.nombre}:${e.color}`}
             etiqueta={e}
@@ -130,6 +155,13 @@ export function Etiquetas({ api, gestor }: Props) {
           />
         ))}
       </ul>
+
+      {etiquetas && etiquetas.length > 0 && (
+        <ContadorYPaginas
+          lista={filtrada as ListaFiltrada<unknown>}
+          nombre={{ uno: 'etiqueta', varios: 'etiquetas' }}
+        />
+      )}
     </section>
   );
 }

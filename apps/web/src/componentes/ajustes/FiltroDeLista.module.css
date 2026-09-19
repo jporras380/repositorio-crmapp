@@ -1,0 +1,109 @@
+/* Buscar, filtrar por fecha, contar y paginar. Lo comparten Respuestas
+   rápidas y Etiquetas. */
+@layer components {
+  .barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 0.5rem;
+    margin-block-end: 0.75rem;
+  }
+
+  /* El buscador se queda con el espacio sobrante y las fechas con el suyo:
+     en el móvil se apilan sin ningún punto de corte escrito a mano. */
+  .buscador {
+    flex: 1 1 14rem;
+    min-inline-size: 0;
+  }
+
+  .entrada {
+    inline-size: 100%;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-sm);
+  }
+  .entrada:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+  }
+
+  .fechas {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .fecha {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .etiquetaFecha {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+
+  .entradaFecha {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-sm);
+  }
+
+  .limpiar {
+    padding: 0.4rem 0.7rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .limpiar:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+
+  .pie {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-block-start: 0.75rem;
+  }
+
+  .contador {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+
+  .paginas {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .paso {
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--fg);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .paso:hover:not(:disabled) {
+    background: var(--hairline);
+  }
+  .paso:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}

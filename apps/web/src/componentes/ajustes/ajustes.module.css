@@ -268,4 +268,14 @@
     font-size: var(--text-xs);
     color: var(--fg-muted);
   }
+
+  /* La imagen de una respuesta rápida, en pequeño. Con tope de alto: una foto
+     vertical de móvil empujaría los botones fuera de la pantalla. */
+  .miniatura {
+    max-inline-size: 12rem;
+    max-block-size: 9rem;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+  }
 }

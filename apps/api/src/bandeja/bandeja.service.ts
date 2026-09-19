@@ -802,8 +802,9 @@ export class BandejaService {
         conversaciones: string;
         clientes: string;
         leads: string;
+        creada_en: Date;
       }>(
-        `SELECT t.id, t.name AS nombre, t.color,
+        `SELECT t.id, t.name AS nombre, t.color, t.created_at AS creada_en,
                 (SELECT count(*) FROM conversation_tags x WHERE x.tag_id = t.id) AS conversaciones,
                 (SELECT count(*) FROM contact_tags x WHERE x.tag_id = t.id) AS clientes,
                 (SELECT count(*) FROM lead_tags x WHERE x.tag_id = t.id) AS leads
@@ -820,6 +821,7 @@ export class BandejaService {
           leads: Number(r.leads),
         },
         bots: bots.get(r.id) ?? [],
+        creadaEn: r.creada_en,
       }));
     });
   }
@@ -1221,6 +1223,8 @@ export interface EtiquetaConUso {
   usos: { conversaciones: number; clientes: number; leads: number };
   /** Bots cuya versión vigente tiene un paso «etiquetar» con esta etiqueta. */
   bots: string[];
+  /** Cuándo se creó: sin esto no se puede filtrar «las de este mes». */
+  creadaEn: Date;
 }
 
 /** Etiqueta → nombres de los bots que la usan en su versión vigente. */

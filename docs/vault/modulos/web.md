@@ -412,3 +412,43 @@ Forzando el atributo de verdad, los tres niveles se distinguen sin lugar a dudas
 Ajustes → Apariencia. Pulsa «Oscuro»: cambia al momento, sin recargar. Pulsa «Cristal» y vuelve a la bandeja: los paneles dejan ver el fondo. Pulsa «Sólido»: se vuelven opacos y el texto se lee mejor que de ninguna otra forma. Recarga: sigue como lo dejaste.
 
 11 tests de pantalla y 12 del módulo de preferencia. Capturas de los tres niveles en claro y en oscuro.
+
+## Respuestas rápidas y Etiquetas: buscar, filtrar, contar y paginar (PR-84, 2026-09-19)
+
+Las dos pantallas eran una lista y nada más. El usuario pidió lo mismo para ambas: filtro por fechas, contador, paginación a partir de 20, buscador inteligente y —en respuestas rápidas— poder adjuntar una imagen.
+
+### Una sola pieza para las dos
+
+`src/vista/listaFiltrable.ts` (el hook) y `componentes/ajustes/FiltroDeLista.tsx` (la barra, el contador y las páginas). Escribirlo dos veces habría garantizado que se separaran: el día que se afine el buscador en una, la otra se queda como estaba.
+
+### Qué hace «inteligente» al buscador, y ninguna es magia
+
+1. **Ignora tildes y mayúsculas**: «cotizacion» encuentra «Cotización». La «ñ» se pliega a «n» de paso —«nino» encuentra «niño»—: en español es una letra propia, pero esto busca, no corrige, y ensanchar lo que se encuentra no le quita una fila a nadie.
+2. **Palabras sueltas, en cualquier orden**: «pago pend» encuentra «Pago pendiente». Todas tienen que aparecer, que es lo que deja afinar añadiendo una.
+3. **Mira todos los campos**: en respuestas, atajo + título + **texto** —quien se acuerda de «Trujillo» piensa en lo que dice la respuesta, no en cómo la llamó hace tres meses—; en etiquetas, nombre + **los bots que la usan**, que responde a «¿qué etiqueta pone el bot de bienvenida?» sin abrir los flujos uno a uno.
+
+### Detalles que se ven poco y se notan
+
+- **El contador dice dos números al filtrar**: «12 de 47». Uno solo obliga a quitar el filtro para saber si la lista entera es pequeña o es la búsqueda la que corta.
+- **Cambiar el filtro vuelve a la página 1.** Quedarse en la cuarta de una búsqueda anterior es la forma más rápida de creer que no hay resultados.
+- **La paginación solo aparece con más de una página.** Un «1 de 1» con dos flechas apagadas es ruido en la cuenta pequeña, que son casi todas.
+- **«Ninguna coincide» no es «todavía no hay»**: son dos mensajes distintos porque son dos situaciones distintas.
+- **Singular y plural**: decía «1 respuestas». Se vio en la captura, no en los tests — y cantaba más porque las filas de al lado ya decían «1 conversación» bien.
+
+### Por qué el filtro está en el navegador
+
+Estas dos listas ya llegaban enteras en una sola petición —esto no lo empeora— y tienen decenas de elementos. Filtrar aquí responde a cada tecla sin ir y volver por la red.
+
+**Dónde deja de valer, escrito en el propio archivo**: pasados unos pocos cientos por cuenta, traerlo todo para enseñar veinte es tirar datos y batería, y toca mover filtro y paginación a la API.
+
+### La imagen de una respuesta rápida
+
+El servidor ya la aceptaba desde el principio (`mediaAssetId`); lo que faltaba era el botón. Sirve para lo que se manda igual veinte veces por semana: el mapa de llegada, la lista de precios, la foto del bungalow.
+
+Se sube **antes** de guardar: al pulsar «Guardar», una foto de 4 MB por datos móviles parecería un formulario colgado. Y `mediaAssetId: null` **quita** el adjunto mientras que omitirlo lo deja como estaba — el servicio distingue las dos cosas, así que el tipo del cliente web también, y hay un test que fija que «Quitar imagen» manda `null`.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Ajustes → Respuestas rápidas: escribe «trujillo» y sale la que lo dice en el texto. Pon una fecha en «Desde» y desaparecen las viejas. Edita una, sube una imagen, guarda, vuelve a entrar: la miniatura sigue. Lo mismo en Etiquetas, buscando por el nombre de un bot.
+
+31 tests nuevos (13 del filtro, 9 de respuestas, 9 de etiquetas). Comprobado además contra MinIO real: subir, confirmar y crear la respuesta con su imagen.
