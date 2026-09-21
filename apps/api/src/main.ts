@@ -16,6 +16,7 @@ const app = await NestFactory.create<NestExpressApplication>(
     databaseUrl: config.DATABASE_URL,
     ...(config.DATABASE_AUTH_URL ? { authDatabaseUrl: config.DATABASE_AUTH_URL } : {}),
     ...(config.DATABASE_OPERADOR_URL ? { operadorDatabaseUrl: config.DATABASE_OPERADOR_URL } : {}),
+    ...(config.DATABASE_SOPORTE_URL ? { soporteDatabaseUrl: config.DATABASE_SOPORTE_URL } : {}),
     jwtSecret: config.JWT_SECRET,
     poolMax: config.DATABASE_POOL_MAX,
     masterKey: config.MASTER_ENCRYPTION_KEY,

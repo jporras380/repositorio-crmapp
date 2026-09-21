@@ -108,16 +108,12 @@ function grepTodo(patron, rutas, incluye) {
   }
 }
 
-// --- 3. Tokens de CSS usados y nunca declarados ---------------------------
-//
-// El reverso del mismo fallo. `var(--surface-2)` sin declarar no rompe nada:
-// CSS lo resuelve a vacío y sigue pintando. El campo se queda transparente y
-// nadie se entera. Se encontró con siete usos repartidos en cinco hojas, y
-// uno llevaba desde 0030. Un `var()` CON valor de respaldo sí es una decisión
-// —«usa esto si no hay token»— y no se marca.
+// Un solo recorrido del árbol para las dos guardas de estilos: la de tokens y
+// la de clases. Recorrerlo dos veces costaría el doble y se separarían el día
+// que alguien añadiera una carpeta a excluir en una sola de las dos.
+const hojas = [];
+const fuentesWeb = [];
 {
-  const hojas = [];
-  const fuentesWeb = [];
   const recorrer = (dir) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       if (e.name === 'node_modules' || e.name === 'dist' || e.name === '.turbo') continue;
@@ -129,7 +125,16 @@ function grepTodo(patron, rutas, incluye) {
   };
   recorrer('apps');
   recorrer('packages');
+}
 
+// --- 3. Tokens de CSS usados y nunca declarados ---------------------------
+//
+// El reverso del mismo fallo. `var(--surface-2)` sin declarar no rompe nada:
+// CSS lo resuelve a vacío y sigue pintando. El campo se queda transparente y
+// nadie se entera. Se encontró con siete usos repartidos en cinco hojas, y
+// uno llevaba desde 0030. Un `var()` CON valor de respaldo sí es una decisión
+// —«usa esto si no hay token»— y no se marca.
+{
   // Algunos tokens no los declara ninguna hoja porque su valor vive en la
   // base: el color de una etiqueta o de una etapa lo pone el componente con
   // `setProperty`. Eso es una declaración igual de válida, solo que en JS.
@@ -151,6 +156,51 @@ function grepTodo(patron, rutas, incluye) {
   for (const [token, hoja] of usados) {
     if (!declarados.has(token) && !PERMITIDOS[token]) {
       fallos.push(`token CSS "${token}" se usa en ${hoja} y no lo declara nadie`);
+    }
+  }
+}
+
+// --- 4. Clases de CSS Modules que no existen en su hoja --------------------
+//
+// El mismo fallo silencioso que los tokens, un nivel más arriba.
+// `estilos.sesiones` cuando la hoja importada no tiene `.sesiones` devuelve
+// `undefined`, React lo pinta como `class="undefined"` y el bloque sale sin
+// estilo: una lista con viñetas en medio de una pantalla que no tiene ninguna.
+// No falla, no avisa, y se descubre mirando una captura.
+//
+// Pasó de verdad: un componente nuevo usó cinco clases que vivían en la hoja
+// de OTRA pantalla, porque el nombre encajaba.
+{
+  const claseDeHoja = new RegExp('[.]([A-Za-z_][A-Za-z0-9_-]*)(?=[^{}]*[{])', 'g');
+  const importaHoja = /import\s+(\w+)\s+from\s+'(\.[^']*\.module\.css)'/g;
+
+  for (const fuente of fuentesWeb) {
+    if (!fuente.endsWith('.tsx')) continue;
+    const texto = readFileSync(fuente, 'utf8');
+    const carpeta = fuente.slice(0, fuente.lastIndexOf('/'));
+
+    const importadas = new Map();
+    for (const m of texto.matchAll(importaHoja)) {
+      const ruta = `${carpeta}/${m[2].replace(/^\.\//, '')}`;
+      try {
+        const clases = new Set(
+          [...readFileSync(ruta, 'utf8').matchAll(claseDeHoja)].map((c) => c[1]),
+        );
+        importadas.set(m[1], { ruta, clases });
+      } catch {
+        fallos.push(`${fuente} importa ${m[2]}, que no existe`);
+      }
+    }
+    // Con dos hojas importadas no se sabe a cuál pertenece cada clase; esas
+    // pantallas quedan fuera en vez de inventarse un fallo.
+    if (importadas.size !== 1) continue;
+
+    const [variable, hoja] = [...importadas][0];
+    const uso = new RegExp('(?:^|[^A-Za-z0-9_])' + variable + '[.]([A-Za-z0-9_]+)', 'g');
+    for (const m of texto.matchAll(uso)) {
+      if (!hoja.clases.has(m[1]) && !PERMITIDOS[m[1]]) {
+        fallos.push(`${fuente} usa "${variable}.${m[1]}" y ${hoja.ruta} no declara esa clase`);
+      }
     }
   }
 }

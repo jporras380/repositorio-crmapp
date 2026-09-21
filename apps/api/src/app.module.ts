@@ -27,6 +27,7 @@ import {
   TOKEN_ADAPTADORES,
   TOKEN_USO,
   TOKEN_OPERADOR,
+  TOKEN_SOPORTE,
   TOKEN_PANEL,
   TOKEN_FLUJOS,
   TOKEN_EMBUDO,
@@ -63,6 +64,8 @@ import {
 import { UsoService } from './uso/uso.service.js';
 import { UsoController } from './uso/uso.controller.js';
 import { OperadorController } from './uso/operador.controller.js';
+import { SoporteController } from './uso/soporte.controller.js';
+import { SoporteService } from './uso/soporte.service.js';
 import { OperadorService } from './uso/operador.service.js';
 import { PanelService } from './panel/panel.service.js';
 import { PanelController } from './panel/panel.controller.js';
@@ -95,6 +98,12 @@ export interface OpcionesDeApp {
    * no ve nada — que es el fallo seguro.
    */
   operadorDatabaseUrl?: string;
+  /**
+   * URL con el rol `crmapp_soporte` (0042): solo lectura, dentro de un
+   * inquilino y solo con permiso vivo. Sin ella, el modo soporte se niega a
+   * funcionar en vez de caer al rol que sí puede escribir.
+   */
+  soporteDatabaseUrl?: string;
   jwtSecret: string;
   poolMax?: number;
   ahora?: () => Date;
@@ -157,6 +166,7 @@ export class AppModule {
         RespuestasRapidasController,
         UsoController,
         OperadorController,
+        SoporteController,
         PanelController,
         FlujosController,
         EmbudoController,
@@ -178,6 +188,9 @@ export class AppModule {
                 : undefined,
               opciones.operadorDatabaseUrl
                 ? new Pool({ connectionString: opciones.operadorDatabaseUrl, max: 2 })
+                : undefined,
+              opciones.soporteDatabaseUrl
+                ? new Pool({ connectionString: opciones.soporteDatabaseUrl, max: 2 })
                 : undefined,
             ),
         },
@@ -382,6 +395,12 @@ export class AppModule {
           useFactory: (db: BaseDeDatos) =>
             new OperadorService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
         },
+        {
+          provide: TOKEN_SOPORTE,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) =>
+            new SoporteService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
+        },
         AuthGuard,
       ],
       exports: [
@@ -395,6 +414,7 @@ export class AppModule {
         TOKEN_PLANTILLAS,
         TOKEN_USO,
         TOKEN_OPERADOR,
+        TOKEN_SOPORTE,
         TOKEN_PANEL,
         TOKEN_FLUJOS,
         TOKEN_EMBUDO,

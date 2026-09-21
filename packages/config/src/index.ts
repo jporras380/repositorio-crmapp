@@ -63,6 +63,10 @@ export const esquemaConfig = z.object({
   // los inquilinos, solo lectura. Sin ella, la consola del operador no ve
   // nada — que es el fallo seguro. Solo la necesita la API.
   DATABASE_OPERADOR_URL: urlPostgres.optional(),
+  // Rol `crmapp_soporte` (migracion 0042): solo lectura DENTRO de un
+  // inquilino, y solo con un permiso vivo que haya aprobado ese cliente.
+  // Sin ella, el modo soporte se niega a funcionar. Solo la necesita la API.
+  DATABASE_SOPORTE_URL: urlPostgres.optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(10),
 
   REDIS_URL: z.string().startsWith('redis'),
@@ -103,6 +107,7 @@ const CAMPOS_SECRETOS = [
   'DATABASE_AUTH_URL',
   'DATABASE_RELAY_URL',
   'DATABASE_OPERADOR_URL',
+  'DATABASE_SOPORTE_URL',
   'REDIS_URL',
   'MASTER_ENCRYPTION_KEY',
   'JWT_SECRET',

@@ -99,8 +99,11 @@ export function MapaDelFlujo({ grafo, seleccionado, alSeleccionar, ajustado = fa
           const hasta = cajas.find((c) => c.id === a.hasta);
           if (!desde || !hasta) return null;
           const { d, mx, my } = trazo(desde, hasta);
+          // El grupo va sin clase: lo que se ve son la línea y la etiqueta, y
+          // cada una tiene la suya. Llevaba una que no existía en la hoja y
+          // por tanto no pintaba nada.
           return (
-            <g key={i} className={estilos.arista}>
+            <g key={i}>
               <path d={d} markerEnd="url(#punta)" className={estilos.linea} />
               {a.etiqueta && (
                 <text x={mx} y={my} className={estilos.etiquetaArista} textAnchor="middle">

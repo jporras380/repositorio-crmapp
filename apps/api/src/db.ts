@@ -66,14 +66,24 @@ export class BaseDeDatos implements OnModuleDestroy {
    * seguro: se queda corta, no de más.
    */
   readonly poolOperador: Pool;
+  /**
+   * Rol `crmapp_soporte` (0042): SOLO LECTURA y DENTRO de un inquilino.
+   *
+   * Sin configurar cae al pool de siempre, y entonces el modo soporte podría
+   * escribir. Por eso quien lo use debe comprobar que este pool es el suyo —
+   * `soporteAislado` lo dice— y negarse si no lo es. Fallar cerrado.
+   */
+  readonly poolSoporte: Pool;
 
   constructor(
     readonly pool: Pool,
     poolAuth?: Pool,
     poolOperador?: Pool,
+    poolSoporte?: Pool,
   ) {
     this.poolAuth = poolAuth ?? pool;
     this.poolOperador = poolOperador ?? pool;
+    this.poolSoporte = poolSoporte ?? pool;
   }
 
   /**
@@ -114,6 +124,22 @@ export class BaseDeDatos implements OnModuleDestroy {
    */
   async comoOperadorDeLaPlataforma<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
     return withSystemTransaction(this.poolOperador, fn);
+  }
+
+  /** ¿Hay de verdad un rol de soporte, o caería al de la aplicación? */
+  get soporteAislado(): boolean {
+    return this.poolSoporte !== this.pool;
+  }
+
+  /**
+   * Lectura DENTRO de un inquilino con el rol de soporte (0042).
+   *
+   * Nombre largo a propósito: entra en la cuenta de un cliente. Quien lo llame
+   * debe haber comprobado antes que hay un permiso vivo, aprobado por esa
+   * cuenta y sin caducar.
+   */
+  async comoSoporteEn<T>(tenantId: string, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+    return withTenant(this.poolSoporte, tenantId, fn);
   }
 
   /**
@@ -171,6 +197,13 @@ export class BaseDeDatos implements OnModuleDestroy {
     if (this.poolAuth !== this.pool) await this.poolAuth.end();
     if (this.poolOperador !== this.pool && this.poolOperador !== this.poolAuth) {
       await this.poolOperador.end();
+    }
+    if (
+      this.poolSoporte !== this.pool &&
+      this.poolSoporte !== this.poolAuth &&
+      this.poolSoporte !== this.poolOperador
+    ) {
+      await this.poolSoporte.end();
     }
   }
 

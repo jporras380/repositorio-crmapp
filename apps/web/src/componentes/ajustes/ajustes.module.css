@@ -286,4 +286,9 @@
     font-weight: 600;
     color: var(--danger);
   }
+
+  /* Alguien está mirando la cuenta AHORA. No es una fila más de una lista. */
+  .activo {
+    color: var(--warn);
+  }
 }

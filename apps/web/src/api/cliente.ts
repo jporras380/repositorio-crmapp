@@ -52,6 +52,7 @@ import type {
   LimitesDeMedios,
   Miembro,
   Perfil,
+  PermisoDeSoporte,
   PlanPublico,
   Proveedor,
   ResumenDeFlujo,
@@ -530,6 +531,17 @@ export function crearApi(token: string | null) {
         metodo: 'PATCH',
         cuerpo: { enEspera },
       }),
+    /** Quién de soporte puede mirar la cuenta, y hasta cuándo (0042). */
+    permisosDeSoporte: () => peticion<PermisoDeSoporte[]>('/v1/cuenta/soporte', t),
+    aprobarSoporte: (id: string, horas: number) =>
+      peticion<PermisoDeSoporte[]>(`/v1/cuenta/soporte/${id}/aprobar`, {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { horas },
+      }),
+    /** Sirve igual para rechazar que para cerrar un acceso ya abierto. */
+    revocarSoporte: (id: string) =>
+      peticion<PermisoDeSoporte[]>(`/v1/cuenta/soporte/${id}/revocar`, { ...t, metodo: 'POST' }),
     sesiones: () => peticion<SesionAbierta[]>('/v1/sesiones', t),
     cerrarSesion: (id: string | 'otras') =>
       peticion<{ cerradas: number }>(`/v1/sesiones/${id}`, { ...t, metodo: 'DELETE' }),

@@ -677,6 +677,27 @@ export const flowRunSteps = pgTable('flow_run_steps', {
 });
 
 /** Pagos registrados a mano por el operador (0016, ADR-011). La app solo lee. */
+/**
+ * Modo soporte (0042): el cliente deja entrar a la plataforma, y solo un rato.
+ *
+ * Quien pide no puede aprobar —lo impide el permiso de base de datos, no el
+ * código— y el plazo lo fija quien abre la puerta.
+ */
+export const supportGrants = pgTable('support_grants', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  /** Usuario de la PLATAFORMA que pide entrar, no del inquilino. */
+  requestedBy: uuid('requested_by').notNull(),
+  /** Para qué. Es lo único que el cliente tiene para decidir. */
+  reason: text('reason').notNull(),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  approvedBy: uuid('approved_by'),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: creado,
+});
+
 export const subscriptionPayments = pgTable('subscription_payments', {
   id: uuid('id').primaryKey(),
   tenantId: uuid('tenant_id').notNull(),

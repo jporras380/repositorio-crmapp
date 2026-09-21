@@ -30,6 +30,8 @@ export const TOKEN_ADAPTADORES = Symbol('Adaptadores');
 export const TOKEN_USO = Symbol('UsoService');
 /** Personal de la plataforma, no de un inquilino (0039). */
 export const TOKEN_OPERADOR = Symbol('OperadorService');
+/** Modo soporte: el cliente deja entrar y solo un rato (0042). */
+export const TOKEN_SOPORTE = Symbol('SoporteService');
 
 export const TOKEN_PANEL = Symbol('PanelService');
 

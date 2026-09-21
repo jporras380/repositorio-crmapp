@@ -1,9 +1,26 @@
-import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
-import { TOKEN_OPERADOR } from '../tokens.js';
+import { TOKEN_OPERADOR, TOKEN_SOPORTE } from '../tokens.js';
 import { AuthGuard, conContextoDePeticion } from '../auth/auth.guard.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import type { OperadorService } from './operador.service.js';
+import type { SoporteService } from './soporte.service.js';
+
+const Soporte = z.object({
+  tenantId: z.string().uuid(),
+  /** Obligatorio y largo: es lo único que el cliente tiene para decidir. */
+  motivo: z.string().trim().min(10).max(500),
+});
 
 const Comprobante = z.object({
   tenantId: z.string().uuid(),
@@ -25,12 +42,32 @@ type Req = { contexto?: unknown };
 @Controller('v1/operador')
 @UseGuards(AuthGuard)
 export class OperadorController {
-  constructor(@Inject(TOKEN_OPERADOR) private readonly operador: OperadorService) {}
+  constructor(
+    @Inject(TOKEN_OPERADOR) private readonly operador: OperadorService,
+    @Inject(TOKEN_SOPORTE) private readonly soporte: SoporteService,
+  ) {}
 
   /** Todas las cuentas: qué se les debe cobrar y si van bien. */
   @Get('cuentas')
   cuentas(@Req() req: Req) {
     return conContextoDePeticion(req, () => this.operador.cuentas());
+  }
+
+  /** Pide entrar a una cuenta. No la abre: la abre el cliente. */
+  @Post('soporte')
+  @HttpCode(201)
+  pedirSoporte(@Req() req: Req, @Body() body: unknown) {
+    const r = Soporte.safeParse(body);
+    if (!r.success) {
+      throw new ErrorDeNegocio('datos_invalidos', 'Falta la cuenta o el motivo.', 400);
+    }
+    return conContextoDePeticion(req, () => this.soporte.pedirAcceso(r.data));
+  }
+
+  /** Lo que está fallando en esa cuenta. Exige un permiso vivo. */
+  @Get('soporte/:tenantId/conversaciones')
+  conversacionesDeSoporte(@Req() req: Req, @Param('tenantId') tenantId: string) {
+    return conContextoDePeticion(req, () => this.soporte.conversacionesDe(tenantId));
   }
 
   @Post('pagos/:id/comprobante')

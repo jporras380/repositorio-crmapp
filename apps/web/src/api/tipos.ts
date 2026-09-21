@@ -9,6 +9,18 @@ export interface Sesion {
   rol: 'owner' | 'admin' | 'supervisor' | 'agent';
 }
 
+/** Un acceso de soporte a tu cuenta: quién, para qué y hasta cuándo. */
+export interface PermisoDeSoporte {
+  id: string;
+  motivo: string;
+  pedidoPor: string | null;
+  pedidoEn: string;
+  aprobadoEn: string | null;
+  expiraEn: string | null;
+  revocadoEn: string | null;
+  estado: 'pendiente' | 'activo' | 'terminado';
+}
+
 /** Un plan del catálogo, tal como lo ve quien todavía no es cliente. */
 export interface PlanPublico {
   codigo: string;

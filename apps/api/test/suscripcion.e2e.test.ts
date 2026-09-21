@@ -46,7 +46,12 @@ beforeAll(async () => {
   await reintentandoSiChocaElCatalogo(() =>
     conf.query(`ALTER ROLE crmapp_operador LOGIN PASSWORD 'crmapp_dev'`),
   );
-  await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app, crmapp_auth, crmapp_operador`);
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_soporte LOGIN PASSWORD 'crmapp_dev'`),
+  );
+  await conf.query(
+    `GRANT CONNECT ON DATABASE ${DB} TO crmapp_app, crmapp_auth, crmapp_operador, crmapp_soporte`,
+  );
   await conf.end();
   admin = new Pool({ connectionString: url(DB) });
 
@@ -59,6 +64,7 @@ beforeAll(async () => {
       // vacío.
       authDatabaseUrl: url(DB, 'crmapp_auth', 'crmapp_dev'),
       operadorDatabaseUrl: url(DB, 'crmapp_operador', 'crmapp_dev'),
+      soporteDatabaseUrl: url(DB, 'crmapp_soporte', 'crmapp_dev'),
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
       modoSandbox: true,
@@ -490,5 +496,165 @@ describe('consola del operador', () => {
     } finally {
       cliente.release();
     }
+  });
+});
+
+/**
+ * Modo soporte (0042).
+ *
+ * El test que sostiene todo lo demás es el que comprueba que **el operador no
+ * puede abrirse la puerta él solo**. Si eso fallara, las otras tres
+ * condiciones —plazo, solo lectura, auditoría— serían decoración.
+ */
+describe('modo soporte', () => {
+  let solicitud: string;
+
+  beforeAll(async () => {
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+  });
+
+  it('el operador pide entrar, y tiene que decir para qué', async () => {
+    const corto = await http
+      .post('/v1/operador/soporte')
+      .set(auth())
+      .send({ tenantId, motivo: 'ayuda' })
+      .expect(400);
+    expect(corto.body.codigo).toBe('datos_invalidos');
+
+    const r = await http
+      .post('/v1/operador/soporte')
+      .set(auth())
+      .send({ tenantId, motivo: 'Dicen que no les llegan los mensajes de WhatsApp desde ayer.' })
+      .expect(201);
+    solicitud = r.body.id;
+    expect(solicitud).toBeTruthy();
+  });
+
+  it('pedir NO da acceso: hasta que el cliente abre, no se entra', async () => {
+    const r = await http
+      .get(`/v1/operador/soporte/${tenantId}/conversaciones`)
+      .set(auth())
+      .expect(403);
+    expect(r.body.codigo).toBe('sin_permiso_de_soporte');
+  });
+
+  it('el rol del operador NO puede aprobarse a sí mismo la solicitud', async () => {
+    // La condición que sostiene el resto, comprobada en la BASE: aunque
+    // mañana alguien escriba un endpoint nuevo, el permiso lo para.
+    const cliente = await admin.connect();
+    try {
+      await cliente.query('BEGIN');
+      await cliente.query('SET LOCAL ROLE crmapp_operador');
+      await expect(cliente.query(`UPDATE support_grants SET approved_at = now()`)).rejects.toThrow(
+        /permission denied/i,
+      );
+      await cliente.query('ROLLBACK');
+    } finally {
+      cliente.release();
+    }
+  });
+
+  it('el cliente ve quién pide entrar y por qué', async () => {
+    const r = await http.get('/v1/cuenta/soporte').set(auth()).expect(200);
+    const p = r.body.find((x: { id: string }) => x.id === solicitud);
+    expect(p.estado).toBe('pendiente');
+    expect(p.motivo).toContain('no les llegan');
+    // Con nombre: «alguien» pidiendo entrar no se puede valorar.
+    expect(p.pedidoPor).toBeTruthy();
+  });
+
+  it('un plazo absurdo se rechaza', async () => {
+    await http
+      .post(`/v1/cuenta/soporte/${solicitud}/aprobar`)
+      .set(auth())
+      .send({ horas: 720 })
+      .expect(422);
+  });
+
+  it('el cliente abre la puerta y el operador entra', async () => {
+    await http
+      .post(`/v1/cuenta/soporte/${solicitud}/aprobar`)
+      .set(auth())
+      .send({ horas: 2 })
+      .expect(200);
+
+    const r = await http
+      .get(`/v1/operador/soporte/${tenantId}/conversaciones`)
+      .set(auth())
+      .expect(200);
+    expect(Array.isArray(r.body)).toBe(true);
+  });
+
+  it('lo que se ve es diagnóstico, no lo que la gente se dice', async () => {
+    const r = await http
+      .get(`/v1/operador/soporte/${tenantId}/conversaciones`)
+      .set(auth())
+      .expect(200);
+    const campos = [
+      'id',
+      'canal',
+      'estado',
+      'ultimoEntranteEn',
+      'ultimoSalienteEn',
+      'mensajesFallidos',
+      'ultimoError',
+    ].sort();
+    for (const conv of r.body) expect(Object.keys(conv).sort()).toEqual(campos);
+  });
+
+  it('el rol de soporte NO puede escribir nada, aunque haya permiso', async () => {
+    const cliente = await admin.connect();
+    try {
+      await cliente.query('BEGIN');
+      await cliente.query('SET LOCAL ROLE crmapp_soporte');
+      // Un soporte que puede escribir puede romper, y entonces nadie sabe si
+      // el fallo era del cliente o de quien fue a ayudarle.
+      await expect(cliente.query(`UPDATE conversations SET status = 'closed'`)).rejects.toThrow(
+        /permission denied/i,
+      );
+      await cliente.query('ROLLBACK');
+    } finally {
+      cliente.release();
+    }
+  });
+
+  it('entrar con permiso a UNA cuenta no abre las demás', async () => {
+    const cliente = await admin.connect();
+    try {
+      await cliente.query('BEGIN');
+      await cliente.query('SET LOCAL ROLE crmapp_soporte');
+      // Sin inquilino en el contexto, la política de aislamiento no deja ver
+      // nada. No hace falta ninguna comprobación escrita a mano.
+      const { rows } = await cliente.query(`SELECT 1 FROM conversations LIMIT 1`);
+      expect(rows).toHaveLength(0);
+      await cliente.query('ROLLBACK');
+    } finally {
+      cliente.release();
+    }
+  });
+
+  it('revocar cierra la puerta al momento', async () => {
+    await http.post(`/v1/cuenta/soporte/${solicitud}/revocar`).set(auth()).expect(200);
+
+    const r = await http
+      .get(`/v1/operador/soporte/${tenantId}/conversaciones`)
+      .set(auth())
+      .expect(403);
+    expect(r.body.codigo).toBe('sin_permiso_de_soporte');
+  });
+
+  it('todo queda en la auditoría DEL CLIENTE', async () => {
+    const { rows } = await admin.query<{ action: string }>(
+      `SELECT action FROM audit_log
+        WHERE tenant_id = $1 AND action LIKE 'soporte.%' ORDER BY created_at`,
+      [tenantId],
+    );
+    // Quién pidió, quién abrió y quién cerró: el cliente lo mira sin
+    // preguntarle a nadie.
+    expect(rows.map((r) => r.action)).toEqual([
+      'soporte.solicitado',
+      'soporte.aprobado',
+      'soporte.revocado',
+    ]);
   });
 });

@@ -13,6 +13,7 @@ export type Ruta =
       seccion:
         | 'perfil'
         | 'apariencia'
+        | 'soporte'
         | 'canales'
         | 'etiquetas'
         | 'reparto'
@@ -41,6 +42,7 @@ export type Ruta =
 const SECCIONES = new Set([
   'perfil',
   'apariencia',
+  'soporte',
   'canales',
   'etiquetas',
   'reparto',

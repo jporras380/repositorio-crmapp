@@ -426,4 +426,17 @@
   .errorCierre {
     color: var(--danger);
   }
+
+  /* El estado de entrega, al lado de la hora. Existía en el componente y NO
+     en esta hoja, así que no pintaba nada: lo encontró la guarda de clases. */
+  .estado {
+    font-size: var(--text-xs);
+  }
+
+  /* Un mensaje que no salió no puede parecerse a uno entregado: es lo único
+     de esa línea sobre lo que hay que hacer algo. */
+  .estadoFallido {
+    color: var(--danger);
+    font-weight: 600;
+  }
 }

@@ -297,7 +297,9 @@ function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean
             </span>
           )}
           {saliente && (
-            <span className={estilos.estado}>
+            <span
+              className={`${estilos.estado} ${m.estado === 'failed' ? estilos.estadoFallido : ''}`}
+            >
               {m.estado === 'failed' && m.error?.mensaje
                 ? `No se envió: ${m.error.mensaje}`
                 : (ESTADO_MENSAJE[m.estado] ?? m.estado)}

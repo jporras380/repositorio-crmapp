@@ -47,7 +47,13 @@ try {
       const { rows } = await client.query<{ datname: string }>(
         'SELECT current_database() AS datname',
       );
-      for (const rol of ['crmapp_app', 'crmapp_auth', 'crmapp_relay', 'crmapp_operador']) {
+      for (const rol of [
+        'crmapp_app',
+        'crmapp_auth',
+        'crmapp_relay',
+        'crmapp_operador',
+        'crmapp_soporte',
+      ]) {
         await client.query(`ALTER ROLE ${rol} LOGIN PASSWORD '${password}'`);
         await client.query(`GRANT CONNECT ON DATABASE "${rows[0]!.datname}" TO ${rol}`);
         console.log(`${rol} puede conectarse a ${rows[0]!.datname}.`);

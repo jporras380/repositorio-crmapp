@@ -168,3 +168,53 @@ Ningún test lo habría visto: los tests miran el DOM y ahí el texto estaba: «
 Actívate como operador (comando en 0039) y aparece un icono de edificios en el riel. La consola ordena por deuda de comprobante y marca en rojo lo que pide una llamada.
 
 15 tests nuevos (6 de API —dos de ellos contra la base—, 9 de pantalla, 5 de `faltan()`).
+
+## Modo soporte: el cliente deja entrar, y solo un rato (PR-90, 2026-09-21)
+
+La consola del operador (0040) ve cifras de todas las cuentas y ni una conversación. Eso es lo que la hace defendible. Pero cuando un cliente escribe «no me llegan los mensajes», mirar cifras no alcanza: hay que ver su bandeja, y eso son conversaciones de huéspedes.
+
+El usuario lo pidió con sus condiciones, y son las cuatro que se implementaron.
+
+### 1. Lo autoriza el cliente
+
+El operador **pide** diciendo para qué; alguien de la cuenta **abre**. El motivo es obligatorio y largo: «necesito entrar» no es algo que el cliente pueda valorar, y es lo único que tiene para decidir.
+
+Que el operador no pueda aprobarse a sí mismo **no lo garantiza el código**: su rol de base de datos tiene `INSERT` sobre `support_grants` con un `WITH CHECK` que exige `approved_by IS NULL`, y no tiene `UPDATE`. Hay un test que lo comprueba contra PostgreSQL. Un permiso que uno se da solo es una llave maestra.
+
+### 2. Caduca solo
+
+El plazo lo fija **quien abre la puerta**, no quien llama: 1, 4, 8 o 24 horas, en cuatro botones. Un campo vacío invita a escribir 999. Se puede cerrar antes en cualquier momento, y ese mismo botón sirve para rechazar.
+
+### 3. Solo lectura, garantizado por PostgreSQL
+
+El rol `crmapp_soporte` **no tiene INSERT, UPDATE ni DELETE sobre nada**. Un soporte que puede escribir puede romper, y entonces nadie sabe si el fallo era del cliente o de quien fue a ayudarle.
+
+Tampoco hizo falta escribir políticas nuevas: `tenant_isolation` (0001) no lleva cláusula `TO`, así que se aplica a cualquier rol. Al de soporte le basta el `GRANT SELECT` y queda encerrado en el inquilino del contexto. Hay un test que lo demuestra: con ese rol y **sin** inquilino puesto, `SELECT FROM conversations` devuelve cero filas.
+
+Y si `DATABASE_SOPORTE_URL` no está configurada, el servicio **se niega a funcionar** en vez de caer al rol que sí escribe. Fallar cerrado.
+
+### 4. Queda en la auditoría del cliente
+
+`soporte.solicitado`, `soporte.aprobado`, `soporte.revocado`, con quién y cuándo. La pantalla enseña también los accesos pasados, y distingue los que **nunca se abrieron**: el valor del registro está en poder mirarlo sin preguntarle a nadie.
+
+### Lo que se ve al entrar
+
+No es la bandeja: es la lista de lo que falla. Siete campos por conversación —canal, estado, últimas fechas, mensajes fallidos y el último error— porque «no me llega» y «no se envía» se contestan con eso, no leyendo lo que la gente se dice. Un test fija esos campos con lista blanca.
+
+## La guarda que salió de aquí: clases de CSS que no existen
+
+La primera captura de la pantalla de soporte salió con viñetas y sin estilo. El componente usaba cinco clases que vivían en la hoja de **otra** pantalla, porque el nombre encajaba. `estilos.sesiones` sobre una hoja que no la declara devuelve `undefined`, React pinta `class="undefined"` y el bloque sale desnudo. **No falla, no avisa.**
+
+Es la misma familia que los tokens de CSS inexistentes (PR-84), un nivel más arriba, así que `check-puertas.mjs` la vigila ahora también. Encontró **tres casos que ya estaban en el repositorio**:
+
+- `MapaDelFlujo`: una clase en el `<g>` de las aristas que no pintaba nada. Sobraba; se quitó.
+- `Hilo`: `.estado` no existía, así que **el estado de entrega de un mensaje saliente no tenía estilo propio** y un «No se envió» se veía igual que un «Leído». Ahora existe, y el fallo va en rojo.
+- `Informe`: falso positivo mío. `.num` está declarada como `.tabla .num`, y mi patrón solo leía la primera clase de cada línea. Corregido para leer el selector entero.
+
+Detalle de implementación que costó un rato: las expresiones regulares de esa guarda van **sin una sola barra invertida**, con clases de caracteres. Escribirlas con `\b` o `\w` las dejaba mutiladas al pasar por las capas de comillas del shell, y el resultado era una guarda que no encontraba nada y parecía funcionar.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Actívate como operador, pide acceso a una cuenta desde la API, y entra en esa cuenta → Ajustes → Acceso de soporte. Verás quién pide y por qué. Antes de abrir, la consulta de soporte devuelve 403; al abrir, 200; al cerrar, 403 otra vez.
+
+22 tests nuevos (12 de API —cuatro contra la base— y 10 de pantalla).
