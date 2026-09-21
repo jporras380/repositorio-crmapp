@@ -51,7 +51,6 @@ const PERMITIDOS = {
 
   // --- Métodos del cliente web --------------------------------------------
   borrarTipo: 'DEUDA: se pueden crear tipos de habitación y no borrarlos.',
-  ejecucionesDeFlujo: 'DEUDA: no se puede ver qué hace un bot ahora mismo.',
 };
 
 const fallos = [];

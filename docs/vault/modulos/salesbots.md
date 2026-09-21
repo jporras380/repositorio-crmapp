@@ -159,3 +159,28 @@ Cubierto por tests en los tres niveles: regla pura (`packages/core/test/horario.
 - **Nodos que Kommo tiene y nosotros no:** nota interna, reacción, lista de WhatsApp, Round Robin, «ir a otro paso».
 - **Disparadores.** Dos frente a los ~10 de Kommo, pero la mitad de los suyos dependen de un **embudo de leads** que aquí no existe.
 - **Enforcement.** El uso de bots ya se mide contra `bot_runs_mes`, pero pasarse no tiene consecuencia: qué ocurre al superar un límite es parte de P-21.
+
+## Ver qué está haciendo un bot (PR-92, 2026-09-21)
+
+Hasta hoy un bot que se portaba mal era una caja negra: la lista decía «3 en curso» y ahí se acababa. Si un cliente se quejaba de que el bot contestó algo raro, la única salida era leer la conversación y adivinar qué rama tomó.
+
+El registro paso a paso **ya se guardaba** desde la migración 0015 —«por qué el bot dijo lo que dijo»— y la API para leerlo existía. Lo que faltaba era la pantalla: `api.ejecucionesDeFlujo()` llevaba meses sin que lo llamara nadie, anotado como deuda en la guarda de «declarado y sin usar». **Ya no está en esa lista.**
+
+Va en el editor del bot, **debajo del simulador**, y esa colocación es el argumento: el simulador dice lo que el bot *haría* y esto lo que *hizo*. Mirar una sin la otra es la mitad del diagnóstico.
+
+### Decisiones
+
+- **El error se ve sin desplegar.** Es lo único de esa lista sobre lo que hay que hacer algo; esconderlo tras un clic es esconderlo.
+- **Se actualiza a mano.** Es un banco de trabajo, no un panel de control: se abre cuando se está investigando algo concreto. Un sondeo cada pocos segundos gastaría batería y consultas para una pantalla que casi nunca nadie mira.
+- **Desde el paso que falló se llega a la conversación** de un clic. Sin eso hay que buscarla a mano por el identificador, que es lo que hace que nadie la busque.
+- **El contador de vivas solo aparece si hay alguna.** Un «0 en curso» es ruido.
+
+### Me pilló mi propia guarda
+
+Usé `.pasoTipo` y `.pasoHora` sin declararlas en la hoja, exactamente el fallo que la guarda de clases de CSS Modules (PR-90) nació para cazar. Lo paró el build antes de que llegara a una captura. Es la primera vez que una guarda escrita el día anterior me para a mí.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Bots → abre uno que haya atendido a alguien. Debajo del simulador aparecen sus ejecuciones, con «N en curso» si las hay. Despliega una para ver los pasos, y salta a la conversación desde ahí.
+
+11 tests de pantalla.

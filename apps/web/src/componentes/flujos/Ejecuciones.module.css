@@ -1,0 +1,201 @@
+/* Qué está haciendo este bot ahora mismo, dentro del editor. */
+@layer components {
+  .panel {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.9rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    background: var(--surface-1);
+  }
+
+  .cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .titulo {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  /* Cuántas están vivas: la pregunta con la que se abre este panel. */
+  .vivas {
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-pill);
+    background: var(--ok-soft);
+    color: var(--fg);
+    font-size: 0.65rem;
+    font-weight: 600;
+  }
+
+  .actualizar {
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .actualizar:hover:not(:disabled) {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+  .actualizar:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .lista {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.3rem;
+    /* Tope de alto: veinte ejecuciones empujarían el resto del editor fuera
+       de la pantalla. */
+    max-block-size: 22rem;
+    overflow-y: auto;
+  }
+
+  .ejecucion {
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    padding: 0.35rem 0.5rem;
+  }
+
+  .fila {
+    inline-size: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .estado {
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
+  .estado_running,
+  .estado_waiting {
+    border-color: var(--ok);
+    background: var(--ok-soft);
+  }
+  .estado_failed {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+  }
+
+  .cuando {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pasosCuenta {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+
+  /* Siempre visible, sin desplegar: es lo único sobre lo que hay que actuar. */
+  .fallo {
+    margin: 0.25rem 0 0;
+    font-size: var(--text-xs);
+    color: var(--danger);
+  }
+
+  .detalle {
+    margin-block-start: 0.4rem;
+    padding-block-start: 0.4rem;
+    border-block-start: 1px solid var(--hairline);
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .pasos {
+    margin: 0;
+    padding-inline-start: 1.1rem;
+    display: grid;
+    gap: 0.2rem;
+    font-size: var(--text-xs);
+  }
+
+  .pasos li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    color: var(--fg-muted);
+  }
+
+  .pasoNodo {
+    font-family: var(--font-mono);
+    color: var(--fg);
+  }
+
+  /* El tipo de paso —«mensaje», «espera», «etiquetar»— al lado del nodo, y la
+     hora al final: leído de corrido cuenta qué hizo el bot y cuándo. */
+  .pasoTipo {
+    opacity: 0.8;
+  }
+
+  .pasoHora {
+    margin-inline-start: auto;
+    white-space: nowrap;
+  }
+
+  .pasoFallido .pasoNodo,
+  .pasoError {
+    color: var(--danger);
+  }
+
+  .pasoError {
+    inline-size: 100%;
+  }
+
+  .irAConversacion {
+    justify-self: start;
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--fg);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .irAConversacion:hover {
+    background: var(--hairline);
+  }
+
+  .vacio {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+
+  .error {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--danger);
+  }
+}

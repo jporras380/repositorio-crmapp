@@ -14,6 +14,7 @@ import type {
 } from '../../api/tipos.ts';
 import { MapaDelFlujo } from './MapaDelFlujo.tsx';
 import { Simulador } from './Simulador.tsx';
+import { Ejecuciones } from './Ejecuciones.tsx';
 import estilos from './EditorDeFlujo.module.css';
 
 interface Props {
@@ -332,6 +333,11 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
           etiquetas={etiquetas}
           alCambiarRespuestas={setRespuestas}
         />
+
+        {/* Debajo del simulador y no en otra pantalla: el simulador dice lo
+            que el bot HARÍA y esto lo que hizo de verdad. Mirar una sin la
+            otra es la mitad del diagnóstico. */}
+        <Ejecuciones api={api} flujoId={flujoId} />
       </div>
     </div>
   );
