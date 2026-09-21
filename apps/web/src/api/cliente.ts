@@ -64,6 +64,7 @@ import type {
   ResumenDeUso,
   FiltrosDeBandeja,
   Mensaje,
+  MensajeDeSoporte,
   Pagina,
   PeticionDeEnvio,
   RespuestaRapida,
@@ -530,6 +531,23 @@ export function crearApi(token: string | null) {
         ...t,
         metodo: 'PATCH',
         cuerpo: { enEspera },
+      }),
+    /** El hilo con soporte técnico. Abrirlo marca como leído lo respondido. */
+    mensajesDeSoporte: () => peticion<MensajeDeSoporte[]>('/v1/cuenta/soporte/mensajes', t),
+    escribirASoporte: (cuerpo: string) =>
+      peticion<MensajeDeSoporte[]>('/v1/cuenta/soporte/mensajes', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { cuerpo },
+      }),
+    /** Desde la consola: el hilo de una cuenta, y responderle. */
+    hiloDeSoporteDe: (tenantId: string) =>
+      peticion<MensajeDeSoporte[]>(`/v1/operador/soporte/${tenantId}/mensajes`, t),
+    responderASoporte: (tenantId: string, cuerpo: string) =>
+      peticion<MensajeDeSoporte[]>(`/v1/operador/soporte/${tenantId}/mensajes`, {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { cuerpo },
       }),
     /** Quién de soporte puede mirar la cuenta, y hasta cuándo (0042). */
     permisosDeSoporte: () => peticion<PermisoDeSoporte[]>('/v1/cuenta/soporte', t),

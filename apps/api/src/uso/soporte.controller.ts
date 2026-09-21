@@ -15,6 +15,8 @@ import { AuthGuard, conContextoDePeticion } from '../auth/auth.guard.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import { HORAS_MAXIMAS, type SoporteService } from './soporte.service.js';
 
+const Mensaje = z.object({ cuerpo: z.string().trim().min(1).max(4000) });
+
 const Aprobacion = z.object({ horas: z.number().int().min(1).max(HORAS_MAXIMAS) });
 
 type Req = { contexto?: unknown };
@@ -34,6 +36,21 @@ export class SoporteController {
   @Get()
   permisos(@Req() req: Req) {
     return conContextoDePeticion(req, () => this.soporte.permisos());
+  }
+
+  /** El hilo con soporte técnico. Abrirlo marca como leído lo que respondieron. */
+  @Get('mensajes')
+  hilo(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.soporte.hilo());
+  }
+
+  /** Escribir a soporte. Cualquiera del equipo: el que se topa lo cuenta. */
+  @Post('mensajes')
+  @HttpCode(201)
+  escribir(@Req() req: Req, @Body() body: unknown) {
+    const r = Mensaje.safeParse(body);
+    if (!r.success) throw new ErrorDeNegocio('mensaje_vacio', 'Escribe qué te pasa.', 422);
+    return conContextoDePeticion(req, () => this.soporte.escribir(r.data.cuerpo));
   }
 
   @Post(':id/aprobar')

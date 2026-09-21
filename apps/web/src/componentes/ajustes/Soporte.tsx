@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { PermisoDeSoporte } from '../../api/tipos.ts';
+import { ChatDeSoporte } from './ChatDeSoporte.tsx';
 import { hace } from '../../vista/tiempo.ts';
 import { faltan } from '../../vista/tiempo.ts';
 import estilos from './ajustes.module.css';
@@ -67,11 +68,10 @@ export function Soporte({ api, gestor }: Props) {
     <section className={estilos.seccion}>
       <header className={estilos.cabecera}>
         <div>
-          <h2 className={estilos.titulo}>Acceso de soporte</h2>
+          <h2 className={estilos.titulo}>Soporte técnico</h2>
           <p className={estilos.descripcion}>
-            Para ayudarte con un problema, soporte necesita ver tu bandeja. No puede entrar sin que
-            tú abras, el acceso caduca solo, y mientras dura <strong>no puede escribir nada</strong>
-            : ni un mensaje, ni un cambio.
+            Escríbenos por aquí y te respondemos en este mismo hilo. Si hace falta mirar tu bandeja,
+            soporte te lo pedirá abajo y lo decides tú.
           </p>
         </div>
       </header>
@@ -81,6 +81,18 @@ export function Soporte({ api, gestor }: Props) {
           {error}
         </p>
       )}
+
+      {/* El chat va primero: es lo que se viene a hacer aquí. El permiso de
+          acceso se decide DESPUÉS, y normalmente porque soporte lo pidió en
+          esta misma conversación. */}
+      <ChatDeSoporte api={api} />
+
+      <h3 className={estilos.tarjetaTitulo}>Acceso a tu bandeja</h3>
+      <p className={estilos.descripcion}>
+        Para ver qué falla, soporte necesita mirar tu bandeja. No puede entrar sin que tú abras, el
+        acceso caduca solo, y mientras dura <strong>no puede escribir nada</strong>: ni un mensaje,
+        ni un cambio.
+      </p>
 
       {permisos && permisos.length === 0 && (
         <p className={estilos.vacio}>Nadie ha pedido entrar a tu cuenta.</p>

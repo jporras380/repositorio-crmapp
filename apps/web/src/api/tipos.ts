@@ -9,6 +9,17 @@ export interface Sesion {
   rol: 'owner' | 'admin' | 'supervisor' | 'agent';
 }
 
+/** Un mensaje del hilo con soporte técnico (0043). */
+export interface MensajeDeSoporte {
+  id: string;
+  /** `true` lo escribió la plataforma; `false`, alguien de tu equipo. */
+  deLaPlataforma: boolean;
+  autor: string | null;
+  cuerpo: string;
+  creadoEn: string;
+  leidoEn: string | null;
+}
+
 /** Un acceso de soporte a tu cuenta: quién, para qué y hasta cuándo. */
 export interface PermisoDeSoporte {
   id: string;
@@ -65,6 +76,8 @@ export interface CuentaEnLaConsola {
   canalesConProblema: number;
   ultimoEventoEn: string | null;
   mensajesDelMes: number;
+  /** Lo que este cliente escribió a soporte y nadie ha leído. */
+  soporteSinLeer: number;
 }
 
 /** Etiqueta con dónde se usa, para el apartado donde se administran. */

@@ -46,6 +46,7 @@ function cuenta(p: Partial<CuentaEnLaConsola> = {}): CuentaEnLaConsola {
     canalesConProblema: 0,
     ultimoEventoEn: '2026-09-21T10:00:00Z',
     mensajesDelMes: 430,
+    soporteSinLeer: 0,
     ...p,
   };
 }

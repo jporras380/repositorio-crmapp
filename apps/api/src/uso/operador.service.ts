@@ -56,6 +56,8 @@ export interface CuentaEnLaConsola {
   ultimoEventoEn: Date | null;
   /** Mensajes de este mes, para ver de un vistazo si la cuenta está viva. */
   mensajesDelMes: number;
+  /** Lo que ESTE cliente escribió a soporte y nadie ha leído (0043). */
+  soporteSinLeer: number;
 }
 
 export interface PagoDeOperador {
@@ -159,6 +161,7 @@ export class OperadorService {
         canales_con_problema: string;
         ultimo_evento_en: Date | null;
         mensajes_del_mes: string;
+        soporte_sin_leer: string;
       }>(
         `SELECT t.id AS tenant_id, t.name AS nombre, t.slug, t.created_at AS alta_en,
                 p.name AS plan, p.price_cents AS precio_centimos, p.currency AS moneda,
@@ -182,11 +185,17 @@ export class OperadorService {
                 COALESCE((SELECT sum(r.quantity) FROM usage_rollups r
                            WHERE r.tenant_id = t.id AND r.period = $1
                              AND r.metric IN ('message.inbound', 'message.outbound')), 0)
-                  AS mensajes_del_mes
+                  AS mensajes_del_mes,
+                (SELECT count(*) FROM support_messages sm
+                  WHERE sm.tenant_id = t.id AND NOT sm.from_platform AND sm.read_at IS NULL)
+                  AS soporte_sin_leer
            FROM tenants t
            LEFT JOIN subscriptions s ON s.tenant_id = t.id
            LEFT JOIN plans p ON p.id = s.plan_id
-          ORDER BY comprobantes_pendientes DESC, periodo_hasta ASC NULLS LAST, t.name`,
+          -- Primero quien está esperando una respuesta: un cliente escribiendo
+          -- es más urgente que un comprobante, porque está parado.
+          ORDER BY soporte_sin_leer DESC, comprobantes_pendientes DESC,
+                   periodo_hasta ASC NULLS LAST, t.name`,
         [periodo],
       );
 
@@ -213,6 +222,7 @@ export class OperadorService {
           canalesConProblema: Number(f.canales_con_problema),
           ultimoEventoEn: f.ultimo_evento_en,
           mensajesDelMes: Number(f.mensajes_del_mes),
+          soporteSinLeer: Number(f.soporte_sin_leer),
         };
       });
     });

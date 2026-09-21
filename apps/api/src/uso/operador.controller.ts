@@ -22,6 +22,8 @@ const Soporte = z.object({
   motivo: z.string().trim().min(10).max(500),
 });
 
+const Mensaje = z.object({ cuerpo: z.string().trim().min(1).max(4000) });
+
 const Comprobante = z.object({
   tenantId: z.string().uuid(),
   mediaAssetId: z.string().uuid(),
@@ -62,6 +64,23 @@ export class OperadorController {
       throw new ErrorDeNegocio('datos_invalidos', 'Falta la cuenta o el motivo.', 400);
     }
     return conContextoDePeticion(req, () => this.soporte.pedirAcceso(r.data));
+  }
+
+  /** El hilo de soporte de una cuenta. Leerlo lo marca como leído. */
+  @Get('soporte/:tenantId/mensajes')
+  hiloDe(@Req() req: Req, @Param('tenantId') tenantId: string) {
+    return conContextoDePeticion(req, () => this.soporte.hiloDe(tenantId));
+  }
+
+  /** Responder. No exige permiso de soporte: contestar no es entrar. */
+  @Post('soporte/:tenantId/mensajes')
+  @HttpCode(201)
+  responder(@Req() req: Req, @Param('tenantId') tenantId: string, @Body() body: unknown) {
+    const r = Mensaje.safeParse(body);
+    if (!r.success) {
+      throw new ErrorDeNegocio('mensaje_invalido', 'Escribe la respuesta.', 422);
+    }
+    return conContextoDePeticion(req, () => this.soporte.responder(tenantId, r.data.cuerpo));
   }
 
   /** Lo que está fallando en esa cuenta. Exige un permiso vivo. */

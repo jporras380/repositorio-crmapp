@@ -453,6 +453,9 @@ describe('consola del operador', () => {
       'canalesConProblema',
       'ultimoEventoEn',
       'mensajesDelMes',
+      // Añadido en 0043: cuántos mensajes de soporte de ESTE cliente están
+      // sin leer. Es un contador, no contenido.
+      'soporteSinLeer',
     ].sort();
     for (const cuenta of r.body) {
       expect(Object.keys(cuenta).sort()).toEqual(esperados);
@@ -656,5 +659,113 @@ describe('modo soporte', () => {
       'soporte.aprobado',
       'soporte.revocado',
     ]);
+  });
+});
+
+/**
+ * Chat con soporte técnico (0043).
+ *
+ * Hoy un cliente con un problema escribe a un número personal por WhatsApp:
+ * el historial se pierde, nadie sabe qué se respondió, y quien atiende no
+ * tiene delante ni el plan ni el estado de sus canales. Esto lo mete donde ya
+ * está trabajando.
+ */
+describe('chat con soporte', () => {
+  beforeAll(async () => {
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+  });
+
+  it('el hilo empieza vacío', async () => {
+    const r = await http.get('/v1/cuenta/soporte/mensajes').set(auth()).expect(200);
+    expect(r.body).toEqual([]);
+  });
+
+  it('el cliente escribe y su mensaje queda en el hilo, con su nombre', async () => {
+    const r = await http
+      .post('/v1/cuenta/soporte/mensajes')
+      .set(auth())
+      .send({ cuerpo: 'No me llegan los mensajes de WhatsApp desde ayer por la tarde.' })
+      .expect(201);
+
+    expect(r.body).toHaveLength(1);
+    expect(r.body[0].deLaPlataforma).toBe(false);
+    expect(r.body[0].autor).toBeTruthy();
+    expect(r.body[0].cuerpo).toContain('No me llegan');
+  });
+
+  it('un mensaje vacío no se guarda', async () => {
+    await http.post('/v1/cuenta/soporte/mensajes').set(auth()).send({ cuerpo: '   ' }).expect(422);
+  });
+
+  it('la consola del operador avisa de quién está esperando', async () => {
+    const r = await http.get('/v1/operador/cuentas').set(auth()).expect(200);
+    const acme = r.body.find((c: { slug: string }) => c.slug === 'acme');
+    expect(acme.soporteSinLeer).toBe(1);
+    // Y va primero: un cliente escribiendo está parado, y eso es más urgente
+    // que un comprobante pendiente.
+    expect(r.body[0].slug).toBe('acme');
+  });
+
+  it('el operador lee el hilo, y con eso deja de estar sin leer', async () => {
+    const r = await http.get(`/v1/operador/soporte/${tenantId}/mensajes`).set(auth()).expect(200);
+    expect(r.body).toHaveLength(1);
+
+    const consola = await http.get('/v1/operador/cuentas').set(auth()).expect(200);
+    expect(consola.body.find((c: { slug: string }) => c.slug === 'acme').soporteSinLeer).toBe(0);
+  });
+
+  it('el operador responde, y la respuesta queda DENTRO de la cuenta del cliente', async () => {
+    await http
+      .post(`/v1/operador/soporte/${tenantId}/mensajes`)
+      .set(auth())
+      .send({ cuerpo: 'Lo miramos ahora. ¿Puedes darnos acceso para ver la bandeja?' })
+      .expect(201);
+
+    // El cliente la ve en SU hilo, sin que nadie se la reenvíe.
+    const r = await http.get('/v1/cuenta/soporte/mensajes').set(auth()).expect(200);
+    expect(r.body).toHaveLength(2);
+    expect(r.body[1].deLaPlataforma).toBe(true);
+    expect(r.body[1].cuerpo).toContain('Lo miramos');
+  });
+
+  it('el hilo sale en orden: lo primero arriba', async () => {
+    const r = await http.get('/v1/cuenta/soporte/mensajes').set(auth()).expect(200);
+    const fechas = r.body.map((m: { creadoEn: string }) => m.creadoEn);
+    expect([...fechas].sort()).toEqual(fechas);
+  });
+
+  it('responder NO exige permiso de soporte: contestar no es entrar', async () => {
+    // No hay ningún permiso vivo en este punto, y la respuesta de arriba pasó.
+    const r = await http
+      .get(`/v1/operador/soporte/${tenantId}/conversaciones`)
+      .set(auth())
+      .expect(403);
+    expect(r.body.codigo).toBe('sin_permiso_de_soporte');
+  });
+
+  it('el chat NO ensucia las conversaciones del hotel', async () => {
+    // Si viviera en `conversations`, contaría para los topes del plan y un bot
+    // podría acabar respondiéndole a soporte.
+    const { rows } = await admin.query<{ n: string }>(
+      `SELECT count(*) AS n FROM conversations WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    const antes = Number(rows[0]!.n);
+    await http
+      .post('/v1/cuenta/soporte/mensajes')
+      .set(auth())
+      .send({ cuerpo: 'Otra consulta distinta para comprobar que no cuenta como conversación.' })
+      .expect(201);
+    const { rows: despues } = await admin.query<{ n: string }>(
+      `SELECT count(*) AS n FROM conversations WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    expect(Number(despues[0]!.n)).toBe(antes);
+  });
+
+  it('quien no es operador no puede leer el hilo de otra cuenta', async () => {
+    await admin.query(`UPDATE users SET is_operator = false WHERE email = 'jefe@acme.test'`);
+    await http.get(`/v1/operador/soporte/${tenantId}/mensajes`).set(auth()).expect(404);
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
   });
 });

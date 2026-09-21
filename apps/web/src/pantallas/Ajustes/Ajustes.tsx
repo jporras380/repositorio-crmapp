@@ -28,7 +28,7 @@ interface Props {
 const SECCIONES: [Seccion, string, string][] = [
   ['perfil', 'Mi cuenta', 'Tu nombre, tu foto, tus llaves y tus sesiones'],
   ['apariencia', 'Apariencia', 'Tema claro u oscuro y cuánta transparencia'],
-  ['soporte', 'Acceso de soporte', 'Quién puede mirar tu cuenta, y hasta cuándo'],
+  ['soporte', 'Soporte técnico', 'Escríbenos, y decide quién puede mirar tu cuenta'],
   ['canales', 'Canales', 'Números y cuentas conectadas'],
   ['etiquetas', 'Etiquetas', 'Crear, renombrar, cambiar de color y borrar'],
   ['reparto', 'Reparto', 'Asignar solas las conversaciones nuevas'],

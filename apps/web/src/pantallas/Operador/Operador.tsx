@@ -4,6 +4,7 @@ import type { CuentaEnLaConsola, Sesion, Yo } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
 import { useListaFiltrable, type ListaFiltrada } from '../../vista/listaFiltrable.ts';
 import { BarraDeFiltro, ContadorYPaginas } from '../../componentes/ajustes/FiltroDeLista.tsx';
+import { ChatDeSoporte } from '../../componentes/ajustes/ChatDeSoporte.tsx';
 import { importe } from '../../vista/dinero.ts';
 import { faltan, hace } from '../../vista/tiempo.ts';
 import estilos from './Operador.module.css';
@@ -64,6 +65,8 @@ export function Operador({ sesion, alSalir }: Props) {
   );
 
   const debiendo = (cuentas ?? []).filter((c) => c.comprobantesPendientes > 0).length;
+  const escribiendo = (cuentas ?? []).filter((c) => c.soporteSinLeer > 0).length;
+  const [chat, setChat] = useState<CuentaEnLaConsola | null>(null);
 
   return (
     <div className={estilos.pantalla}>
@@ -77,6 +80,15 @@ export function Operador({ sesion, alSalir }: Props) {
               permiso de base de datos que alimenta esta pantalla no puede leerlos.
             </p>
           </div>
+          {/* Alguien esperando respuesta va antes que un comprobante: está
+              parado, y no sabe si le hemos leído. */}
+          {escribiendo > 0 && (
+            <span className={estilos.alertaChat} role="status">
+              {escribiendo === 1
+                ? '1 cuenta espera respuesta'
+                : `${escribiendo} cuentas esperan respuesta`}
+            </span>
+          )}
           {/* Lo primero que se mira al entrar, sin tener que contar filas. */}
           {debiendo > 0 && (
             <span className={estilos.alerta} role="status">
@@ -109,6 +121,7 @@ export function Operador({ sesion, alSalir }: Props) {
                 <th>Plan</th>
                 <th>Estado</th>
                 <th>Al mes</th>
+                <th>Soporte</th>
                 <th>Comprobantes</th>
                 <th>Canales</th>
                 <th>Mensajes del mes</th>
@@ -116,7 +129,7 @@ export function Operador({ sesion, alSalir }: Props) {
             </thead>
             <tbody>
               {lista.visibles.map((c) => (
-                <Fila key={c.tenantId} c={c} />
+                <Fila key={c.tenantId} c={c} alAbrirChat={() => setChat(c)} />
               ))}
             </tbody>
           </table>
@@ -128,12 +141,26 @@ export function Operador({ sesion, alSalir }: Props) {
             nombre={{ uno: 'cuenta', varios: 'cuentas' }}
           />
         )}
+        {/* El hilo se abre debajo de la tabla y no en una ventana: al
+            responder hace falta seguir viendo el plan y el estado de los
+            canales de esa cuenta, que es la mitad del diagnóstico. */}
+        {chat && (
+          <section className={estilos.chat}>
+            <header className={estilos.chatCabecera}>
+              <h2 className={estilos.chatTitulo}>Soporte · {chat.nombre}</h2>
+              <button className={estilos.cerrarChat} onClick={() => setChat(null)}>
+                Cerrar
+              </button>
+            </header>
+            <ChatDeSoporte api={api} tenantId={chat.tenantId} />
+          </section>
+        )}
       </main>
     </div>
   );
 }
 
-function Fila({ c }: { c: CuentaEnLaConsola }) {
+function Fila({ c, alAbrirChat }: { c: CuentaEnLaConsola; alAbrirChat: () => void }) {
   return (
     <tr>
       <td>
@@ -152,6 +179,14 @@ function Fila({ c }: { c: CuentaEnLaConsola }) {
         )}
       </td>
       <td>{importe(c.importeMensualCentimos, c.moneda)}</td>
+      <td>
+        <button
+          className={c.soporteSinLeer > 0 ? estilos.debeChat : estilos.abrirChat}
+          onClick={alAbrirChat}
+        >
+          {c.soporteSinLeer > 0 ? `${c.soporteSinLeer} sin leer` : 'Ver hilo'}
+        </button>
+      </td>
       <td>
         {c.comprobantesPendientes === 0 ? (
           <span className={estilos.menor}>al día</span>

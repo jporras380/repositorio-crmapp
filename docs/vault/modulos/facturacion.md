@@ -218,3 +218,38 @@ Detalle de implementación que costó un rato: las expresiones regulares de esa 
 Actívate como operador, pide acceso a una cuenta desde la API, y entra en esa cuenta → Ajustes → Acceso de soporte. Verás quién pide y por qué. Antes de abrir, la consulta de soporte devuelve 403; al abrir, 200; al cerrar, 403 otra vez.
 
 22 tests nuevos (12 de API —cuatro contra la base— y 10 de pantalla).
+
+## Chat con soporte técnico (PR-91, 2026-09-21)
+
+Cierra el círculo del modo soporte: por aquí llega el «no me llegan los mensajes» que justifica pedir el acceso.
+
+### Qué reemplaza, y por qué importa
+
+Hoy un cliente con un problema escribe por WhatsApp a un número personal. Eso tiene tres consecuencias que se pagan más tarde: el historial se pierde, nadie del equipo sabe qué se respondió, y **quien atiende no tiene delante ni el plan ni el estado de los canales de esa cuenta**. En la consola, el hilo se abre debajo de la tabla —no en una ventana— justo para que eso siga a la vista mientras se responde.
+
+### Un hilo por cuenta, no tickets
+
+Un sistema de tickets pide categorías, prioridades, estados y alguien que los mantenga. Para un producto con tres clientes eso es ceremonia. Un hilo continuo —como hablar por WhatsApp, que es lo que ya hacen— resuelve el 100 % de los casos de hoy, y el día que no baste, los mensajes ya están guardados y se pueden agrupar.
+
+### Por qué NO reutiliza `conversations`
+
+Esa tabla es la correspondencia con los **huéspedes**: la mira la bandeja, cuenta para los topes del plan, la tocan los bots y la gobierna la ventana de 24 horas de Meta. Meter aquí los mensajes a soporte ensuciaría las cifras que el cliente usa para saber cuánto consume, y un bot podría acabar respondiéndole a soporte. Hay un test que comprueba que escribir a soporte **no crea ninguna conversación**.
+
+### Decisiones pequeñas que se notan
+
+- **Cualquiera del equipo puede escribir.** El que se topa con el problema es quien lo cuenta; obligar a avisar al dueño solo garantiza que no se reporte.
+- **Abrir el hilo SÍ lo marca como leído** — lo contrario que la bandeja (PR-83), y a propósito: allí «leído» es una decisión sobre el trabajo de un equipo, y aquí es tu propia conversación con quien te vende el producto.
+- **Sin contador guardado.** El «sin leer» se cuenta de `read_at IS NULL`, porque un contador es lo que se desincroniza.
+- **La consola ordena primero a quien espera respuesta**, antes que a quien espera comprobante: un cliente escribiendo está parado y no sabe si le han leído.
+- **Responder no exige permiso de soporte.** Contestar a quien te escribió no es entrar en su casa.
+- **El mismo componente sirve para los dos lados**, con `tenantId` invirtiéndolos. Hay dos tests solo para eso: sin ellos, el operador vería sus propias respuestas como si las hubiera escrito el cliente.
+
+### La lista blanca hizo su trabajo
+
+Añadir `soporteSinLeer` a la consola rompió el test que fija los campos exactos de esa respuesta (PR-88). Es justo para lo que está: un campo nuevo en una pantalla que cruza el aislamiento entre cuentas tiene que declararse a propósito, no colarse.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Ajustes → Soporte técnico: escribe algo. En la consola del operador aparece «1 cuenta espera respuesta» arriba y «1 sin leer» en rojo en su fila. Pulsa ahí, responde, y el cliente lo ve en su hilo sin que nadie se lo reenvíe.
+
+21 tests nuevos (10 de API, 11 de pantalla).

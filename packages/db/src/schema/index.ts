@@ -698,6 +698,25 @@ export const supportGrants = pgTable('support_grants', {
   createdAt: creado,
 });
 
+/**
+ * Chat con soporte técnico (0043): un hilo por cuenta.
+ *
+ * Tabla propia y no `conversations`: esa es la correspondencia con los
+ * HUÉSPEDES, cuenta para los topes del plan y la tocan los bots. Mezclarlas
+ * ensuciaría las cifras del cliente y un bot podría responderle a soporte.
+ */
+export const supportMessages = pgTable('support_messages', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  authorId: uuid('author_id').notNull(),
+  /** `true` lo escribió la plataforma; `false`, el cliente. */
+  fromPlatform: boolean('from_platform').notNull(),
+  body: text('body').notNull(),
+  /** Cuándo lo leyó el OTRO lado. Evita guardar un contador que se desincroniza. */
+  readAt: timestamp('read_at', { withTimezone: true }),
+  createdAt: creado,
+});
+
 export const subscriptionPayments = pgTable('subscription_payments', {
   id: uuid('id').primaryKey(),
   tenantId: uuid('tenant_id').notNull(),

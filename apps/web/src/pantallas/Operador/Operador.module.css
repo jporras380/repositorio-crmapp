@@ -125,4 +125,70 @@
     color: var(--danger);
     font-size: var(--text-sm);
   }
+
+  /* Alguien esperando respuesta: está parado y no sabe si le hemos leído. */
+  .alertaChat {
+    padding: 0.35rem 0.8rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--danger);
+    background: var(--danger-soft);
+    color: var(--fg);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .abrirChat,
+  .debeChat {
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    background: transparent;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .abrirChat {
+    color: var(--fg-muted);
+  }
+  .abrirChat:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+  .debeChat {
+    border-color: var(--danger);
+    color: var(--danger);
+    font-weight: 600;
+  }
+
+  /* El hilo se abre DEBAJO de la tabla y no en una ventana: al responder hace
+     falta seguir viendo el plan y los canales de esa cuenta. */
+  .chat {
+    margin-block-start: var(--space-5);
+    padding-block-start: var(--space-4);
+    border-block-start: 1px solid var(--hairline);
+  }
+
+  .chatCabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-block-end: var(--space-3);
+  }
+
+  .chatTitulo {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 700;
+  }
+
+  .cerrarChat {
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
 }

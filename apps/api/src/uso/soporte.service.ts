@@ -27,11 +27,22 @@
  * que SÍ puede escribir. Antes que dar acceso de escritura sin querer, este
  * servicio se niega. Fallar cerrado.
  */
+import type { PoolClient } from 'pg';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 
 /** Tope de lo que puede durar un permiso. Un día es una jornada de soporte. */
 export const HORAS_MAXIMAS = 24;
+
+export interface MensajeDeSoporte {
+  id: string;
+  /** `true` lo escribió la plataforma; `false`, el cliente. */
+  deLaPlataforma: boolean;
+  autor: string | null;
+  cuerpo: string;
+  creadoEn: Date;
+  leidoEn: Date | null;
+}
 
 export interface PermisoDeSoporte {
   id: string;
@@ -209,6 +220,91 @@ export class SoporteService {
   }
 
   // -------------------------------------------------------------------------
+  // El chat (0043)
+  // -------------------------------------------------------------------------
+
+  /**
+   * El hilo con soporte de la cuenta en la que se está.
+   *
+   * Leerlo marca como leído lo que escribió el otro lado: abrir el hilo ES
+   * leerlo, y aquí sí —a diferencia de la bandeja— porque no hay nada que
+   * decidir. Es tu propia conversación con quien te vende el producto.
+   */
+  async hilo(): Promise<MensajeDeSoporte[]> {
+    const ctx = this.#exigirContexto();
+    return this.#db.enTransaccion(async (c) => {
+      const mensajes = await leerHilo(c, ctx.tenantId);
+      await c.query(
+        `UPDATE support_messages SET read_at = now()
+          WHERE tenant_id = $1 AND from_platform AND read_at IS NULL`,
+        [ctx.tenantId],
+      );
+      return mensajes;
+    });
+  }
+
+  /**
+   * El cliente escribe a soporte.
+   *
+   * Cualquiera del equipo puede: el que se topa con el problema es quien lo
+   * cuenta, y obligar a avisar al dueño para poder reportarlo solo garantiza
+   * que no se reporte.
+   */
+  async escribir(cuerpo: string): Promise<MensajeDeSoporte[]> {
+    const ctx = this.#exigirContexto();
+    const texto = cuerpo.trim();
+    if (!texto) throw new ErrorDeNegocio('mensaje_vacio', 'Escribe qué te pasa.', 422);
+
+    return this.#db.enTransaccion(async (c) => {
+      await c.query(
+        `INSERT INTO support_messages (tenant_id, author_id, from_platform, body)
+         VALUES ($1, $2, false, $3)`,
+        [ctx.tenantId, ctx.userId, texto],
+      );
+      return leerHilo(c, ctx.tenantId);
+    });
+  }
+
+  /** El hilo de una cuenta, desde la plataforma. Marca leído lo del cliente. */
+  async hiloDe(tenantId: string): Promise<MensajeDeSoporte[]> {
+    await this.#exigirOperador();
+    return this.#db.paraInquilino(tenantId, async (c) => {
+      const mensajes = await leerHilo(c, tenantId);
+      await c.query(
+        `UPDATE support_messages SET read_at = now()
+          WHERE tenant_id = $1 AND NOT from_platform AND read_at IS NULL`,
+        [tenantId],
+      );
+      return mensajes;
+    });
+  }
+
+  /**
+   * La plataforma responde.
+   *
+   * Entra en el contexto del inquilino con el rol de la aplicación, como al
+   * subir un comprobante (0039): la respuesta tiene que quedar DENTRO de la
+   * cuenta del cliente, que es donde él la va a leer.
+   *
+   * Responder no exige permiso de soporte: contestar a quien te escribió no
+   * es entrar en su casa.
+   */
+  async responder(tenantId: string, cuerpo: string): Promise<MensajeDeSoporte[]> {
+    const operador = await this.#exigirOperador();
+    const texto = cuerpo.trim();
+    if (!texto) throw new ErrorDeNegocio('mensaje_vacio', 'Escribe la respuesta.', 422);
+
+    return this.#db.paraInquilino(tenantId, async (c) => {
+      await c.query(
+        `INSERT INTO support_messages (tenant_id, author_id, from_platform, body)
+         VALUES ($1, $2, true, $3)`,
+        [tenantId, operador, texto],
+      );
+      return leerHilo(c, tenantId);
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Mirar la cuenta, con el permiso en la mano
   // -------------------------------------------------------------------------
 
@@ -343,4 +439,32 @@ function estadoDe(
   if (!f.approved_at) return 'pendiente';
   if (f.expires_at && f.expires_at.getTime() <= ahora.getTime()) return 'terminado';
   return 'activo';
+}
+
+/** El hilo entero, con el nombre de quien escribió cada cosa. */
+async function leerHilo(c: PoolClient, tenantId: string): Promise<MensajeDeSoporte[]> {
+  const { rows } = await c.query<{
+    id: string;
+    from_platform: boolean;
+    autor: string | null;
+    body: string;
+    created_at: Date;
+    read_at: Date | null;
+  }>(
+    `SELECT m.id, m.from_platform, u.full_name AS autor, m.body, m.created_at, m.read_at
+       FROM support_messages m
+       LEFT JOIN users u ON u.id = m.author_id
+      WHERE m.tenant_id = $1
+      ORDER BY m.created_at
+      LIMIT 200`,
+    [tenantId],
+  );
+  return rows.map((f) => ({
+    id: f.id,
+    deLaPlataforma: f.from_platform,
+    autor: f.autor,
+    cuerpo: f.body,
+    creadoEn: f.created_at,
+    leidoEn: f.read_at,
+  }));
 }

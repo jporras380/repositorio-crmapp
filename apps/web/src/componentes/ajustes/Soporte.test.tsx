@@ -34,6 +34,10 @@ function permiso(p: Partial<PermisoDeSoporte> = {}): PermisoDeSoporte {
 function pintar(permisos: PermisoDeSoporte[], gestor = true, extra: Record<string, unknown> = {}) {
   const api = {
     permisosDeSoporte: vi.fn().mockResolvedValue(permisos),
+    // El chat vive en esta misma pantalla desde 0043: sin estos, su propio
+    // error taparía al que se está probando.
+    mensajesDeSoporte: vi.fn().mockResolvedValue([]),
+    escribirASoporte: vi.fn().mockResolvedValue([]),
     aprobarSoporte: vi.fn().mockResolvedValue(permisos),
     revocarSoporte: vi.fn().mockResolvedValue(permisos),
     ...extra,
@@ -127,6 +131,9 @@ describe('Acceso de soporte', () => {
         ),
     });
     await userEvent.click(await screen.findByRole('button', { name: 'Dejar 1 hora' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('ya no está pendiente');
+    // `findAllByRole`: en esta pantalla también vive el chat, que tiene su
+    // propio hueco de error.
+    const alertas = await screen.findAllByRole('alert');
+    expect(alertas.map((a) => a.textContent).join(' ')).toContain('ya no está pendiente');
   });
 });
