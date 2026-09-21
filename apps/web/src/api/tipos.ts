@@ -9,6 +9,17 @@ export interface Sesion {
   rol: 'owner' | 'admin' | 'supervisor' | 'agent';
 }
 
+/** Un plan del catálogo, tal como lo ve quien todavía no es cliente. */
+export interface PlanPublico {
+  codigo: string;
+  nombre: string;
+  precioPorAsientoCentimos: number;
+  moneda: string;
+  mesesDePrueba: number;
+  /** Topes del plan: `agentes`, `canales`, `conversaciones_mes`… */
+  limites: Record<string, number>;
+}
+
 export interface Yo {
   userId: string;
   tenantId: string;

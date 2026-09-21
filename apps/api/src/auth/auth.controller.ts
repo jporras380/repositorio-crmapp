@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -116,6 +117,22 @@ const AccesoDto = z
 @Controller()
 export class AuthController {
   constructor(@Inject(TOKEN_AUTH) private readonly auth: AuthService) {}
+
+  /** Catálogo de planes, SIN sesión: es lo primero que ve quien no es cliente. */
+  @Get('v1/planes')
+  planes() {
+    return this.auth.planesPublicos();
+  }
+
+  /** Si el identificador de cuenta está libre. Sin sesión: se usa al darse de alta. */
+  @Get('v1/cuentas/disponible')
+  async disponible(@Query('slug') slug?: string) {
+    const limpio = (slug ?? '').trim().toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(limpio)) {
+      return { libre: false, motivo: 'formato' as const };
+    }
+    return { libre: await this.auth.slugLibre(limpio), motivo: null };
+  }
 
   @Post('v1/cuentas')
   @HttpCode(201)

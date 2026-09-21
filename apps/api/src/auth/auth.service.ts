@@ -200,6 +200,65 @@ export class AuthService {
     });
   }
 
+  /**
+   * Los planes que se pueden contratar, SIN sesión.
+   *
+   * Es la primera pantalla que ve alguien que todavía no es cliente, así que
+   * no puede exigir un token. Lo que sale es catálogo de la plataforma —
+   * precio, prueba y topes—, no dato de ningún inquilino: la tabla `plans` es
+   * global y no lleva RLS.
+   *
+   * Se filtra por `is_public`, que llevaba desde fase 0 sin usarse. Sirve para
+   * el plan a medida que se negocia con un cliente grande y no debe salir en
+   * la página de precios.
+   */
+  async planesPublicos(): Promise<
+    {
+      codigo: string;
+      nombre: string;
+      precioPorAsientoCentimos: number;
+      moneda: string;
+      mesesDePrueba: number;
+      limites: Record<string, number>;
+    }[]
+  > {
+    return this.#db.deAutenticacion(async (c) => {
+      const { rows } = await c.query<{
+        code: string;
+        name: string;
+        price_cents: number;
+        currency: string;
+        trial_months: number;
+        limits: Record<string, number>;
+      }>(
+        `SELECT code, name, price_cents, currency, trial_months, limits
+           FROM plans WHERE is_public ORDER BY price_cents`,
+      );
+      return rows.map((p) => ({
+        codigo: p.code,
+        nombre: p.name,
+        precioPorAsientoCentimos: p.price_cents,
+        moneda: p.currency,
+        mesesDePrueba: p.trial_months,
+        limites: p.limits,
+      }));
+    });
+  }
+
+  /**
+   * ¿Está libre ese identificador de cuenta?
+   *
+   * Se pregunta mientras se escribe, para no descubrir que está ocupado
+   * después de rellenar cinco campos y una contraseña. No filtra nada que no
+   * se pueda averiguar probando el alta.
+   */
+  async slugLibre(slug: string): Promise<boolean> {
+    return this.#db.deAutenticacion(async (c) => {
+      const { rows } = await c.query(`SELECT 1 FROM tenants WHERE slug = $1`, [slug]);
+      return rows.length === 0;
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Inicio de sesión
   // -------------------------------------------------------------------------

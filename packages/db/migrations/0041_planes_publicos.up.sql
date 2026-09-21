@@ -1,0 +1,13 @@
+-- 0041 · Los planes se ven sin haber entrado.
+--
+-- La página de precios es lo primero que mira quien todavía no es cliente, y
+-- por tanto no puede exigir sesión. Hasta ahora `plans` solo la leía el rol de
+-- la aplicación, que siempre trabaja con un inquilino puesto.
+--
+-- `plans` es catálogo de la PLATAFORMA: no lleva `tenant_id`, no lleva RLS, y
+-- lo que contiene es la lista de precios. Que la lea el rol de autenticación
+-- —el mismo que ya busca usuarios por correo antes de saber de qué cuenta
+-- son— no expone nada de nadie.
+--
+-- Solo SELECT: quien pudiera escribir aquí se regalaría un plan sin topes.
+GRANT SELECT ON plans TO crmapp_auth;

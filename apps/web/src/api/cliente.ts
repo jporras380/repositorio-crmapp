@@ -52,6 +52,7 @@ import type {
   LimitesDeMedios,
   Miembro,
   Perfil,
+  PlanPublico,
   Proveedor,
   ResumenDeFlujo,
   ResumenDeSuscripcion,
@@ -145,6 +146,21 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: codigo ? { email, contrasena, codigo } : { email, contrasena },
       }),
+    /** Catálogo de planes. Sin sesión: es la página de precios. */
+    planes: () => peticion<PlanPublico[]>('/v1/planes'),
+    /** Si el identificador de cuenta está libre, mientras se escribe. */
+    slugDisponible: (slug: string) =>
+      peticion<{ libre: boolean; motivo: string | null }>(
+        `/v1/cuentas/disponible?slug=${encodeURIComponent(slug)}`,
+      ),
+    crearCuenta: (d: {
+      nombreDeCuenta: string;
+      slug: string;
+      email: string;
+      contrasena: string;
+      nombreCompleto: string;
+      planCode?: string;
+    }) => peticion<Sesion & { expiraEn: number }>('/v1/cuentas', { metodo: 'POST', cuerpo: d }),
     yo: () => peticion<Yo>('/v1/yo', t),
     /** Consola del operador: todas las cuentas. 404 si no eres de la plataforma. */
     cuentasDeLaPlataforma: () => peticion<CuentaEnLaConsola[]>('/v1/operador/cuentas', t),

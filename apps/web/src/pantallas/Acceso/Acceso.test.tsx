@@ -42,7 +42,7 @@ describe('Acceso', () => {
   it('entra con la API y entrega la sesión', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(respuesta(201, SESION));
     const alEntrar = vi.fn();
-    render(<Acceso alEntrar={alEntrar} />);
+    render(<Acceso alEntrar={alEntrar} alRegistrarse={vi.fn()} />);
     await rellenarYEntrar();
     expect(alEntrar).toHaveBeenCalledWith({ token: 't', tenantId: 'a', userId: 'u', rol: 'owner' });
   });
@@ -54,7 +54,7 @@ describe('Acceso', () => {
         mensaje: 'Correo o contraseña incorrectos.',
       }),
     );
-    render(<Acceso alEntrar={vi.fn()} />);
+    render(<Acceso alEntrar={vi.fn()} alRegistrarse={vi.fn()} />);
     await rellenarYEntrar('yo@x.test', 'mala');
     expect(screen.getByRole('alert').textContent).toContain('Correo o contraseña incorrectos.');
     // Una contraseña mala no es un segundo factor pendiente.
@@ -65,7 +65,7 @@ describe('Acceso', () => {
 
   it('sin segundo factor no se pide código y no se manda ninguno', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(respuesta(201, SESION));
-    render(<Acceso alEntrar={vi.fn()} />);
+    render(<Acceso alEntrar={vi.fn()} alRegistrarse={vi.fn()} />);
     expect(screen.queryByLabelText('Código')).toBeNull();
     await rellenarYEntrar();
     expect(cuerpoEnviado(0)).not.toHaveProperty('codigo');
@@ -75,7 +75,7 @@ describe('Acceso', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       respuesta(401, { codigo: 'codigo_requerido', mensaje: 'Escribe el código.' }),
     );
-    render(<Acceso alEntrar={vi.fn()} />);
+    render(<Acceso alEntrar={vi.fn()} alRegistrarse={vi.fn()} />);
     await rellenarYEntrar();
 
     expect(await screen.findByLabelText('Código')).toBeTruthy();
@@ -90,7 +90,7 @@ describe('Acceso', () => {
       .mockResolvedValueOnce(respuesta(401, { codigo: 'codigo_requerido', mensaje: 'Falta.' }))
       .mockResolvedValueOnce(respuesta(201, SESION));
     const alEntrar = vi.fn();
-    render(<Acceso alEntrar={alEntrar} />);
+    render(<Acceso alEntrar={alEntrar} alRegistrarse={vi.fn()} />);
     await rellenarYEntrar();
 
     await userEvent.type(await screen.findByLabelText('Código'), '123456');
@@ -110,7 +110,7 @@ describe('Acceso', () => {
       .mockResolvedValueOnce(
         respuesta(403, { codigo: 'codigo_invalido', mensaje: 'Ese código no es válido.' }),
       );
-    render(<Acceso alEntrar={vi.fn()} />);
+    render(<Acceso alEntrar={vi.fn()} alRegistrarse={vi.fn()} />);
     await rellenarYEntrar();
 
     await userEvent.type(await screen.findByLabelText('Código'), '000000');
@@ -125,7 +125,7 @@ describe('Acceso', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       respuesta(401, { codigo: 'codigo_requerido', mensaje: 'Falta.' }),
     );
-    render(<Acceso alEntrar={vi.fn()} />);
+    render(<Acceso alEntrar={vi.fn()} alRegistrarse={vi.fn()} />);
     await rellenarYEntrar();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Usar otra cuenta' }));

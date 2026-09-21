@@ -569,3 +569,109 @@ describe('verificación en dos pasos (0035)', () => {
       .expect(200);
   });
 });
+
+/**
+ * El embudo de compra (0041/PR-89).
+ *
+ * Hasta ahora la API sabía crear una cuenta y no había forma de llegar a ella:
+ * la única puerta de la web era el formulario de acceso, y dar de alta a un
+ * cliente exigía consola. Esto es lo que hace falta ANTES de poder vender.
+ */
+describe('alta pública', () => {
+  it('los planes se ven SIN sesión: es lo primero que mira quien no es cliente', async () => {
+    const r = await http.get('/v1/planes').expect(200);
+    expect(r.body.length).toBeGreaterThanOrEqual(3);
+
+    const starter = r.body.find((p: { codigo: string }) => p.codigo === 'starter');
+    expect(starter.precioPorAsientoCentimos).toBe(2500);
+    expect(starter.moneda).toBe('USD');
+    expect(starter.mesesDePrueba).toBeGreaterThan(0);
+    // Los topes van con el precio: elegir plan sin saber qué incluye es elegir
+    // a ciegas, y la cuenta se topa al mes siguiente.
+    expect(starter.limites.agentes).toBe(3);
+  });
+
+  it('salen ordenados de más barato a más caro', async () => {
+    const r = await http.get('/v1/planes').expect(200);
+    const precios = r.body.map(
+      (p: { precioPorAsientoCentimos: number }) => p.precioPorAsientoCentimos,
+    );
+    expect([...precios].sort((a: number, b: number) => a - b)).toEqual(precios);
+  });
+
+  it('un plan que no es público no sale en la lista', async () => {
+    await admin.query(
+      `INSERT INTO plans (id, code, name, price_cents, currency, limits, is_public)
+       VALUES (uuidv7(), 'a-medida', 'A medida', 50000, 'USD', '{}'::jsonb, false)`,
+    );
+    const r = await http.get('/v1/planes').expect(200);
+    // El plan negociado con un cliente grande no va en la página de precios.
+    expect(r.body.map((p: { codigo: string }) => p.codigo)).not.toContain('a-medida');
+  });
+
+  it('dice si el identificador está libre ANTES de rellenar el formulario', async () => {
+    const libre = await http.get('/v1/cuentas/disponible?slug=hotel-nuevo-2026').expect(200);
+    expect(libre.body).toEqual({ libre: true, motivo: null });
+  });
+
+  it('y dice que NO cuando ya existe', async () => {
+    const r = await http.get('/v1/cuentas/disponible?slug=dospasos').expect(200);
+    expect(r.body.libre).toBe(false);
+  });
+
+  it('un identificador con formato imposible se rechaza por formato, no por ocupado', async () => {
+    // Son cosas distintas y el mensaje que merece cada una también.
+    for (const malo of ['A', 'con espacio', '-empieza-mal', 'termina-mal-', 'a']) {
+      const r = await http
+        .get(`/v1/cuentas/disponible?slug=${encodeURIComponent(malo)}`)
+        .expect(200);
+      expect(r.body).toEqual({ libre: false, motivo: 'formato' });
+    }
+  });
+
+  it('las mayúsculas se normalizan, no se rechazan', async () => {
+    // Rechazar «MI-HOTEL» sería castigar a quien escribe con mayúsculas por
+    // costumbre. Se convierte a minúsculas y se sigue, que es lo que espera
+    // cualquiera que haya elegido un nombre de usuario alguna vez.
+    const r = await http.get('/v1/cuentas/disponible?slug=MI-HOTEL-NUEVO').expect(200);
+    expect(r.body).toEqual({ libre: true, motivo: null });
+  });
+
+  it('el alta crea la cuenta con el plan elegido y devuelve sesión', async () => {
+    const r = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Hostal Miraflores',
+        slug: 'hostal-miraflores',
+        email: 'duena@miraflores.test',
+        contrasena: 'una-contrasena-larga',
+        nombreCompleto: 'Rosa Miraflores',
+        planCode: 'growth',
+      })
+      .expect(201);
+
+    expect(r.body.token).toBeTruthy();
+    // Entra directo a su CRM: mandar a iniciar sesión después de registrarse
+    // es pedir la contraseña que acaban de escribir.
+    const suscripcion = await http
+      .get('/v1/cuenta/suscripcion')
+      .set({ Authorization: `Bearer ${r.body.token}` })
+      .expect(200);
+    expect(suscripcion.body.plan.codigo).toBe('growth');
+    expect(suscripcion.body.estado).toBe('prueba');
+  });
+
+  it('el identificador ocupado se rechaza con su motivo, no con un 500', async () => {
+    const r = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Otro con el mismo',
+        slug: 'hostal-miraflores',
+        email: 'otro@miraflores.test',
+        contrasena: 'una-contrasena-larga',
+        nombreCompleto: 'Otro',
+      })
+      .expect(409);
+    expect(r.body.codigo).toBe('slug_ocupado');
+  });
+});

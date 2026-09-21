@@ -29,6 +29,8 @@ export type Ruta =
   | { pantalla: 'leads'; leadId: string | null }
   /** Clientes. Con uno elegido, su ficha al lado de la lista. */
   | { pantalla: 'clientes'; clienteId: string | null }
+  /** Alta pública: planes y creación de cuenta. La única sin sesión. */
+  | { pantalla: 'alta' }
   /** Consola del operador de la PLATAFORMA. No es de ningún hotel (0040). */
   | { pantalla: 'operador' }
   /** Catálogo del hotel y cotizador. */
@@ -65,6 +67,7 @@ export function leerRuta(hash: string = location.hash): Ruta {
       ...(vista === 'sinRespuesta' ? { vista: 'sinRespuesta' as const } : {}),
     };
   }
+  if (hash.startsWith('#alta')) return { pantalla: 'alta' };
   if (hash.startsWith('#operador')) return { pantalla: 'operador' };
   if (hash.startsWith('#hotel')) return { pantalla: 'hotel' };
   if (hash.startsWith('#reservas')) {
@@ -93,33 +96,35 @@ export function irA(ruta: Ruta): void {
   const hash =
     ruta.pantalla === 'panel'
       ? '#panel'
-      : ruta.pantalla === 'operador'
-        ? '#operador'
-        : ruta.pantalla === 'hotel'
-          ? '#hotel'
-          : ruta.pantalla === 'reservas'
-            ? ruta.reservaId
-              ? `#reservas/${ruta.reservaId}`
-              : '#reservas'
-            : ruta.pantalla === 'clientes'
-              ? ruta.clienteId
-                ? `#clientes/${ruta.clienteId}`
-                : '#clientes'
-              : ruta.pantalla === 'leads'
-                ? ruta.leadId
-                  ? `#leads/${ruta.leadId}`
-                  : '#leads'
-                : ruta.pantalla === 'flujos'
-                  ? ruta.flujoId
-                    ? `#flujos/${ruta.flujoId}`
-                    : '#flujos'
-                  : ruta.pantalla === 'ajustes'
-                    ? `#ajustes/${ruta.seccion}`
-                    : ruta.conversacionId
-                      ? `#c=${ruta.conversacionId}`
-                      : ruta.vista
-                        ? `#bandeja/${ruta.vista}`
-                        : '#bandeja';
+      : ruta.pantalla === 'alta'
+        ? '#alta'
+        : ruta.pantalla === 'operador'
+          ? '#operador'
+          : ruta.pantalla === 'hotel'
+            ? '#hotel'
+            : ruta.pantalla === 'reservas'
+              ? ruta.reservaId
+                ? `#reservas/${ruta.reservaId}`
+                : '#reservas'
+              : ruta.pantalla === 'clientes'
+                ? ruta.clienteId
+                  ? `#clientes/${ruta.clienteId}`
+                  : '#clientes'
+                : ruta.pantalla === 'leads'
+                  ? ruta.leadId
+                    ? `#leads/${ruta.leadId}`
+                    : '#leads'
+                  : ruta.pantalla === 'flujos'
+                    ? ruta.flujoId
+                      ? `#flujos/${ruta.flujoId}`
+                      : '#flujos'
+                    : ruta.pantalla === 'ajustes'
+                      ? `#ajustes/${ruta.seccion}`
+                      : ruta.conversacionId
+                        ? `#c=${ruta.conversacionId}`
+                        : ruta.vista
+                          ? `#bandeja/${ruta.vista}`
+                          : '#bandeja';
   if (hash) location.hash = hash;
   else history.pushState(null, '', location.pathname);
   window.dispatchEvent(new HashChangeEvent('hashchange'));

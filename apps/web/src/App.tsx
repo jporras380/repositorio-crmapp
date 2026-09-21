@@ -1,6 +1,7 @@
 import { useSesion } from './estado/sesion.ts';
-import { useRuta } from './estado/ruta.ts';
+import { irA, useRuta } from './estado/ruta.ts';
 import { Acceso } from './pantallas/Acceso/Acceso.tsx';
+import { Alta } from './pantallas/Alta/Alta.tsx';
 import { Panel } from './pantallas/Panel/Panel.tsx';
 import { Operador } from './pantallas/Operador/Operador.tsx';
 import { Bandeja } from './pantallas/Bandeja/Bandeja.tsx';
@@ -14,7 +15,18 @@ import { Reservas } from './pantallas/Reservas/Reservas.tsx';
 export function App() {
   const { sesion, iniciar, cerrar } = useSesion();
   const ruta = useRuta();
-  if (!sesion) return <Acceso alEntrar={iniciar} />;
+  // El alta va ANTES de la comprobación de sesión: quien todavía no es cliente
+  // no tiene ninguna, y mandarlo al formulario de acceso es cerrarle la puerta
+  // a la única persona a la que queremos venderle.
+  if (!sesion && ruta.pantalla === 'alta') {
+    return (
+      <Alta
+        alEntrar={iniciar}
+        alVolver={() => irA({ pantalla: 'bandeja', conversacionId: null })}
+      />
+    );
+  }
+  if (!sesion) return <Acceso alEntrar={iniciar} alRegistrarse={() => irA({ pantalla: 'alta' })} />;
   if (ruta.pantalla === 'panel') return <Panel sesion={sesion} alSalir={cerrar} />;
   if (ruta.pantalla === 'operador') return <Operador sesion={sesion} alSalir={cerrar} />;
   if (ruta.pantalla === 'hotel') return <Hotel sesion={sesion} alSalir={cerrar} />;
@@ -32,6 +44,13 @@ export function App() {
   }
   if (ruta.pantalla === 'ajustes') {
     return <Ajustes sesion={sesion} seccion={ruta.seccion} alSalir={cerrar} />;
+  }
+  // Con sesión, `#alta` no tiene sentido: ya es cliente. Cae a la bandeja en
+  // vez de enseñarle una página de precios de algo que ya compró.
+  if (ruta.pantalla === 'alta') {
+    return (
+      <Bandeja sesion={sesion} conversacionInicial={null} vistaInicial={null} alSalir={cerrar} />
+    );
   }
   return (
     <Bandeja

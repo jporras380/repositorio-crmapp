@@ -452,3 +452,38 @@ Se sube **antes** de guardar: al pulsar «Guardar», una foto de 4 MB por datos 
 Ajustes → Respuestas rápidas: escribe «trujillo» y sale la que lo dice en el texto. Pon una fecha en «Desde» y desaparecen las viejas. Edita una, sube una imagen, guarda, vuelve a entrar: la miniatura sigue. Lo mismo en Etiquetas, buscando por el nombre de un bot.
 
 31 tests nuevos (13 del filtro, 9 de respuestas, 9 de etiquetas). Comprobado además contra MinIO real: subir, confirmar y crear la respuesta con su imagen.
+
+## El embudo de compra (PR-89, 2026-09-21)
+
+El usuario lo señaló mirando la consola del operador: **«si ahora una persona quisiera adquirir el CRM, ¿cómo lo adquiere?»**. Tenía razón y el agujero era peor de lo que parecía.
+
+La API sabía crear una cuenta entera desde fase 0 —inquilino, dueño, suscripción en prueba, embudo sembrado, todo en una transacción— y **no había ninguna pantalla que llegara a ella**. La única puerta de la web era el formulario de acceso. Dar de alta a un cliente exigía consola.
+
+`#alta`, la única ruta que funciona **sin sesión**.
+
+### El orden: precio primero, formulario después
+
+Quien llega no sabe todavía si le sirve. Pedir correo y contraseña antes de enseñar el precio es el orden de quien quiere capturar un contacto, no el de quien quiere que le compren. Primero qué cuesta y qué incluye; después, cinco campos.
+
+Y los topes van **dentro** de la tarjeta del plan, no en una tabla comparativa aparte: elegir plan sin saber qué incluye es elegir a ciegas, y el tope se descubre el mes siguiente con el equipo ya dentro.
+
+### Lo que evita que alguien abandone a medias
+
+- **El identificador se deriva del nombre** —«Apart Hotel El Paraíso» → `apart-hotel-el-paraiso`— y deja de seguirlo en cuanto se toca a mano. Sin eso, corregirlo sería imposible.
+- **Se pregunta si está libre mientras se escribe**, con 400 ms de espera. Descubrir que está ocupado *después* de rellenar cinco campos y una contraseña es la forma más rápida de perder a alguien que ya había decidido comprar.
+- **«Ocupado» y «formato imposible» son respuestas distintas**, porque el mensaje que merece cada una también lo es.
+- **El mínimo de contraseña se dice antes de enviar**, no después del rechazo.
+- **Las mayúsculas se normalizan, no se rechazan.** «MI-HOTEL» pasa a `mi-hotel`. Rechazarlo sería castigar a quien escribe con mayúsculas por costumbre.
+- **Se entra directo al CRM.** El alta ya devuelve sesión; mandar a la pantalla de acceso después de registrarse es pedir la contraseña que la persona acaba de escribir.
+
+### `is_public`, que llevaba desde fase 0 sin usarse
+
+La lista de planes filtra por esa bandera. Sirve para el plan a medida que se negocia con un cliente grande y no debe salir en la página de precios. Era una de las columnas que la guarda de «declarado y sin usar» tenía en la lista de permitidos; ya no hace falta que esté.
+
+Migración 0041: `GRANT SELECT ON plans TO crmapp_auth`. `plans` es catálogo de la plataforma —sin `tenant_id`, sin RLS— y la página de precios no puede exigir sesión. Solo lectura: quien pudiera escribir ahí se regalaría un plan sin topes.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Abre `#alta` sin sesión, o pulsa «¿No tienes cuenta? Crea una» en el formulario de acceso. Elige un plan, escribe el nombre del negocio y mira cómo se rellena solo el identificador. Crea la cuenta: entras directo a tu propia bandeja, vacía y en prueba.
+
+22 tests nuevos (11 de API, 11 de pantalla).

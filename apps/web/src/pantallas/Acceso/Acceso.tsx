@@ -19,9 +19,11 @@ import estilos from './Acceso.module.css';
 
 interface Props {
   alEntrar: (sesion: Sesion) => void;
+  /** Ir al alta. Sin esto, quien no es cliente no tiene por dónde empezar. */
+  alRegistrarse: () => void;
 }
 
-export function Acceso({ alEntrar }: Props) {
+export function Acceso({ alEntrar, alRegistrarse }: Props) {
   const [email, setEmail] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -128,9 +130,15 @@ export function Acceso({ alEntrar }: Props) {
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>
 
-        {pideCodigo && (
+        {pideCodigo ? (
           <button className={estilos.volver} type="button" onClick={volverAEmpezar}>
             Usar otra cuenta
+          </button>
+        ) : (
+          // La puerta para quien todavía no es cliente. Sin esto, la única
+          // forma de dar de alta a alguien era la consola del servidor.
+          <button className={estilos.volver} type="button" onClick={alRegistrarse}>
+            ¿No tienes cuenta? Crea una
           </button>
         )}
       </form>
