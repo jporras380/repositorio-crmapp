@@ -79,7 +79,7 @@ import { HorarioService } from './horario/horario.service.js';
 import { HorarioController } from './horario/horario.controller.js';
 import { EventosService } from './eventos/eventos.service.js';
 import { EventosController } from './eventos/eventos.controller.js';
-import { clienteAnthropic, type ClienteDeIa } from './ia/cliente-de-ia.js';
+import { clienteDeIa, type ClienteDeIa } from './ia/cliente-de-ia.js';
 import type { EditorDePlantillasDeMeta } from './plantillas/editor-de-meta.js';
 
 export interface OpcionesDeApp {
@@ -352,7 +352,9 @@ export class AppModule {
               db,
               cifrador,
               bandeja,
-              cliente: opciones.clienteDeIa ?? clienteAnthropic(),
+              // En tests se inyecta uno falso para todos los proveedores; en
+              // producción, el que toque según lo que haya elegido el hotel.
+              clientePara: opciones.clienteDeIa ? () => opciones.clienteDeIa! : clienteDeIa,
             }),
         },
         {

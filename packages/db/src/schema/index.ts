@@ -887,6 +887,11 @@ export const aiSettings = pgTable('ai_settings', {
   tenantId: uuid('tenant_id').primaryKey(),
   enabled: boolean('enabled').notNull().default(false),
   model: text('model').notNull().default('claude-opus-5'),
+  /**
+   * Quién redacta: anthropic, google, openai o xai (0038). Explícito y no
+   * deducido del modelo, porque el nombre del modelo lo escribe el usuario.
+   */
+  provider: text('provider').notNull().default('anthropic'),
   instructions: text('instructions').notNull().default(''),
   updatedBy: uuid('updated_by'),
   createdAt: creado,

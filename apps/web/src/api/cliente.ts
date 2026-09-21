@@ -50,6 +50,7 @@ import type {
   LimitesDeMedios,
   Miembro,
   Perfil,
+  Proveedor,
   ResumenDeFlujo,
   ResumenDeSuscripcion,
   SimulacionDeFlujo,
@@ -216,9 +217,19 @@ export function crearApi(token: string | null) {
       }),
     // --- IA asistida (BYOK) -------------------------------------------------
     iaAjustes: () => peticion<AjustesDeIa>('/v1/ia/ajustes', t),
-    guardarIa: (d: { activa?: boolean; modelo?: string; instrucciones?: string; clave?: string }) =>
-      peticion<AjustesDeIa>('/v1/ia/ajustes', { ...t, metodo: 'PUT', cuerpo: d }),
-    borrarClaveIa: () => peticion<AjustesDeIa>('/v1/ia/clave', { ...t, metodo: 'DELETE' }),
+    guardarIa: (d: {
+      activa?: boolean;
+      proveedor?: Proveedor;
+      modelo?: string;
+      instrucciones?: string;
+      clave?: string;
+    }) => peticion<AjustesDeIa>('/v1/ia/ajustes', { ...t, metodo: 'PUT', cuerpo: d }),
+    /** Sin decir cuál, borra la del proveedor en uso. */
+    borrarClaveIa: (proveedor?: Proveedor) =>
+      peticion<AjustesDeIa>(`/v1/ia/clave${proveedor ? `?proveedor=${proveedor}` : ''}`, {
+        ...t,
+        metodo: 'DELETE',
+      }),
     sugerirRespuesta: (conversationId: string) =>
       peticion<{ texto: string; modelo: string }>(
         `/v1/conversaciones/${conversationId}/sugerencia`,

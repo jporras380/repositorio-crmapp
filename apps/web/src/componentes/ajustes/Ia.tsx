@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
-import type { AjustesDeIa } from '../../api/tipos.ts';
+import type { AjustesDeIa, Proveedor } from '../../api/tipos.ts';
 import estilos from './ajustes.module.css';
 
 interface Props {
@@ -21,6 +21,7 @@ const NOMBRE_DE_MODELO: Record<string, string> = {
  */
 export function Ia({ api, gestor }: Props) {
   const [ajustes, setAjustes] = useState<AjustesDeIa | null>(null);
+  const [proveedor, setProveedor] = useState<Proveedor>('anthropic');
   const [modelo, setModelo] = useState('');
   const [instrucciones, setInstrucciones] = useState('');
   const [clave, setClave] = useState('');
@@ -30,8 +31,25 @@ export function Ia({ api, gestor }: Props) {
 
   function aplicar(a: AjustesDeIa) {
     setAjustes(a);
+    setProveedor(a.proveedor);
     setModelo(a.modelo);
     setInstrucciones(a.instrucciones);
+  }
+
+  /** Los datos del proveedor que se está mirando: nombre, modelos y aviso. */
+  const datos = ajustes?.proveedores.find((p) => p.id === proveedor);
+
+  /**
+   * Cambiar de proveedor en la pantalla, sin guardar todavía.
+   *
+   * El modelo salta al primero del nuevo: «claude-opus-5» no existe en Google,
+   * y dejarlo escrito invitaría a guardar una pareja imposible.
+   */
+  function cambiarProveedor(nuevo: Proveedor) {
+    setProveedor(nuevo);
+    const d = ajustes?.proveedores.find((p) => p.id === nuevo);
+    setModelo(d?.modelos[0] ?? '');
+    setClave('');
   }
 
   useEffect(() => {
@@ -59,11 +77,14 @@ export function Ia({ api, gestor }: Props) {
   }
 
   async function borrarClave() {
-    if (!confirm('¿Borrar la clave? La IA se desactivará hasta que guardes otra.')) return;
+    if (
+      !confirm(`¿Borrar la clave de ${datos?.nombre}? La IA se desactivará hasta que guardes otra.`)
+    )
+      return;
     setGuardando(true);
     setError(null);
     try {
-      aplicar(await api.borrarClaveIa());
+      aplicar(await api.borrarClaveIa(proveedor));
       setAviso('Clave borrada. La IA está desactivada.');
     } catch (e) {
       setError(e instanceof ErrorDeApi ? e.message : 'No se pudo borrar la clave.');
@@ -76,11 +97,14 @@ export function Ia({ api, gestor }: Props) {
     e.preventDefault();
     void guardar(
       {
+        proveedor,
         modelo,
         instrucciones,
         ...(clave.trim() ? { clave: clave.trim() } : {}),
       },
-      clave.trim() ? 'Clave verificada con Anthropic y guardada.' : 'Ajustes guardados.',
+      clave.trim()
+        ? `Clave verificada con ${datos?.nombre ?? 'el proveedor'} y guardada.`
+        : 'Ajustes guardados.',
     );
   }
 
@@ -92,7 +116,8 @@ export function Ia({ api, gestor }: Props) {
           <p className={estilos.descripcion}>
             En cada conversación, «Sugerir con IA» escribe un borrador de respuesta con el catálogo
             del hotel. El agente lo revisa, lo corrige y lo envía él: la IA nunca contesta sola. Se
-            usa la clave de Anthropic del hotel, así que el consumo se paga en esa cuenta.
+            elige el proveedor —Claude, Gemini, GPT o Grok— y usa la clave del propio hotel, así que
+            el consumo se paga en esa cuenta.
           </p>
         </div>
         {ajustes && (
@@ -122,32 +147,78 @@ export function Ia({ api, gestor }: Props) {
 
       {ajustes && gestor && (
         <form className={estilos.formulario} onSubmit={enviarFormulario}>
+          <label className={estilos.campo}>
+            <span>Quién redacta</span>
+            <select
+              value={proveedor}
+              onChange={(e) => cambiarProveedor(e.target.value as Proveedor)}
+            >
+              {ajustes.proveedores.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                  {/* Se dice cuáles ya tienen clave: cambiar de proveedor y
+                      volver no debería obligar a ir a buscarla otra vez. */}
+                  {ajustes.proveedoresConClave.includes(p.id) ? ' · clave guardada' : ''}
+                </option>
+              ))}
+            </select>
+            <span className={estilos.ayuda}>
+              Todos van con la clave del propio hotel: el consumo se paga en esa cuenta, no aquí.
+            </span>
+          </label>
+
+          {/* El aviso del proveedor, cuando lo hay. Antes del campo de la
+              clave a propósito: se lee mientras se decide, no después de
+              haberla pegado. */}
+          {datos?.aviso && (
+            <p className={`${estilos.aviso} ${estilos.aviso_error}`} role="alert">
+              {datos.aviso}
+            </p>
+          )}
+
           <div className={estilos.campos}>
             <label className={estilos.campo}>
-              <span>Clave de API de Anthropic</span>
+              <span>Clave de API de {datos?.nombre ?? 'la IA'}</span>
               <input
                 type="password"
                 autoComplete="off"
                 placeholder={
-                  ajustes.tieneClave ? 'Guardada · escribe otra para cambiarla' : 'sk-ant-…'
+                  ajustes.proveedoresConClave.includes(proveedor)
+                    ? 'Guardada · escribe otra para cambiarla'
+                    : 'Pega aquí la clave'
                 }
                 value={clave}
                 onChange={(e) => setClave(e.target.value)}
               />
               <span className={estilos.ayuda}>
-                Se crea en console.anthropic.com → API Keys. Se comprueba al guardar y no se vuelve
-                a mostrar.
+                Se crea en {datos?.dondeSacarLaClave}. Se comprueba al guardar y no se vuelve a
+                mostrar.
               </span>
             </label>
             <label className={estilos.campo}>
               <span>Modelo</span>
-              <select value={modelo} onChange={(e) => setModelo(e.target.value)}>
-                {ajustes.modelosDisponibles.map((m) => (
+              {/*
+                Un desplegable con sugerencias Y campo escribible: los nombres
+                de modelo cambian cada pocos meses, y una lista cerrada
+                obligaría a esperar una versión del CRM para usar el de ayer.
+                Al guardar, el proveedor confirma si existe.
+              */}
+              <input
+                list="modelos-de-ia"
+                value={modelo}
+                onChange={(e) => setModelo(e.target.value)}
+                placeholder={datos?.modelos[0]}
+              />
+              <datalist id="modelos-de-ia">
+                {(datos?.modelos ?? []).map((m) => (
                   <option key={m} value={m}>
                     {NOMBRE_DE_MODELO[m] ?? m}
                   </option>
                 ))}
-              </select>
+              </datalist>
+              <span className={estilos.ayuda}>
+                Los sugeridos salen al escribir. Puedes poner otro: se comprueba al guardar.
+              </span>
             </label>
           </div>
           <label className={estilos.campo}>
@@ -165,7 +236,7 @@ export function Ia({ api, gestor }: Props) {
             </span>
           </label>
           <div className={estilos.formularioAcciones}>
-            {ajustes.tieneClave && (
+            {ajustes.proveedoresConClave.includes(proveedor) && (
               <button
                 type="button"
                 className={estilos.peligro}
@@ -178,11 +249,15 @@ export function Ia({ api, gestor }: Props) {
             <button
               type="button"
               className={estilos.secundario}
-              disabled={guardando || (!ajustes.tieneClave && !clave.trim())}
+              disabled={
+                guardando || (!ajustes.proveedoresConClave.includes(proveedor) && !clave.trim())
+              }
               onClick={() =>
                 void guardar(
                   {
                     activa: !ajustes.activa,
+                    proveedor,
+                    modelo,
                     ...(clave.trim() ? { clave: clave.trim() } : {}),
                   },
                   ajustes.activa ? 'IA desactivada.' : 'IA activada para todo el equipo.',

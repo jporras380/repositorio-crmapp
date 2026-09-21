@@ -316,3 +316,108 @@ describe('sugerir respuesta', () => {
     expect(s.body.codigo).toBe('ia_desactivada');
   });
 });
+
+/**
+ * Varios proveedores (0038).
+ *
+ * Lo que se prueba es lo que le pasa a un hotel de verdad al cambiar de
+ * proveedor: que no pierda la clave que ya tenía, que no se quede con una
+ * pareja imposible —«claude-opus-5» en Google—, y que el aviso del plan
+ * gratuito de Gemini llegue a la pantalla, porque son conversaciones de
+ * huéspedes.
+ */
+describe('IA con varios proveedores', () => {
+  const ajustes = async () =>
+    (await http.get('/v1/ia/ajustes').set(auth(tokenOwner)).expect(200)).body;
+  const guardar = (cuerpo: Record<string, unknown>) =>
+    http.put('/v1/ia/ajustes').set(auth(tokenOwner)).send(cuerpo);
+
+  // Un test anterior borra la clave, así que este bloque siembra la suya en
+  // vez de heredar un estado que no controla.
+  beforeAll(async () => {
+    await guardar({ proveedor: 'anthropic', clave: 'sk-ant-clave-de-prueba-1234567890' }).expect(
+      200,
+    );
+  });
+
+  it('el catálogo llega con los cuatro y con dónde sacar cada clave', async () => {
+    const a = await ajustes();
+    expect(a.proveedores.map((p: { id: string }) => p.id)).toEqual([
+      'anthropic',
+      'google',
+      'openai',
+      'xai',
+    ]);
+    expect(a.proveedores[0].dondeSacarLaClave).toContain('console.anthropic.com');
+  });
+
+  it('el aviso del plan GRATUITO de Gemini viaja hasta la pantalla', async () => {
+    const a = await ajustes();
+    const google = a.proveedores.find((p: { id: string }) => p.id === 'google');
+    // Sin esto, un hotel mandaría los mensajes de sus huéspedes a entrenar un
+    // modelo sin enterarse. Es el aviso que justifica el campo.
+    expect(google.aviso).toMatch(/GRATUITO/);
+    expect(google.aviso).toMatch(/mejorar los modelos/);
+    // Y los de pago no inventan avisos que no existen.
+    expect(a.proveedores.find((p: { id: string }) => p.id === 'anthropic').aviso).toBe('');
+  });
+
+  it('empieza en Anthropic: lo que había antes no cambia solo', async () => {
+    expect((await ajustes()).proveedor).toBe('anthropic');
+  });
+
+  it('cambiar de proveedor sin decir modelo coge el primero del nuevo', async () => {
+    await guardar({ proveedor: 'google', clave: 'AIza-clave-de-prueba-de-google-1234' }).expect(
+      200,
+    );
+    const a = await ajustes();
+    expect(a.proveedor).toBe('google');
+    // «claude-opus-5» no existe en Google: guardar esa pareja dejaría el botón
+    // roto hasta que alguien pidiera un borrador delante de un cliente.
+    expect(a.modelo).toBe('gemini-2.5-pro');
+    expect(a.modelosDisponibles).toContain('gemini-2.5-flash');
+  });
+
+  it('cada proveedor guarda SU clave: volver no obliga a pegarla otra vez', async () => {
+    const a = await ajustes();
+    // La de Anthropic se guardó en los tests de arriba; la de Google, ahora.
+    expect(a.proveedoresConClave).toEqual(expect.arrayContaining(['anthropic', 'google']));
+
+    await guardar({ proveedor: 'anthropic', modelo: 'claude-sonnet-5' }).expect(200);
+    const vuelta = await ajustes();
+    expect(vuelta.proveedor).toBe('anthropic');
+    expect(vuelta.tieneClave).toBe(true);
+  });
+
+  it('activar con un proveedor sin clave lo dice CON SU NOMBRE', async () => {
+    const r = await guardar({ proveedor: 'xai', activa: true }).expect(422);
+    expect(r.body.codigo).toBe('ia_sin_clave');
+    expect(r.body.mensaje).toContain('Grok');
+  });
+
+  it('acepta un modelo que no está en la lista: los nombres cambian cada mes', async () => {
+    await guardar({ proveedor: 'anthropic', modelo: 'claude-modelo-que-saldra-manana' }).expect(
+      200,
+    );
+    expect((await ajustes()).modelo).toBe('claude-modelo-que-saldra-manana');
+  });
+
+  it('pero no acepta cualquier cosa como nombre de modelo', async () => {
+    // 400 y no 422: lo corta el DTO antes de llegar al servicio.
+    await guardar({ modelo: 'modelo con espacios y <tags>' }).expect(400);
+  });
+
+  it('un proveedor inventado se rechaza', async () => {
+    await guardar({ proveedor: 'proveedor-pirata' }).expect(400);
+  });
+
+  it('se puede borrar la clave de UN proveedor sin tocar las demás', async () => {
+    await http.delete('/v1/ia/clave?proveedor=google').set(auth(tokenOwner)).expect(200);
+    const a = await ajustes();
+    expect(a.proveedoresConClave).not.toContain('google');
+    expect(a.proveedoresConClave).toContain('anthropic');
+    // Y la IA queda apagada: descubrir que falta la clave al pedir un borrador
+    // delante de un cliente es el peor momento posible.
+    expect(a.activa).toBe(false);
+  });
+});

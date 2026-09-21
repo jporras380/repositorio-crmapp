@@ -7,6 +7,7 @@ import {
   Inject,
   Param,
   Post,
+  Query,
   Put,
   Req,
   UseGuards,
@@ -15,21 +16,43 @@ import { z } from 'zod';
 import { TOKEN_IA } from '../tokens.js';
 import { AuthGuard, conContextoDePeticion } from '../auth/auth.guard.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
-import { MODELOS_DE_IA } from './cliente-de-ia.js';
+import { PROVEEDORES } from './proveedores.js';
 import type { IaService } from './ia.service.js';
 
 const Ajustes = z.object({
   activa: z.boolean().optional(),
-  modelo: z.enum(MODELOS_DE_IA).optional(),
+  proveedor: z.enum(PROVEEDORES).optional(),
+  /*
+    Texto libre y no una lista cerrada: los nombres de modelo cambian cada
+    pocos meses, y una lista cerrada obligaría a desplegar el CRM para usar el
+    que salió ayer. Lo que valida de verdad es el propio proveedor cuando se
+    guarda la clave; aquí solo se corta lo que no puede ser un nombre.
+  */
+  modelo: z
+    .string()
+    .trim()
+    .min(2)
+    .max(100)
+    .regex(/^[A-Za-z0-9._:\/-]+$/, 'nombre de modelo')
+    .optional(),
   instrucciones: z.string().max(8000).optional(),
-  // Las claves de Anthropic empiezan por `sk-ant-`; se valida la forma para
-  // no llamar al proveedor con lo que claramente no es una clave.
+  /*
+    Antes se exigía el formato de Anthropic (`sk-ant-…`). Con cuatro
+    proveedores, cada uno tiene el suyo y cambian sin avisar: comprobar la
+    forma aquí rechazaría claves buenas el día que uno estrene prefijo. Se
+    corta solo lo que claramente no es una clave —vacío, con espacios, absurda
+    de corta— y lo demás lo dice el proveedor, que es quien lo sabe.
+  */
   clave: z
     .string()
     .trim()
-    .regex(/^sk-ant-[A-Za-z0-9_-]{20,}$/, 'clave de API de Anthropic (empieza por sk-ant-)')
+    .min(16, 'la clave parece incompleta')
+    .max(400)
+    .regex(/^\S+$/, 'una clave de API no lleva espacios')
     .optional(),
 });
+
+const ClaveABorrar = z.object({ proveedor: z.enum(PROVEEDORES).optional() });
 
 type Req = { contexto?: unknown };
 
@@ -57,9 +80,14 @@ export class IaController {
     return conContextoDePeticion(req, () => this.ia.guardarAjustes(r.data));
   }
 
+  /** Sin decir cuál, borra la del proveedor en uso. */
   @Delete('ia/clave')
-  borrarClave(@Req() req: Req) {
-    return conContextoDePeticion(req, () => this.ia.borrarClave());
+  borrarClave(@Req() req: Req, @Query('proveedor') proveedor?: string) {
+    const r = ClaveABorrar.safeParse({ proveedor });
+    if (!r.success) {
+      throw new ErrorDeNegocio('proveedor_invalido', 'Ese proveedor no existe.', 422);
+    }
+    return conContextoDePeticion(req, () => this.ia.borrarClave(r.data.proveedor));
   }
 
   @Post('conversaciones/:id/sugerencia')

@@ -27,18 +27,32 @@ import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import type { BandejaService } from '../bandeja/bandeja.service.js';
 import { MODELOS_DE_IA, type ClienteDeIa } from './cliente-de-ia.js';
+import {
+  catalogoDeProveedores,
+  esProveedor,
+  PROVEEDORES,
+  PROVEEDORES_DE_IA,
+  type Proveedor,
+} from './proveedores.js';
 
 export interface AjustesDeIa {
   activa: boolean;
+  /** Quién redacta: Claude, Gemini, GPT o Grok. Cada uno con la clave del hotel. */
+  proveedor: Proveedor;
   modelo: string;
   instrucciones: string;
-  /** Si hay clave guardada. La clave en sí no sale nunca. */
+  /** Si hay clave guardada PARA EL PROVEEDOR ACTUAL. La clave nunca sale. */
   tieneClave: boolean;
+  /** Cuáles tienen clave ya guardada: cambiar de proveedor no obliga a repegarla. */
+  proveedoresConClave: readonly Proveedor[];
   modelosDisponibles: readonly string[];
+  /** Nombres, modelos sugeridos, dónde sacar la clave y qué advertir de cada uno. */
+  proveedores: ReturnType<typeof catalogoDeProveedores>;
 }
 
 export interface CambiosDeAjustesDeIa {
   activa?: boolean | undefined;
+  proveedor?: Proveedor | undefined;
   modelo?: string | undefined;
   instrucciones?: string | undefined;
   /** Clave nueva; se verifica contra el proveedor antes de guardarla. */
@@ -58,18 +72,24 @@ const CANAL: Record<string, string> = {
 export class IaService {
   readonly #db: BaseDeDatos;
   readonly #cifrador: Cifrador;
-  readonly #cliente: ClienteDeIa;
+  /**
+   * El cliente que toca según el proveedor, no uno fijo.
+   *
+   * Es una función y no un cliente porque cada inquilino elige el suyo: dos
+   * hoteles de la misma instancia pueden estar en Claude y en Gemini.
+   */
+  readonly #clientePara: (proveedor: Proveedor) => ClienteDeIa;
   readonly #bandeja: BandejaService;
 
   constructor(o: {
     db: BaseDeDatos;
     cifrador: Cifrador;
-    cliente: ClienteDeIa;
+    clientePara: (proveedor: Proveedor) => ClienteDeIa;
     bandeja: BandejaService;
   }) {
     this.#db = o.db;
     this.#cifrador = o.cifrador;
-    this.#cliente = o.cliente;
+    this.#clientePara = o.clientePara;
     this.#bandeja = o.bandeja;
   }
 
@@ -77,17 +97,36 @@ export class IaService {
   async ajustes(): Promise<AjustesDeIa> {
     this.#exigirContexto();
     return this.#db.enTransaccion(async (c) => {
-      const { rows } = await c.query<{ enabled: boolean; model: string; instructions: string }>(
-        `SELECT enabled, model, instructions FROM ai_settings`,
-      );
-      const clave = await c.query(`SELECT 1 FROM tenant_secrets WHERE kind = 'anthropic_api_key'`);
+      const { rows } = await c.query<{
+        enabled: boolean;
+        model: string;
+        instructions: string;
+        provider: string;
+      }>(`SELECT enabled, model, instructions, provider FROM ai_settings`);
       const f = rows[0];
+      const proveedor: Proveedor =
+        f && esProveedor(f.provider) ? (f.provider as Proveedor) : 'anthropic';
+
+      // Las claves guardadas de TODOS los proveedores, no solo la del actual:
+      // la pantalla enseña cuáles están listos, y así cambiar de proveedor no
+      // obliga a volver a pegar una clave que ya estaba.
+      const claves = await c.query<{ kind: string }>(
+        `SELECT kind FROM tenant_secrets WHERE kind = ANY($1::text[])`,
+        [PROVEEDORES.map((p) => PROVEEDORES_DE_IA[p].claveKind)],
+      );
+      const conClave = PROVEEDORES.filter((p) =>
+        claves.rows.some((r) => r.kind === PROVEEDORES_DE_IA[p].claveKind),
+      );
+
       return {
         activa: f?.enabled ?? false,
-        modelo: f?.model ?? MODELOS_DE_IA[0],
+        proveedor,
+        modelo: f?.model ?? PROVEEDORES_DE_IA[proveedor].modelos[0]!,
         instrucciones: f?.instructions ?? '',
-        tieneClave: clave.rows.length > 0,
-        modelosDisponibles: MODELOS_DE_IA,
+        tieneClave: conClave.includes(proveedor),
+        proveedoresConClave: conClave,
+        modelosDisponibles: PROVEEDORES_DE_IA[proveedor].modelos,
+        proveedores: catalogoDeProveedores(),
       };
     });
   }
@@ -95,40 +134,63 @@ export class IaService {
   async guardarAjustes(cambios: CambiosDeAjustesDeIa): Promise<AjustesDeIa> {
     const ctx = this.#exigirAdmin();
     const actuales = await this.ajustes();
-    const modelo = cambios.modelo ?? actuales.modelo;
+    const proveedor = cambios.proveedor ?? actuales.proveedor;
+    const cambiaProveedor = proveedor !== actuales.proveedor;
+
+    // Al cambiar de proveedor, el modelo de antes no sirve: «claude-opus-5» no
+    // existe en Google. Si no se pide uno, se toma el primero del nuevo, que es
+    // mejor que guardar una pareja imposible y descubrirlo al primer borrador.
+    const modelo =
+      cambios.modelo ??
+      (cambiaProveedor ? PROVEEDORES_DE_IA[proveedor].modelos[0]! : actuales.modelo);
 
     // La clave se comprueba ANTES de guardar, fuera de la transacción (red).
-    // Si cambia el modelo y ya había clave, se comprueba el par nuevo: un
-    // modelo que esa clave no puede usar dejaría el botón roto.
+    // Se comprueba también si cambia el modelo o el proveedor y ya había clave
+    // guardada: una pareja que no funciona deja el botón roto sin avisar.
     let claveAComprobar = cambios.clave;
-    if (!claveAComprobar && cambios.modelo && cambios.modelo !== actuales.modelo) {
-      claveAComprobar = (await this.#leerClave()) ?? undefined;
+    if (
+      !claveAComprobar &&
+      (cambiaProveedor || (cambios.modelo && cambios.modelo !== actuales.modelo))
+    ) {
+      claveAComprobar = (await this.#leerClave(proveedor)) ?? undefined;
     }
-    if (claveAComprobar) await this.#cliente.verificar({ apiKey: claveAComprobar, modelo });
+    if (claveAComprobar) {
+      await this.#clientePara(proveedor).verificar({ apiKey: claveAComprobar, modelo });
+    }
 
     const activa = cambios.activa ?? actuales.activa;
-    if (activa && !cambios.clave && !actuales.tieneClave) {
+    const tendraClave = Boolean(cambios.clave) || actuales.proveedoresConClave.includes(proveedor);
+    if (activa && !tendraClave) {
       throw new ErrorDeNegocio(
         'ia_sin_clave',
-        'Guarda primero la clave de API de Anthropic del hotel.',
+        `Guarda primero la clave de API de ${PROVEEDORES_DE_IA[proveedor].nombre} del hotel.`,
         422,
       );
     }
 
     await this.#db.enTransaccion(async (c) => {
       await c.query(
-        `INSERT INTO ai_settings (tenant_id, enabled, model, instructions, updated_by)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO ai_settings (tenant_id, enabled, model, instructions, provider, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (tenant_id) DO UPDATE
             SET enabled = EXCLUDED.enabled, model = EXCLUDED.model,
-                instructions = EXCLUDED.instructions, updated_by = EXCLUDED.updated_by,
-                updated_at = now()`,
-        [ctx.tenantId, activa, modelo, cambios.instrucciones ?? actuales.instrucciones, ctx.userId],
+                instructions = EXCLUDED.instructions, provider = EXCLUDED.provider,
+                updated_by = EXCLUDED.updated_by, updated_at = now()`,
+        [
+          ctx.tenantId,
+          activa,
+          modelo,
+          cambios.instrucciones ?? actuales.instrucciones,
+          proveedor,
+          ctx.userId,
+        ],
       );
       if (cambios.clave) {
+        // Cada proveedor guarda la suya: cambiar de uno a otro y volver no
+        // obliga a ir a buscar la clave otra vez.
         await guardarSecretoDeInquilino(c, this.#cifrador, {
           tenantId: ctx.tenantId,
-          kind: 'anthropic_api_key',
+          kind: PROVEEDORES_DE_IA[proveedor].claveKind,
           valor: cambios.clave,
         });
       }
@@ -138,18 +200,25 @@ export class IaService {
         [
           ctx.tenantId,
           ctx.userId,
-          JSON.stringify({ activa, modelo, claveNueva: Boolean(cambios.clave) }),
+          JSON.stringify({ activa, proveedor, modelo, claveNueva: Boolean(cambios.clave) }),
         ],
       );
     });
     return this.ajustes();
   }
 
-  /** Borrar la clave apaga la IA: sin clave no hay con qué llamar. */
-  async borrarClave(): Promise<AjustesDeIa> {
+  /**
+   * Borra la clave del proveedor que se diga —o la del actual— y apaga la IA.
+   *
+   * Se apaga aunque se borre la de otro proveedor: es un gesto que se hace
+   * cuando una clave se filtró o se rota, y dejar la IA encendida esperando a
+   * que el agente descubra el fallo al primer borrador sería peor.
+   */
+  async borrarClave(cual?: Proveedor): Promise<AjustesDeIa> {
     const ctx = this.#exigirAdmin();
+    const proveedor = cual ?? (await this.ajustes()).proveedor;
     await this.#db.enTransaccion(async (c) => {
-      await borrarSecretoDeInquilino(c, 'anthropic_api_key');
+      await borrarSecretoDeInquilino(c, PROVEEDORES_DE_IA[proveedor].claveKind);
       await c.query(`UPDATE ai_settings SET enabled = false, updated_at = now()`);
       await c.query(
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id)
@@ -171,11 +240,11 @@ export class IaService {
         409,
       );
     }
-    const apiKey = await this.#leerClave();
+    const apiKey = await this.#leerClave(ajustes.proveedor);
     if (!apiKey) {
       throw new ErrorDeNegocio(
         'ia_sin_clave',
-        'Falta la clave de API de Anthropic del hotel.',
+        `Falta la clave de API de ${PROVEEDORES_DE_IA[ajustes.proveedor].nombre} del hotel.`,
         409,
       );
     }
@@ -199,7 +268,7 @@ export class IaService {
       .map((m) => `${m.direccion === 'inbound' ? 'Cliente' : 'Hotel'}: ${m.texto}`)
       .join('\n');
 
-    const texto = await this.#cliente.sugerir({
+    const texto = await this.#clientePara(ajustes.proveedor).sugerir({
       apiKey,
       modelo: ajustes.modelo,
       sistema: sistemaDelHotel(contexto, ajustes.instrucciones),
@@ -224,9 +293,10 @@ export class IaService {
 
   // -------------------------------------------------------------------------
 
-  async #leerClave(): Promise<string | null> {
+  /** La clave del proveedor que se le pida. Cada uno guarda la suya. */
+  async #leerClave(proveedor: Proveedor): Promise<string | null> {
     return this.#db.enTransaccion((c) =>
-      leerSecretoDeInquilino(c, this.#cifrador, 'anthropic_api_key'),
+      leerSecretoDeInquilino(c, this.#cifrador, PROVEEDORES_DE_IA[proveedor].claveKind),
     );
   }
 

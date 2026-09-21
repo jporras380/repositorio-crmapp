@@ -218,7 +218,15 @@ export function crearResolverDeCredencialesWhatsapp(poolAuth: Pool, cifrador: Ci
 // cuenta de canal. Se leen y escriben con el inquilino puesto (RLS).
 // ---------------------------------------------------------------------------
 
-export type TipoDeSecretoDeInquilino = 'anthropic_api_key';
+/**
+ * Las claves de IA del hotel, una por proveedor (BYOK, P-11).
+ *
+ * Cerrado a propósito: `kind` es una columna de texto libre en la base, y una
+ * errata —`googl_api_key`— guardaría la clave donde nadie la busca, sin fallar
+ * en ningún sitio. El tipo lo convierte en un error de compilación.
+ */
+export type TipoDeSecretoDeInquilino =
+  'anthropic_api_key' | 'google_api_key' | 'openai_api_key' | 'xai_api_key';
 
 export async function guardarSecretoDeInquilino(
   c: PoolClient,

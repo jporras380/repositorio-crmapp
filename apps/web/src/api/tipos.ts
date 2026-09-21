@@ -230,12 +230,30 @@ export interface CuentaDeInstagramDescubierta {
 }
 
 /** Ajustes de la IA asistida. La clave no viaja nunca de vuelta: solo si existe. */
+/** Quién redacta los borradores. Todos con la clave del propio hotel (BYOK). */
+export type Proveedor = 'anthropic' | 'google' | 'openai' | 'xai';
+
+export interface DatosDeProveedorDeIa {
+  id: Proveedor;
+  nombre: string;
+  /** Sugerencias; se puede escribir otro y el servidor lo comprueba. */
+  modelos: string[];
+  dondeSacarLaClave: string;
+  /** Lo que hay que saber antes de mandarle conversaciones. Vacío si no hay nada. */
+  aviso: string;
+}
+
 export interface AjustesDeIa {
   activa: boolean;
+  proveedor: Proveedor;
   modelo: string;
   instrucciones: string;
+  /** Si hay clave del proveedor ACTUAL. La clave nunca sale. */
   tieneClave: boolean;
+  /** Cuáles ya tienen clave: cambiar de proveedor no obliga a repegarla. */
+  proveedoresConClave: Proveedor[];
   modelosDisponibles: string[];
+  proveedores: DatosDeProveedorDeIa[];
 }
 
 /** Aviso o error del editor de plantillas: `error` impide enviarla a Meta. */

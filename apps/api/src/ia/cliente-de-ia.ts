@@ -8,6 +8,8 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
+import { clienteCompatibleOpenai, clienteGemini } from './clientes-http.js';
+import { PROVEEDORES_DE_IA, type Proveedor } from './proveedores.js';
 
 export interface PeticionDeSugerencia {
   apiKey: string;
@@ -25,8 +27,13 @@ export interface ClienteDeIa {
   sugerir(p: PeticionDeSugerencia): Promise<string>;
 }
 
-/** Modelos que se ofrecen en Ajustes. El primero es el que se usa por defecto. */
-export const MODELOS_DE_IA = ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'] as const;
+/**
+ * Modelos de Anthropic. El primero es el que se usa por defecto.
+ *
+ * Los de los demás proveedores viven en `proveedores.ts`, con su clave y su
+ * aviso: aquí solo quedan los que usa este cliente.
+ */
+export const MODELOS_DE_IA = PROVEEDORES_DE_IA.anthropic.modelos;
 
 /** Traduce los errores del SDK a errores de negocio que la web sabe explicar. */
 function traducir(error: unknown): never {
@@ -123,4 +130,33 @@ export function clienteAnthropic(opciones: { timeoutMs?: number } = {}): Cliente
       }
     },
   };
+}
+
+/**
+ * El cliente que toca, según el proveedor elegido.
+ *
+ * Se decide una vez y en un sitio. La alternativa —un `if` por proveedor
+ * repartido por el servicio— acaba con tres sitios que hay que acordarse de
+ * tocar cada vez que entre uno nuevo, y el que se olvide no falla ruidosamente:
+ * falla mandando la conversación de un huésped al proveedor equivocado.
+ */
+export function clienteDeIa(proveedor: Proveedor): ClienteDeIa {
+  switch (proveedor) {
+    case 'anthropic':
+      return clienteAnthropic();
+    case 'google':
+      return clienteGemini();
+    case 'openai':
+      return clienteCompatibleOpenai({
+        baseUrl: 'https://api.openai.com/v1',
+        proveedor: PROVEEDORES_DE_IA.openai.nombre,
+      });
+    case 'xai':
+      // xAI publica su API como compatible con la de OpenAI: misma
+      // implementación, otra URL.
+      return clienteCompatibleOpenai({
+        baseUrl: 'https://api.x.ai/v1',
+        proveedor: PROVEEDORES_DE_IA.xai.nombre,
+      });
+  }
 }
