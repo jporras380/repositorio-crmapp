@@ -59,6 +59,10 @@ export const esquemaConfig = z.object({
   // Rol `crmapp_relay` (migracion 0006): ve el outbox de todos los inquilinos.
   // Solo la necesita el worker.
   DATABASE_RELAY_URL: urlPostgres.optional(),
+  // Rol `crmapp_operador` (migracion 0040): lee facturacion y salud de TODOS
+  // los inquilinos, solo lectura. Sin ella, la consola del operador no ve
+  // nada — que es el fallo seguro. Solo la necesita la API.
+  DATABASE_OPERADOR_URL: urlPostgres.optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(10),
 
   REDIS_URL: z.string().startsWith('redis'),
@@ -98,6 +102,7 @@ const CAMPOS_SECRETOS = [
   'DATABASE_MIGRATION_URL',
   'DATABASE_AUTH_URL',
   'DATABASE_RELAY_URL',
+  'DATABASE_OPERADOR_URL',
   'REDIS_URL',
   'MASTER_ENCRYPTION_KEY',
   'JWT_SECRET',

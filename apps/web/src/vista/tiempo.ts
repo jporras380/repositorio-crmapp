@@ -79,3 +79,26 @@ export function hace(iso: string | null, ahora: Date = new Date()): string | nul
   const dias = Math.round(horas / 24);
   return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
 }
+
+/**
+ * Una fecha futura en palabras: «en 12 días», «mañana», «hoy».
+ *
+ * `hace()` no sirve para esto y devuelve `null` con cualquier fecha futura —
+ * la consola del operador enseñaba «vence » y nada detrás—. Son dos preguntas
+ * distintas: cuánto hace que pasó algo, y cuánto falta para que pase.
+ *
+ * Se cuenta por DÍAS DE CALENDARIO y no por horas: «vence en 1 día» a las
+ * once de la noche tiene que decir «mañana», no «en 13 horas», porque lo que
+ * organiza el trabajo de quien lo lee es el día, no el reloj.
+ */
+export function faltan(iso: string | null, ahora: Date = new Date()): string | null {
+  if (!iso) return null;
+  const cuando = new Date(iso);
+  if (Number.isNaN(cuando.getTime())) return null;
+  const dia = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const dias = Math.round((dia(cuando) - dia(ahora)) / 86_400_000);
+  if (dias < 0) return null;
+  if (dias === 0) return 'hoy';
+  if (dias === 1) return 'mañana';
+  return `en ${dias} días`;
+}

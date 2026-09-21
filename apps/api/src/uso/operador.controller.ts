@@ -1,4 +1,4 @@
-import { Body, Controller, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { TOKEN_OPERADOR } from '../tokens.js';
 import { AuthGuard, conContextoDePeticion } from '../auth/auth.guard.js';
@@ -26,6 +26,12 @@ type Req = { contexto?: unknown };
 @UseGuards(AuthGuard)
 export class OperadorController {
   constructor(@Inject(TOKEN_OPERADOR) private readonly operador: OperadorService) {}
+
+  /** Todas las cuentas: qué se les debe cobrar y si van bien. */
+  @Get('cuentas')
+  cuentas(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.operador.cuentas());
+  }
 
   @Post('pagos/:id/comprobante')
   adjuntar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {

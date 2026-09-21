@@ -232,6 +232,9 @@ export class AuthController {
       suscripcion: estado,
       nombre: perfil.nombre,
       fotoId: perfil.fotoId,
+      // El riel enseña la consola del operador solo a quien lo sea; la API la
+      // protege igual, así que esto es comodidad, no seguridad.
+      esOperador: perfil.esOperador,
     };
   }
 }

@@ -128,3 +128,43 @@ El test del operador daba 404 sin explicación. Dos causas encadenadas, las dos 
 Ajustes → Suscripción. Cambia a **Factura**: aparecen RUC, razón social y dirección. Escribe un RUC con un dígito cambiado y guarda: lo rechaza diciendo por qué. Con uno bueno, se guarda. Abajo, cada pago dice si su comprobante está en camino, retrasado, o listo para descargar.
 
 34 tests nuevos (14 del RUC y el plazo, 9 de API, 11 de pantalla). Comprobado además contra la API real: subir el PDF, adjuntarlo como operador y verlo disponible desde la cuenta del hotel.
+
+## La consola del operador (PR-88, 2026-09-21)
+
+Segunda mitad del punto 6. Todas las cuentas de la plataforma en una tabla, ordenadas por lo que hay que atender hoy.
+
+Contesta tres preguntas, en este orden:
+
+1. **¿A quién le debo un comprobante?** Es lo único con un plazo legal encima —48 horas—, y por eso manda el orden de la tabla y sale un aviso arriba sin tener que contar filas.
+2. **¿A quién se le vence?** Lo segundo que decide a quién se llama.
+3. **¿Qué cuenta se está quedando muda?** Un canal caído, o cero mensajes en el mes, es un cliente que se va sin avisar.
+
+### El rol, que es la decisión de verdad
+
+Leer todas las cuentas a la vez es, por definición, atravesar el aislamiento que sostiene el producto. Migración 0040: **un rol de base de datos**, `crmapp_operador`.
+
+**Por qué un rol y no una bandera de sesión.** La alternativa era «si `app.operador` está puesto, deja leerlo todo», y es frágil: cualquier camino que consiga ejecutar un `set_config` desbloquea la base entera. Un rol no se cambia desde dentro de una consulta. Es el patrón que ya usaban el rol de autenticación (0008) y el del relay (0006); esto lo sigue en vez de inventar otro.
+
+**Por qué no `BYPASSRLS`.** Se aplicaría a toda la base y para siempre. Aquí el escape son políticas nombradas sobre una lista corta de tablas: facturación, suscripciones, pagos, consumo y estado de canales. Lo que no esté en esa migración, el operador no lo ve, y añadir una tabla es un cambio que se lee en una revisión.
+
+**Y es de solo lectura.** Si alguien encadenara una inyección hasta este rol, podría contar cuentas ajenas, no tocarlas. Lo único que el operador escribe —el comprobante de un pago (0039)— pasa por el rol de aplicación entrando en el contexto del inquilino.
+
+Dos tests lo comprueban **contra la base de datos, no contra la API**: que el rol recibe `permission denied` al leer `conversations`, `messages` y `contacts`, y al intentar escribir lo que sí puede leer. Así sigue siendo verdad aunque mañana alguien escriba una consulta nueva en la consola.
+
+La respuesta de la API se fija con **lista blanca de campos**, no con lista negra de palabras: buscar «mensaje» en el JSON es burdo —`mensajesDelMes` es un contador y la contiene— y además no protege de un campo nuevo con otro nombre.
+
+### Por qué una consulta y no una por inquilino
+
+Recorrer inquilinos entrando en el contexto de cada uno habría mantenido la RLS de siempre, pero son cinco consultas por cuenta: con cien cuentas, quinientas idas y vueltas para pintar una tabla. El rol existe justo para evitarlo.
+
+### El fallo que encontró una captura
+
+La celda de estado decía **«vence »** y nada detrás. `hace()` solo sabe de tiempos pasados y devuelve `null` con cualquier fecha futura. Hacía falta su gemela, `faltan()`, que además cuenta **días de calendario** y no horas: a las once de la noche, «en 1 día» y «mañana» son la misma fecha, pero solo una organiza el trabajo de quien la lee.
+
+Ningún test lo habría visto: los tests miran el DOM y ahí el texto estaba: «vence» seguido de nada.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Actívate como operador (comando en 0039) y aparece un icono de edificios en el riel. La consola ordena por deuda de comprobante y marca en rojo lo que pide una llamada.
+
+15 tests nuevos (6 de API —dos de ellos contra la base—, 9 de pantalla, 5 de `faltan()`).

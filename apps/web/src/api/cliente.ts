@@ -9,6 +9,7 @@
 import type {
   ColumnaDelTablero,
   CuentaDeCanal,
+  CuentaEnLaConsola,
   CuentaDeInstagramDescubierta,
   PaginaDeFacebookDescubierta,
   AjustesDeIa,
@@ -145,6 +146,8 @@ export function crearApi(token: string | null) {
         cuerpo: codigo ? { email, contrasena, codigo } : { email, contrasena },
       }),
     yo: () => peticion<Yo>('/v1/yo', t),
+    /** Consola del operador: todas las cuentas. 404 si no eres de la plataforma. */
+    cuentasDeLaPlataforma: () => peticion<CuentaEnLaConsola[]>('/v1/operador/cuentas', t),
     panel: () => peticion<ResumenDelPanel>('/v1/panel', t),
     informe: (periodo: ClaveDePeriodo) =>
       peticion<InformeDelPeriodo>(`/v1/panel/informe?periodo=${periodo}`, t),

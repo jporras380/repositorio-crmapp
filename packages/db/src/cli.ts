@@ -38,15 +38,16 @@ try {
     case 'dev-roles': {
       // Solo desarrollo. En producción los roles reciben credenciales por otra
       // vía: una contraseña en una migración sería un secreto en el repositorio.
-      // Tres roles: aplicación (RLS), autenticación (solo lectura de identidad,
-      // migración 0008) y relay del outbox (migración 0006).
+      // Cuatro roles: aplicación (RLS), autenticación (solo lectura de
+      // identidad, 0008), relay del outbox (0006) y operador de la plataforma
+      // (solo lectura de facturación y salud, 0040).
       const password = process.env['DEV_APP_PASSWORD'] ?? 'crmapp_dev';
       const client = new Client({ connectionString: url });
       await client.connect();
       const { rows } = await client.query<{ datname: string }>(
         'SELECT current_database() AS datname',
       );
-      for (const rol of ['crmapp_app', 'crmapp_auth', 'crmapp_relay']) {
+      for (const rol of ['crmapp_app', 'crmapp_auth', 'crmapp_relay', 'crmapp_operador']) {
         await client.query(`ALTER ROLE ${rol} LOGIN PASSWORD '${password}'`);
         await client.query(`GRANT CONNECT ON DATABASE "${rows[0]!.datname}" TO ${rol}`);
         console.log(`${rol} puede conectarse a ${rows[0]!.datname}.`);

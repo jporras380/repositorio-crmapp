@@ -89,6 +89,12 @@ export interface OpcionesDeApp {
   databaseUrl: string;
   /** URL con el rol `crmapp_auth`, de solo lectura (migraciones 0008 y 0011). */
   authDatabaseUrl?: string;
+  /**
+   * URL con el rol `crmapp_operador` (0040): solo lectura, solo facturación y
+   * salud, a través de todos los inquilinos. Sin ella, la consola del operador
+   * no ve nada — que es el fallo seguro.
+   */
+  operadorDatabaseUrl?: string;
   jwtSecret: string;
   poolMax?: number;
   ahora?: () => Date;
@@ -169,6 +175,9 @@ export class AppModule {
               new Pool({ connectionString: opciones.databaseUrl, max: opciones.poolMax ?? 10 }),
               opciones.authDatabaseUrl
                 ? new Pool({ connectionString: opciones.authDatabaseUrl, max: 4 })
+                : undefined,
+              opciones.operadorDatabaseUrl
+                ? new Pool({ connectionString: opciones.operadorDatabaseUrl, max: 2 })
                 : undefined,
             ),
         },
@@ -370,7 +379,8 @@ export class AppModule {
         {
           provide: TOKEN_OPERADOR,
           inject: [TOKEN_DB],
-          useFactory: (db: BaseDeDatos) => new OperadorService({ db }),
+          useFactory: (db: BaseDeDatos) =>
+            new OperadorService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
         },
         AuthGuard,
       ],

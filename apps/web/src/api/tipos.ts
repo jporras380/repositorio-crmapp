@@ -18,6 +18,30 @@ export interface Yo {
   /** Para el riel de navegación, que está en todas las pantallas. */
   nombre: string;
   fotoId: string | null;
+  /** Personal de la PLATAFORMA (0039). El riel enseña la consola solo a quien lo sea. */
+  esOperador: boolean;
+}
+
+/** Una cuenta vista desde la consola del operador: cifras, nunca conversaciones. */
+export interface CuentaEnLaConsola {
+  tenantId: string;
+  nombre: string;
+  slug: string;
+  altaEn: string;
+  plan: string | null;
+  estado: string;
+  pruebaHasta: string | null;
+  periodoHasta: string | null;
+  diasDeGracia: number;
+  asientos: number;
+  importeMensualCentimos: number;
+  moneda: string;
+  comprobantesPendientes: number;
+  comprobanteMasViejoEn: string | null;
+  canales: number;
+  canalesConProblema: number;
+  ultimoEventoEn: string | null;
+  mensajesDelMes: number;
 }
 
 /** Etiqueta con dónde se usa, para el apartado donde se administran. */

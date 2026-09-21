@@ -7,7 +7,16 @@ import estilos from './Barra.module.css';
 interface Props {
   api: Api;
   yo: Yo | null;
-  activa?: 'panel' | 'bandeja' | 'clientes' | 'leads' | 'reservas' | 'hotel' | 'flujos' | 'ajustes';
+  activa?:
+    | 'panel'
+    | 'bandeja'
+    | 'clientes'
+    | 'leads'
+    | 'reservas'
+    | 'hotel'
+    | 'flujos'
+    | 'operador'
+    | 'ajustes';
   alSalir: () => void;
 }
 
@@ -115,6 +124,22 @@ export function Barra({ api, yo, activa = 'bandeja', alSalir }: Props) {
         <IconoHotel />
         <span className="visually-hidden">Hotel</span>
       </button>
+      {/*
+        Solo para el personal de la plataforma. Esconderlo es comodidad, no
+        seguridad: la API devuelve 404 a quien no lo sea, y el permiso de base
+        de datos tampoco le dejaría leer nada.
+      */}
+      {yo?.esOperador && (
+        <button
+          className={`${estilos.item} ${activa === 'operador' ? estilos.activo : ''}`}
+          aria-current={activa === 'operador' ? 'page' : undefined}
+          title="Cuentas de la plataforma"
+          onClick={() => irA({ pantalla: 'operador' })}
+        >
+          <IconoPlataforma />
+          <span className="visually-hidden">Cuentas de la plataforma</span>
+        </button>
+      )}
       <button
         className={`${estilos.item} ${activa === 'flujos' ? estilos.activo : ''}`}
         aria-current={activa === 'flujos' ? 'page' : undefined}
@@ -282,6 +307,21 @@ function IconoSalir() {
         d="M10 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h4M14 8l4 4-4 4M18 12H9"
         stroke="currentColor"
         strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Edificios: la plataforma son varias cuentas, no una. */
+function IconoPlataforma() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path
+        d="M3 21V8l6-4v17M9 21h12V11l-6-3M13 12h1.5M13 15h1.5M13 18h1.5M6 12h1.5M6 15h1.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

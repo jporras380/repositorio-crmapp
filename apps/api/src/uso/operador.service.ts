@@ -28,7 +28,35 @@
  * la cuenta va bien. Lo demás es correspondencia de huéspedes.
  */
 import { ErrorDeNegocio } from '../auth/auth.service.js';
+import { inicioDePeriodo } from '@crmapp/db';
 import { contextoActual, type BaseDeDatos } from '../db.js';
+
+/** Una cuenta vista desde fuera: lo justo para cobrar y para saber si va bien. */
+export interface CuentaEnLaConsola {
+  tenantId: string;
+  nombre: string;
+  slug: string;
+  altaEn: Date;
+  plan: string | null;
+  /** Declarado en la tabla; el efectivo lo calcula `core` al pintarlo. */
+  estado: string;
+  pruebaHasta: Date | null;
+  periodoHasta: Date | null;
+  diasDeGracia: number;
+  asientos: number;
+  importeMensualCentimos: number;
+  moneda: string;
+  /** Cuántos comprobantes le debemos. Lo primero que mira el operador. */
+  comprobantesPendientes: number;
+  /** El más viejo sin subir: si pasó de 48 h, vamos tarde con ESE. */
+  comprobanteMasViejoEn: Date | null;
+  /** Canales conectados y cuál fue el último evento que llegó de alguno. */
+  canales: number;
+  canalesConProblema: number;
+  ultimoEventoEn: Date | null;
+  /** Mensajes de este mes, para ver de un vistazo si la cuenta está viva. */
+  mensajesDelMes: number;
+}
 
 export interface PagoDeOperador {
   tenantId: string;
@@ -39,9 +67,11 @@ export interface PagoDeOperador {
 
 export class OperadorService {
   readonly #db: BaseDeDatos;
+  readonly #ahora: () => Date;
 
-  constructor(o: { db: BaseDeDatos }) {
+  constructor(o: { db: BaseDeDatos; ahora?: () => Date }) {
     this.#db = o.db;
+    this.#ahora = o.ahora ?? (() => new Date());
   }
 
   /**
@@ -87,6 +117,104 @@ export class OperadorService {
         ],
       );
       return { adjuntado: true as const };
+    });
+  }
+
+  /**
+   * Todas las cuentas, con lo que hace falta para cobrar y para saber si van
+   * bien.
+   *
+   * ## Por qué una sola consulta y no una por inquilino
+   *
+   * Recorrer inquilinos entrando en el contexto de cada uno habría mantenido
+   * la RLS de siempre, pero son cinco consultas por cuenta: con cien cuentas,
+   * quinientas idas y vueltas para pintar una tabla. El rol `crmapp_operador`
+   * (0040) existe justo para esto, y lo que puede leer está escrito en su
+   * migración: facturación y salud, nunca conversaciones.
+   *
+   * Ordenadas por lo que hay que atender antes: primero a quien le debemos un
+   * comprobante, luego lo que vence antes.
+   */
+  async cuentas(): Promise<CuentaEnLaConsola[]> {
+    await this.#exigirOperador();
+    const periodo = inicioDePeriodo(this.#ahora());
+
+    return this.#db.comoOperadorDeLaPlataforma(async (c) => {
+      const { rows } = await c.query<{
+        tenant_id: string;
+        nombre: string;
+        slug: string;
+        alta_en: Date;
+        plan: string | null;
+        estado: string;
+        prueba_hasta: Date | null;
+        periodo_hasta: Date | null;
+        dias_de_gracia: number;
+        precio_centimos: number | null;
+        moneda: string | null;
+        asientos: string;
+        comprobantes_pendientes: string;
+        comprobante_mas_viejo_en: Date | null;
+        canales: string;
+        canales_con_problema: string;
+        ultimo_evento_en: Date | null;
+        mensajes_del_mes: string;
+      }>(
+        `SELECT t.id AS tenant_id, t.name AS nombre, t.slug, t.created_at AS alta_en,
+                p.name AS plan, p.price_cents AS precio_centimos, p.currency AS moneda,
+                COALESCE(s.status, 'trialing') AS estado,
+                s.trial_ends_at AS prueba_hasta,
+                s.current_period_ends_at AS periodo_hasta,
+                COALESCE(s.grace_days, 0) AS dias_de_gracia,
+                (SELECT count(*) FROM memberships m WHERE m.tenant_id = t.id) AS asientos,
+                (SELECT count(*) FROM subscription_payments sp
+                  WHERE sp.tenant_id = t.id AND sp.receipt_media_id IS NULL)
+                  AS comprobantes_pendientes,
+                (SELECT min(sp.created_at) FROM subscription_payments sp
+                  WHERE sp.tenant_id = t.id AND sp.receipt_media_id IS NULL)
+                  AS comprobante_mas_viejo_en,
+                (SELECT count(*) FROM channel_accounts ca WHERE ca.tenant_id = t.id)
+                  AS canales,
+                (SELECT count(*) FROM channel_accounts ca
+                  WHERE ca.tenant_id = t.id AND ca.status <> 'connected') AS canales_con_problema,
+                (SELECT max(ca.last_event_at) FROM channel_accounts ca WHERE ca.tenant_id = t.id)
+                  AS ultimo_evento_en,
+                COALESCE((SELECT sum(r.quantity) FROM usage_rollups r
+                           WHERE r.tenant_id = t.id AND r.period = $1
+                             AND r.metric IN ('message.inbound', 'message.outbound')), 0)
+                  AS mensajes_del_mes
+           FROM tenants t
+           LEFT JOIN subscriptions s ON s.tenant_id = t.id
+           LEFT JOIN plans p ON p.id = s.plan_id
+          ORDER BY comprobantes_pendientes DESC, periodo_hasta ASC NULLS LAST, t.name`,
+        [periodo],
+      );
+
+      return rows.map((f) => {
+        const asientos = Number(f.asientos);
+        return {
+          tenantId: f.tenant_id,
+          nombre: f.nombre,
+          slug: f.slug,
+          altaEn: f.alta_en,
+          plan: f.plan,
+          estado: f.estado,
+          pruebaHasta: f.prueba_hasta,
+          periodoHasta: f.periodo_hasta,
+          diasDeGracia: f.dias_de_gracia,
+          asientos,
+          // Mismo cálculo que ve el hotel en su pantalla: precio por asiento
+          // ocupado. Si aquí saliera otro número, una de las dos miente.
+          importeMensualCentimos: (f.precio_centimos ?? 0) * asientos,
+          moneda: f.moneda ?? 'USD',
+          comprobantesPendientes: Number(f.comprobantes_pendientes),
+          comprobanteMasViejoEn: f.comprobante_mas_viejo_en,
+          canales: Number(f.canales),
+          canalesConProblema: Number(f.canales_con_problema),
+          ultimoEventoEn: f.ultimo_evento_en,
+          mensajesDelMes: Number(f.mensajes_del_mes),
+        };
+      });
     });
   }
 

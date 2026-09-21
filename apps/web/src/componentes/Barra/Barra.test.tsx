@@ -24,6 +24,7 @@ const YO: Yo = {
   suscripcion: 'activa',
   nombre: 'Rosa Quispe',
   fotoId: null,
+  esOperador: false,
 };
 
 const api = (extra: Record<string, unknown> = {}) =>

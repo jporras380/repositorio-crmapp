@@ -744,6 +744,8 @@ export class AuthService {
     email: string;
     fotoId: string | null;
     dobleFactor: boolean;
+    /** Personal de la plataforma (0039). El riel enseña la consola solo a quien lo sea. */
+    esOperador: boolean;
   }> {
     const ctx = this.#exigirContexto();
     // Va por la conexión de autenticación, no por la del inquilino: `user_mfa`
@@ -756,6 +758,7 @@ export class AuthService {
         email: string;
         avatar_media_id: string | null;
         doble_factor: boolean;
+        is_operator: boolean;
       }>(
         /*
           `dobleFactor` sale de `user_mfa.confirmed_at` y de ningún otro sitio:
@@ -765,7 +768,8 @@ export class AuthService {
         `SELECT u.full_name,
                 u.email::text AS email,
                 u.avatar_media_id,
-                (m.confirmed_at IS NOT NULL) AS doble_factor
+                (m.confirmed_at IS NOT NULL) AS doble_factor,
+                u.is_operator
            FROM users u
            LEFT JOIN user_mfa m ON m.user_id = u.id
           WHERE u.id = $1`,
@@ -779,6 +783,7 @@ export class AuthService {
         email: u.email,
         fotoId: u.avatar_media_id,
         dobleFactor: u.doble_factor,
+        esOperador: u.is_operator,
       };
     });
   }

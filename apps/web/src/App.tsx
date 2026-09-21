@@ -2,6 +2,7 @@ import { useSesion } from './estado/sesion.ts';
 import { useRuta } from './estado/ruta.ts';
 import { Acceso } from './pantallas/Acceso/Acceso.tsx';
 import { Panel } from './pantallas/Panel/Panel.tsx';
+import { Operador } from './pantallas/Operador/Operador.tsx';
 import { Bandeja } from './pantallas/Bandeja/Bandeja.tsx';
 import { Ajustes } from './pantallas/Ajustes/Ajustes.tsx';
 import { Flujos } from './pantallas/Flujos/Flujos.tsx';
@@ -15,6 +16,7 @@ export function App() {
   const ruta = useRuta();
   if (!sesion) return <Acceso alEntrar={iniciar} />;
   if (ruta.pantalla === 'panel') return <Panel sesion={sesion} alSalir={cerrar} />;
+  if (ruta.pantalla === 'operador') return <Operador sesion={sesion} alSalir={cerrar} />;
   if (ruta.pantalla === 'hotel') return <Hotel sesion={sesion} alSalir={cerrar} />;
   if (ruta.pantalla === 'reservas') {
     return <Reservas sesion={sesion} reservaId={ruta.reservaId} alSalir={cerrar} />;

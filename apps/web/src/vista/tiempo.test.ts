@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diaDeMensaje, hace, horaCorta, inicial, ventana } from './tiempo.ts';
+import { diaDeMensaje, hace, horaCorta, inicial, ventana, faltan } from './tiempo.ts';
 
 const ahora = new Date('2026-09-09T12:00:00Z');
 
@@ -67,5 +67,37 @@ describe('hace', () => {
     // callarse que decir «hace -3 min».
     expect(hace(null, ahoraFijo)).toBeNull();
     expect(hace(new Date(ahoraFijo.getTime() + 60_000).toISOString(), ahoraFijo)).toBeNull();
+  });
+});
+
+/**
+ * `faltan()` existe porque `hace()` devuelve null con cualquier fecha futura,
+ * y la consola del operador llegó a enseñar «vence » sin nada detrás.
+ */
+describe('faltan', () => {
+  const ahora = new Date('2026-09-21T15:00:00Z');
+
+  it('el mismo día es «hoy», aunque falten horas', () => {
+    expect(faltan('2026-09-21T23:00:00Z', ahora)).toBe('hoy');
+  });
+
+  it('el día siguiente es «mañana», no «en 27 horas»', () => {
+    // Mediodía del 22 en cualquier huso de América: es mañana, y no «en 1
+    // día». La cuenta va por días de CALENDARIO —en Lima, las 00:30 UTC del
+    // 22 siguen siendo el 21 por la tarde, y decir «mañana» ahí sería falso.
+    expect(faltan('2026-09-22T18:00:00Z', ahora)).toBe('mañana');
+  });
+
+  it('más allá, cuenta días de calendario', () => {
+    expect(faltan('2026-10-01T09:00:00Z', ahora)).toBe('en 10 días');
+  });
+
+  it('una fecha pasada no es «faltan»: devuelve null', () => {
+    expect(faltan('2026-09-01T09:00:00Z', ahora)).toBeNull();
+  });
+
+  it('sin fecha, o con una ilegible, null y no una celda rota', () => {
+    expect(faltan(null, ahora)).toBeNull();
+    expect(faltan('no es fecha', ahora)).toBeNull();
   });
 });

@@ -1,0 +1,128 @@
+/* Consola del operador: todas las cuentas de la plataforma. */
+@layer components {
+  .pantalla {
+    display: flex;
+    min-block-size: 100dvb;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .contenido {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    overflow: auto;
+  }
+
+  .cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-block-end: var(--space-4);
+  }
+
+  .titulo {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: 700;
+  }
+
+  .descripcion {
+    margin: 0.25rem 0 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    max-inline-size: 46rem;
+  }
+
+  /* Lo que hay que atender hoy, sin contar filas. */
+  .alerta {
+    padding: 0.35rem 0.8rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--warn);
+    background: var(--warn-soft);
+    color: var(--fg);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .tabla {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  .tabla th {
+    text-align: start;
+    padding: 0.5rem 0.6rem;
+    border-block-end: 1px solid var(--hairline);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+
+  .tabla td {
+    padding: 0.55rem 0.6rem;
+    border-block-end: 1px solid var(--hairline);
+    vertical-align: top;
+  }
+
+  /* Nombre y slug en dos líneas: dos cuentas del mismo dueño se distinguen
+     por el identificador, no por el nombre comercial. */
+  .nombre,
+  .slug,
+  .menor,
+  .debe {
+    display: block;
+  }
+
+  .nombre {
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  .slug,
+  .menor {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+
+  /* Lo que pide una llamada hoy. */
+  .debe {
+    color: var(--danger);
+    font-weight: 600;
+  }
+  .debe .menor {
+    font-weight: 400;
+    color: var(--fg-muted);
+  }
+
+  .estado {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    font-size: var(--text-xs);
+  }
+  .estado_active {
+    border-color: var(--ok);
+    background: var(--ok-soft);
+  }
+  .estado_past_due,
+  .estado_canceled {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+  }
+
+  .error {
+    margin: 0;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+}

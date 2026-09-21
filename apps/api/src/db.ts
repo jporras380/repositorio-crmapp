@@ -57,12 +57,23 @@ export class BaseDeDatos implements OnModuleDestroy {
    *                    que es preferible a verlo todo.
    */
   readonly poolAuth: Pool;
+  /**
+   * Rol `crmapp_operador` (0040): SOLO LECTURA y solo facturación y salud, a
+   * través de todos los inquilinos. No ve conversaciones ni contactos.
+   *
+   * Sin configurar, cae al mismo pool que el resto y entonces la consola del
+   * operador no ve nada —la RLS por inquilino la filtra—, que es el fallo
+   * seguro: se queda corta, no de más.
+   */
+  readonly poolOperador: Pool;
 
   constructor(
     readonly pool: Pool,
     poolAuth?: Pool,
+    poolOperador?: Pool,
   ) {
     this.poolAuth = poolAuth ?? pool;
+    this.poolOperador = poolOperador ?? pool;
   }
 
   /**
@@ -92,6 +103,17 @@ export class BaseDeDatos implements OnModuleDestroy {
    */
   async deAutenticacion<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
     return withSystemTransaction(this.poolAuth, fn);
+  }
+
+  /**
+   * Lectura a través de TODOS los inquilinos, con el rol del operador (0040).
+   *
+   * Nombre largo a propósito: esto atraviesa el aislamiento que sostiene el
+   * producto, y tiene que verse en cualquier búsqueda. Quien lo llame debe
+   * haber comprobado antes `users.is_operator`.
+   */
+  async comoOperadorDeLaPlataforma<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+    return withSystemTransaction(this.poolOperador, fn);
   }
 
   /**
@@ -147,6 +169,9 @@ export class BaseDeDatos implements OnModuleDestroy {
   async cerrar(): Promise<void> {
     await this.pool.end();
     if (this.poolAuth !== this.pool) await this.poolAuth.end();
+    if (this.poolOperador !== this.pool && this.poolOperador !== this.poolAuth) {
+      await this.poolOperador.end();
+    }
   }
 
   /**

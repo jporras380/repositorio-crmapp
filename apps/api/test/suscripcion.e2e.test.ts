@@ -43,7 +43,10 @@ beforeAll(async () => {
   await reintentandoSiChocaElCatalogo(() =>
     conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD 'crmapp_dev'`),
   );
-  await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app, crmapp_auth`);
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_operador LOGIN PASSWORD 'crmapp_dev'`),
+  );
+  await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app, crmapp_auth, crmapp_operador`);
   await conf.end();
   admin = new Pool({ connectionString: url(DB) });
 
@@ -55,6 +58,7 @@ beforeAll(async () => {
       // autenticación. Costó un rato descubrirlo porque no falla, devuelve
       // vacío.
       authDatabaseUrl: url(DB, 'crmapp_auth', 'crmapp_dev'),
+      operadorDatabaseUrl: url(DB, 'crmapp_operador', 'crmapp_dev'),
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
       modoSandbox: true,
@@ -368,5 +372,123 @@ describe('el operador de la plataforma', () => {
       .set(auth())
       .send({ tenantId, mediaAssetId: medioAjeno[0]!.id });
     expect(r.status).toBe(404);
+  });
+});
+
+/**
+ * La consola del operador (0040).
+ *
+ * El test que más importa no es el que comprueba que se ven las cuentas: es el
+ * que comprueba que **no** se ven las conversaciones. El rol del operador
+ * atraviesa el aislamiento que sostiene el producto, y lo único que hace eso
+ * aceptable es que la lista de lo que puede leer sea corta y esté probada.
+ */
+describe('consola del operador', () => {
+  it('sin ser operador, la consola no existe', async () => {
+    await admin.query(`UPDATE users SET is_operator = false WHERE email = 'jefe@acme.test'`);
+    const r = await http.get('/v1/operador/cuentas').set(auth());
+    expect(r.status).toBe(404);
+  });
+
+  it('siendo operador, ve TODAS las cuentas, no solo la suya', async () => {
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+    const r = await http.get('/v1/operador/cuentas').set(auth()).expect(200);
+
+    const slugs = r.body.map((c: { slug: string }) => c.slug);
+    expect(slugs).toContain('acme');
+    // `otro-hotel-0039` lo creó el bloque de arriba: es de otro inquilino, y
+    // verlo es justo lo que distingue a la consola de la pantalla del hotel.
+    expect(slugs).toContain('otro-hotel-0039');
+  });
+
+  it('trae lo que hace falta para cobrar', async () => {
+    const r = await http.get('/v1/operador/cuentas').set(auth()).expect(200);
+    const acme = r.body.find((c: { slug: string }) => c.slug === 'acme');
+
+    expect(acme.plan).toBe('Starter');
+    expect(acme.asientos).toBeGreaterThan(0);
+    // El mismo cálculo que ve el hotel: si aquí saliera otro, uno miente.
+    expect(acme.importeMensualCentimos).toBe(2500 * acme.asientos);
+    expect(acme.moneda).toBe('USD');
+  });
+
+  it('pone primero a quien le debemos un comprobante', async () => {
+    const r = await http.get('/v1/operador/cuentas').set(auth()).expect(200);
+    const pendientes = r.body.map(
+      (c: { comprobantesPendientes: number }) => c.comprobantesPendientes,
+    );
+    // Orden descendente: lo que hay que atender antes, arriba.
+    expect([...pendientes].sort((a: number, b: number) => b - a)).toEqual(pendientes);
+  });
+
+  it('devuelve EXACTAMENTE estos campos y ninguno más', async () => {
+    const r = await http.get('/v1/operador/cuentas').set(auth()).expect(200);
+
+    // Lista blanca y no lista negra: buscar palabras prohibidas en el JSON es
+    // burdo —`mensajesDelMes` es un contador y contiene «mensaje»— y además
+    // no protege de un campo nuevo con otro nombre. Fijar los campos sí: el
+    // día que alguien añada uno, este test lo para y hay que justificarlo.
+    const esperados = [
+      'tenantId',
+      'nombre',
+      'slug',
+      'altaEn',
+      'plan',
+      'estado',
+      'pruebaHasta',
+      'periodoHasta',
+      'diasDeGracia',
+      'asientos',
+      'importeMensualCentimos',
+      'moneda',
+      'comprobantesPendientes',
+      'comprobanteMasViejoEn',
+      'canales',
+      'canalesConProblema',
+      'ultimoEventoEn',
+      'mensajesDelMes',
+    ].sort();
+    for (const cuenta of r.body) {
+      expect(Object.keys(cuenta).sort()).toEqual(esperados);
+    }
+    // Todo lo que sale son cifras y fechas; nada es texto escrito por nadie.
+    expect(r.body[0].mensajesDelMes).toBeTypeOf('number');
+  });
+
+  it('el rol del operador NO puede leer conversaciones ni contactos', async () => {
+    // Se comprueba en la base, no en la API: si mañana alguien escribe una
+    // consulta nueva en la consola, esto sigue siendo verdad o falla aquí.
+    const cliente = await admin.connect();
+    try {
+      await cliente.query('BEGIN');
+      await cliente.query('SET LOCAL ROLE crmapp_operador');
+      for (const tabla of ['conversations', 'messages', 'contacts']) {
+        await expect(cliente.query(`SELECT 1 FROM ${tabla} LIMIT 1`)).rejects.toThrow(
+          /permission denied/i,
+        );
+        await cliente.query('ROLLBACK');
+        await cliente.query('BEGIN');
+        await cliente.query('SET LOCAL ROLE crmapp_operador');
+      }
+      await cliente.query('ROLLBACK');
+    } finally {
+      cliente.release();
+    }
+  });
+
+  it('el rol del operador tampoco puede ESCRIBIR lo que sí lee', async () => {
+    const cliente = await admin.connect();
+    try {
+      await cliente.query('BEGIN');
+      await cliente.query('SET LOCAL ROLE crmapp_operador');
+      // Solo lectura: si se encadenara una inyección hasta este rol, podría
+      // contar cuentas ajenas, no tocarlas.
+      await expect(cliente.query(`UPDATE subscriptions SET status = 'active'`)).rejects.toThrow(
+        /permission denied/i,
+      );
+      await cliente.query('ROLLBACK');
+    } finally {
+      cliente.release();
+    }
   });
 });
