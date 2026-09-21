@@ -28,6 +28,8 @@ export const TOKEN_PLANTILLAS = Symbol('PlantillasService');
 export const TOKEN_ADAPTADORES = Symbol('Adaptadores');
 
 export const TOKEN_USO = Symbol('UsoService');
+/** Personal de la plataforma, no de un inquilino (0039). */
+export const TOKEN_OPERADOR = Symbol('OperadorService');
 
 export const TOKEN_PANEL = Symbol('PanelService');
 

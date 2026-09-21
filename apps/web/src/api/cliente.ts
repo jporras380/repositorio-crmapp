@@ -28,6 +28,7 @@ import type {
   ResumenDeReserva,
   Cotizacion,
   DatosDeCliente,
+  DatosDeFacturacion,
   Tarifa,
   UnidadDeServicio,
   EstadoDeHabitacion,
@@ -319,6 +320,12 @@ export function crearApi(token: string | null) {
       peticion<void>(`/v1/respuestas-rapidas/${id}`, { ...t, metodo: 'DELETE' }),
     uso: () => peticion<ResumenDeUso>('/v1/cuenta/uso', t),
     suscripcion: () => peticion<ResumenDeSuscripcion>('/v1/cuenta/suscripcion', t),
+    guardarFacturacion: (d: DatosDeFacturacion) =>
+      peticion<ResumenDeSuscripcion>('/v1/cuenta/suscripcion/facturacion', {
+        ...t,
+        metodo: 'PUT',
+        cuerpo: d,
+      }),
     usuarios: () => peticion<Miembro[]>('/v1/usuarios', t),
 
     // --- Salesbots ---------------------------------------------------------

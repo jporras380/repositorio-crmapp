@@ -17,6 +17,9 @@ import {
   type EstadoEfectivo,
   type NivelDeConsumo,
   type Suscripcion,
+  venceElComprobante,
+  problemasDeFacturacion,
+  type TipoDeComprobante,
 } from '@crmapp/core';
 import {
   etiquetaDePeriodo,
@@ -42,12 +45,29 @@ export interface ResumenDeUso {
 }
 
 export interface PagoRegistrado {
+  id: string;
   importeCentimos: number;
   moneda: string;
   cubreDesde: Date;
   cubreHasta: Date;
   metodo: string;
   referencia: string | null;
+  /**
+   * El comprobante de este pago (0039).
+   *
+   * `pendiente` mientras no esté subido y no haya vencido el plazo;
+   * `retrasado` cuando pasaron las 48 horas y sigue sin subirse. Distinguirlo
+   * importa: lo primero es normal y lo segundo es un incumplimiento nuestro
+   * que el hotel tiene derecho a ver sin preguntar.
+   */
+  comprobante: {
+    estado: 'pendiente' | 'retrasado' | 'disponible';
+    /** Para descargarlo; `null` mientras no esté. */
+    medioId: string | null;
+    numero: string | null;
+    venceEn: Date;
+    subidoEn: Date | null;
+  };
 }
 
 export interface AvisoDeLimite {
@@ -68,6 +88,16 @@ export interface ResumenDeSuscripcion {
   graciaHasta: Date | null;
   pagos: PagoRegistrado[];
   avisos: AvisoDeLimite[];
+  /** A nombre de quién y con qué documento se emiten los comprobantes (0039). */
+  facturacion: DatosDeFacturacionDelHotel;
+}
+
+export interface DatosDeFacturacionDelHotel {
+  tipo: TipoDeComprobante;
+  /** RUC si es factura, DNI si es boleta. */
+  documento: string | null;
+  nombre: string | null;
+  direccion: string | null;
 }
 
 export class UsoService {
@@ -137,9 +167,14 @@ export class UsoService {
         trial_ends_at: Date | null;
         current_period_ends_at: Date | null;
         grace_days: number;
+        billing_doc_type: string;
+        billing_tax_id: string | null;
+        billing_name: string | null;
+        billing_address: string | null;
       }>(
         `SELECT p.code, p.name, p.price_cents, p.currency, p.limits,
-                s.status, s.trial_ends_at, s.current_period_ends_at, s.grace_days
+                s.status, s.trial_ends_at, s.current_period_ends_at, s.grace_days,
+                s.billing_doc_type, s.billing_tax_id, s.billing_name, s.billing_address
            FROM subscriptions s JOIN plans p ON p.id = s.plan_id
           WHERE s.tenant_id = $1`,
         [ctx.tenantId],
@@ -165,8 +200,14 @@ export class UsoService {
         covers_to: Date;
         method: string;
         reference: string | null;
+        id: string;
+        created_at: Date;
+        receipt_media_id: string | null;
+        receipt_uploaded_at: Date | null;
+        receipt_number: string | null;
       }>(
-        `SELECT amount_cents, currency, covers_from, covers_to, method, reference
+        `SELECT id, amount_cents, currency, covers_from, covers_to, method, reference,
+                created_at, receipt_media_id, receipt_uploaded_at, receipt_number
            FROM subscription_payments
           WHERE tenant_id = $1
           ORDER BY covers_to DESC
@@ -199,20 +240,88 @@ export class UsoService {
         estado: estadoEfectivo(suscripcion, ahora),
         asientos: ocupados,
         importeMensualCentimos: importeMensualEnCentimos(f?.price_cents ?? 0, ocupados),
+        facturacion: {
+          tipo: (f?.billing_doc_type ?? 'boleta') as TipoDeComprobante,
+          documento: f?.billing_tax_id ?? null,
+          nombre: f?.billing_name ?? null,
+          direccion: f?.billing_address ?? null,
+        },
         pruebaHasta: suscripcion.pruebaHasta,
         periodoHasta: suscripcion.periodoHasta,
         graciaHasta: graciaHasta(suscripcion),
-        pagos: pagos.map((p) => ({
-          importeCentimos: p.amount_cents,
-          moneda: p.currency,
-          cubreDesde: p.covers_from,
-          cubreHasta: p.covers_to,
-          metodo: p.method,
-          referencia: p.reference,
-        })),
+        pagos: pagos.map((p) => {
+          // El plazo se cuenta desde que se REGISTRA el pago, no desde lo que
+          // cubre: un pago de enero registrado en marzo no nace vencido.
+          const venceEn = venceElComprobante(p.created_at);
+          return {
+            id: p.id,
+            importeCentimos: p.amount_cents,
+            moneda: p.currency,
+            cubreDesde: p.covers_from,
+            cubreHasta: p.covers_to,
+            metodo: p.method,
+            referencia: p.reference,
+            comprobante: {
+              estado: p.receipt_media_id
+                ? ('disponible' as const)
+                : venceEn.getTime() < ahora.getTime()
+                  ? ('retrasado' as const)
+                  : ('pendiente' as const),
+              medioId: p.receipt_media_id,
+              numero: p.receipt_number,
+              venceEn,
+              subidoEn: p.receipt_uploaded_at,
+            },
+          };
+        }),
         avisos,
       };
     });
+  }
+
+  /**
+   * Guarda a nombre de quién se emiten los comprobantes.
+   *
+   * Lo comprueba `problemasDeFacturacion` (core) ANTES de tocar la base: una
+   * factura sin RUC la rechaza SUNAT semanas después, con el crédito fiscal ya
+   * perdido, y para entonces nadie se acuerda de qué se escribió aquí.
+   *
+   * Solo owner o admin: es un dato fiscal de la empresa, no una preferencia.
+   */
+  async guardarFacturacion(datos: DatosDeFacturacionDelHotel): Promise<ResumenDeSuscripcion> {
+    const ctx = contextoActual();
+    if (!ctx) throw new ErrorDeNegocio('sin_sesion', 'Se requiere sesión.', 401);
+    if (ctx.rol !== 'owner' && ctx.rol !== 'admin') {
+      throw new ErrorDeNegocio('sin_permiso', 'Solo el dueño o un administrador.', 403);
+    }
+
+    const problemas = problemasDeFacturacion(datos);
+    if (problemas.length > 0) {
+      throw new ErrorDeNegocio('facturacion_incompleta', problemas.join(' '), 422);
+    }
+
+    await this.#db.enTransaccion(async (c) => {
+      const limpio = (v: string | null) => v?.trim() || null;
+      await c.query(
+        `UPDATE subscriptions
+            SET billing_doc_type = $2, billing_tax_id = $3,
+                billing_name = $4, billing_address = $5, updated_at = now()
+          WHERE tenant_id = $1`,
+        [
+          ctx.tenantId,
+          datos.tipo,
+          limpio(datos.documento),
+          limpio(datos.nombre),
+          limpio(datos.direccion),
+        ],
+      );
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'suscripcion.facturacion', 'tenant', $1, $3)`,
+        [ctx.tenantId, ctx.userId, JSON.stringify({ tipo: datos.tipo })],
+      );
+    });
+    return this.suscripcion();
   }
 
   /**

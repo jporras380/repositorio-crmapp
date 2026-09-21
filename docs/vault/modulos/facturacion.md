@@ -73,3 +73,58 @@ Consecuencia asumida: los mensajes que le escriban mientras está desconectado *
 - **P-21** qué medimos y cobramos. Con el costo de mensajería fuera ([[ADR-004-modelo-whatsapp]]), la IA es lo único que nos cuesta dinero de verdad.
 - **P-10** proveedor de pagos. Stripe era referencia, no decisión.
 - Los precios sembrados en la migración 0007 son marcador de posición.
+
+## Factura o boleta, y el comprobante descargable (PR-87, 2026-09-21)
+
+Primera mitad del punto 6. El hotel elige qué comprobante necesita por su suscripción al CRM, y lo descarga cuando lo subimos.
+
+### Por qué factura Y boleta, y no «un comprobante»
+
+En Perú no son lo mismo y no se eligen por gusto:
+
+- **Factura**: para quien tiene RUC y va a usar el gasto como crédito fiscal. Exige RUC, razón social y dirección.
+- **Boleta**: para persona natural. Basta el DNI —opcional por debajo de S/ 700— y no da crédito fiscal.
+
+Un hotel formal querrá factura. Si el CRM manda boletas, ese gasto no se deduce. Preguntarlo una vez evita un problema mensual.
+
+### El RUC se comprueba de verdad
+
+`packages/core/src/facturacion.ts` valida el **dígito de control** por módulo 11, no solo la longitud. Un RUC mal tecleado no lo rechaza nadie hasta que SUNAT devuelve la factura, semanas después y con el crédito fiscal perdido. Esto atrapa el error más común —dos cifras cambiadas de sitio— al escribirlo.
+
+No comprueba que el RUC **exista**: para eso haría falta preguntarle a SUNAT, que es una integración con su propia caducidad y su propio permiso.
+
+El DNI se valida solo por longitud: lleva un carácter de verificación que **no está impreso en los documentos antiguos**, y exigirlo rechazaría a personas con su DNI en la mano.
+
+### Pendiente no es lo mismo que retrasado
+
+Cada pago dice el estado de su comprobante: `pendiente` mientras quedan horas, `retrasado` pasadas las 48, `disponible` cuando está. Lo segundo es un incumplimiento **nuestro**, y el hotel tiene derecho a verlo sin preguntar por WhatsApp. Sale en rojo.
+
+El plazo se **calcula** desde que se registra el pago, no se guarda: un plazo guardado y un pago con la fecha corregida se separan, y entonces la pantalla promete algo que ya no es. Y se cuenta desde el registro, no desde lo que cubre — un pago de enero registrado en marzo no nace vencido.
+
+## El primer cruce de inquilino: el operador de la plataforma
+
+Subir el comprobante es lo único que alguien de fuera de una cuenta escribe dentro de ella. Vive en `apps/api/src/uso/operador.service.ts`, en su propio archivo y bajo `/v1/operador`, porque **un cruce de inquilino tiene que verse en cualquier búsqueda**.
+
+Cuatro cierres, y cada uno haría falta aunque fallaran los otros:
+
+1. **`users.is_operator`**, que no se activa desde la aplicación. Se pone por consola **con el superusuario**: `users` lleva RLS forzada y ni el dueño de la tabla la salta, así que un `UPDATE` desde la cuenta de la aplicación no toca ninguna fila **y no se queja**. Un botón de «hazme operador» sería un botón de «dame todas las cuentas».
+2. **Se entra por la puerta**: el contexto se fija al inquilino de destino con `paraInquilino`, así que la RLS sigue aplicándose dentro. No se desactiva nada. Por eso un medio de otra cuenta simplemente no se encuentra, sin ninguna comprobación escrita a mano — que es la comprobación que alguien acaba olvidando.
+3. **Permiso por COLUMNA.** En 0016 se le quitó a la aplicación toda escritura sobre `subscription_payments`: nadie puede declararse pagado. Esa regla se queda. Lo que se concede son las **tres columnas del comprobante**, con `GRANT UPDATE (col, col, col)`. El importe y las fechas siguen intocables.
+4. **Auditoría en la cuenta del hotel**, con el usuario de plataforma que lo hizo. El hotel puede ver quién tocó su cuenta desde fuera.
+
+Quien no es operador recibe **404, no 403**: un 403 le confirmaría que la ruta existe a quien la está buscando.
+
+Lo que el operador **no** puede hacer: leer conversaciones, mensajes, contactos ni reservas.
+
+### Lo que costó un rato
+
+El test del operador daba 404 sin explicación. Dos causas encadenadas, las dos del mismo tipo —**no fallan, devuelven vacío**:
+
+1. `UPDATE users SET is_operator = true` desde el rol dueño no tocaba ninguna fila: `users` lleva RLS **forzada**, que se aplica también al propietario de la tabla.
+2. El fichero de test no pasaba `authDatabaseUrl`, así que la lectura de identidad caía al rol de inquilino, y la política que deja leer `users` es del rol de autenticación.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+Ajustes → Suscripción. Cambia a **Factura**: aparecen RUC, razón social y dirección. Escribe un RUC con un dígito cambiado y guarda: lo rechaza diciendo por qué. Con uno bueno, se guarda. Abajo, cada pago dice si su comprobante está en camino, retrasado, o listo para descargar.
+
+34 tests nuevos (14 del RUC y el plazo, 9 de API, 11 de pantalla). Comprobado además contra la API real: subir el PDF, adjuntarlo como operador y verlo disponible desde la cuenta del hotel.

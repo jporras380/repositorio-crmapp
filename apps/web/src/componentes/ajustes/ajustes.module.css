@@ -278,4 +278,12 @@
     border-radius: var(--radius-sm);
     border: 1px solid var(--hairline);
   }
+
+  /* Un comprobante que ya debería estar. No es una pista más: es un
+     incumplimiento nuestro, y el hotel tiene que poder verlo sin preguntar. */
+  .retrasado {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--danger);
+  }
 }

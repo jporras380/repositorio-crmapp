@@ -40,13 +40,21 @@ beforeAll(async () => {
   await reintentandoSiChocaElCatalogo(() =>
     conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_dev'`),
   );
-  await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app`);
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD 'crmapp_dev'`),
+  );
+  await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app, crmapp_auth`);
   await conf.end();
   admin = new Pool({ connectionString: url(DB) });
 
   app = await NestFactory.create(
     AppModule.forRoot({
       databaseUrl: url(DB, 'crmapp_app', 'crmapp_dev'),
+      // Sin esto, la lectura de identidad cae al rol de inquilino y `users`
+      // no devuelve nada: la política que deja leerla es del rol de
+      // autenticación. Costó un rato descubrirlo porque no falla, devuelve
+      // vacío.
+      authDatabaseUrl: url(DB, 'crmapp_auth', 'crmapp_dev'),
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
       modoSandbox: true,
@@ -184,5 +192,181 @@ describe('límite de asientos al invitar', () => {
       [tenantId],
     );
     expect(Number(rows[0]!.n)).toBe(1);
+  });
+});
+
+/**
+ * Factura o boleta, y el comprobante (0039).
+ *
+ * Lo que se prueba es lo que le cuesta dinero al hotel —una factura sin RUC la
+ * rechaza SUNAT y se pierde el crédito fiscal— y lo que protege a todos: que
+ * el operador de la plataforma no pueda tocar la cuenta de otro.
+ */
+describe('facturación y comprobantes', () => {
+  const suscripcion = async () =>
+    (await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200)).body;
+  const guardar = (cuerpo: Record<string, unknown>) =>
+    http.put('/v1/cuenta/suscripcion/facturacion').set(auth()).send(cuerpo);
+
+  it('empieza en boleta: es lo que vale sin pedir nada', async () => {
+    expect((await suscripcion()).facturacion.tipo).toBe('boleta');
+  });
+
+  it('una factura sin RUC se rechaza, y dice QUÉ falta', async () => {
+    const r = await guardar({ tipo: 'factura' }).expect(422);
+    expect(r.body.codigo).toBe('facturacion_incompleta');
+    // Las tres cosas de una vez: de una en una serían tres intentos.
+    expect(r.body.mensaje).toContain('RUC');
+    expect(r.body.mensaje).toContain('razón social');
+    expect(r.body.mensaje).toContain('dirección');
+  });
+
+  it('una factura con el RUC mal tecleado no pasa', async () => {
+    const r = await guardar({
+      tipo: 'factura',
+      documento: '20100070971',
+      nombre: 'Apart Hotel El Paraíso SAC',
+      direccion: 'Av. Grau 100, Barranca',
+    }).expect(422);
+    expect(r.body.mensaje).toContain('no es válido');
+  });
+
+  it('con los tres datos buenos se guarda', async () => {
+    await guardar({
+      tipo: 'factura',
+      documento: '20100070970',
+      nombre: 'Apart Hotel El Paraíso SAC',
+      direccion: 'Av. Grau 100, Barranca',
+    }).expect(200);
+
+    const f = (await suscripcion()).facturacion;
+    expect(f.tipo).toBe('factura');
+    expect(f.documento).toBe('20100070970');
+  });
+
+  it('volver a boleta no exige RUC', async () => {
+    await guardar({ tipo: 'boleta', documento: '12345678', nombre: 'Rosa Quispe' }).expect(200);
+    expect((await suscripcion()).facturacion.tipo).toBe('boleta');
+  });
+
+  it('cada pago dice el estado de su comprobante y cuándo vence el plazo', async () => {
+    const pagos = (await suscripcion()).pagos;
+    expect(pagos.length).toBeGreaterThan(0);
+    const p = pagos[0];
+    expect(p.id).toBeTruthy();
+    expect(p.comprobante.medioId).toBeNull();
+    // Recién registrado: pendiente, no retrasado. Son cosas distintas —lo
+    // segundo es un incumplimiento nuestro.
+    expect(['pendiente', 'retrasado']).toContain(p.comprobante.estado);
+    expect(new Date(p.comprobante.venceEn).getTime()).toBeGreaterThan(0);
+  });
+
+  it('un pago registrado hace 3 días sin comprobante sale RETRASADO', async () => {
+    await admin.query(
+      `UPDATE subscription_payments SET created_at = now() - interval '3 days'
+        WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    const pagos = (await suscripcion()).pagos;
+    expect(
+      pagos.every((p: { comprobante: { estado: string } }) => p.comprobante.estado === 'retrasado'),
+    ).toBe(true);
+  });
+});
+
+describe('el operador de la plataforma', () => {
+  it('quien NO es operador recibe 404, no 403', async () => {
+    // 403 le confirmaría que la ruta existe a quien la está buscando.
+    const r = await http
+      .post('/v1/operador/pagos/01a00000-0000-7000-8000-000000000000/comprobante')
+      .set(auth())
+      .send({
+        tenantId: '01a00000-0000-7000-8000-000000000001',
+        mediaAssetId: '01a00000-0000-7000-8000-000000000002',
+      });
+    expect(r.status).toBe(404);
+    expect(r.body.codigo).toBe('no_encontrado');
+  });
+
+  it('siendo operador, adjunta el comprobante y el hotel lo ve', async () => {
+    // Se marca a la dueña como personal de la plataforma. En la realidad esto
+    // se hace por consola y nunca desde la aplicación, que es justo el punto.
+    //
+    // Hace falta el contexto de inquilino: `users` lleva RLS **forzada**, así
+    // que ni el dueño de la tabla la salta. Sin esto, el UPDATE no toca
+    // ninguna fila y no se queja — que es como se perdió un rato aquí.
+    const cliente = await admin.connect();
+    try {
+      await cliente.query('BEGIN');
+      // `SET LOCAL` no admite parámetros; `set_config(..., true)` es su
+      // equivalente que sí, y evita concatenar un id en el SQL.
+      await cliente.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+      const r = await cliente.query(
+        `UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`,
+      );
+      expect(r.rowCount).toBe(1);
+      await cliente.query('COMMIT');
+    } finally {
+      cliente.release();
+    }
+
+    // Un medio subido dentro de la cuenta del hotel.
+    const { rows: medio } = await admin.query<{ id: string }>(
+      `INSERT INTO media_assets (id, tenant_id, kind, status, mime, bytes, storage_key)
+       VALUES (uuidv7(), $1, 'document', 'stored', 'application/pdf', 1000, 'k/1')
+       RETURNING id`,
+      [tenantId],
+    );
+    const { rows: pago } = await admin.query<{ id: string }>(
+      `SELECT id FROM subscription_payments WHERE tenant_id = $1 LIMIT 1`,
+      [tenantId],
+    );
+
+    await http
+      .post(`/v1/operador/pagos/${pago[0]!.id}/comprobante`)
+      .set(auth())
+      .send({ tenantId, mediaAssetId: medio[0]!.id, numero: 'F001-00000123' })
+      .expect(201);
+
+    const p = (await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200)).body.pagos.find(
+      (x: { id: string }) => x.id === pago[0]!.id,
+    );
+    expect(p.comprobante.estado).toBe('disponible');
+    expect(p.comprobante.numero).toBe('F001-00000123');
+    expect(p.comprobante.medioId).toBe(medio[0]!.id);
+  });
+
+  it('queda en la auditoría DEL HOTEL quién lo hizo', async () => {
+    const { rows } = await admin.query<{ n: string }>(
+      `SELECT count(*) AS n FROM audit_log
+        WHERE tenant_id = $1 AND action = 'suscripcion.comprobante_subido'`,
+      [tenantId],
+    );
+    // El hotel tiene derecho a ver quién tocó su cuenta desde fuera.
+    expect(Number(rows[0]!.n)).toBe(1);
+  });
+
+  it('el operador NO puede adjuntar un medio de otra cuenta', async () => {
+    const { rows: otro } = await admin.query<{ id: string }>(
+      `INSERT INTO tenants (name, slug) VALUES ('Otro Hotel', 'otro-hotel-0039') RETURNING id`,
+    );
+    const { rows: medioAjeno } = await admin.query<{ id: string }>(
+      `INSERT INTO media_assets (id, tenant_id, kind, status, mime, bytes, storage_key)
+       VALUES (uuidv7(), $1, 'document', 'stored', 'application/pdf', 1000, 'k/2')
+       RETURNING id`,
+      [otro[0]!.id],
+    );
+    const { rows: pago } = await admin.query<{ id: string }>(
+      `SELECT id FROM subscription_payments WHERE tenant_id = $1 LIMIT 1`,
+      [tenantId],
+    );
+
+    // El medio existe, pero no en esta cuenta: la RLS del inquilino de destino
+    // no lo encuentra, así que no hace falta comprobarlo a mano.
+    const r = await http
+      .post(`/v1/operador/pagos/${pago[0]!.id}/comprobante`)
+      .set(auth())
+      .send({ tenantId, mediaAssetId: medioAjeno[0]!.id });
+    expect(r.status).toBe(404);
   });
 });

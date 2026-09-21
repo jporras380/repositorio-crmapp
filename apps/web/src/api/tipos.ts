@@ -473,15 +473,38 @@ export interface ResumenDeSuscripcion {
   pruebaHasta: string | null;
   periodoHasta: string | null;
   graciaHasta: string | null;
-  pagos: {
-    importeCentimos: number;
-    moneda: string;
-    cubreDesde: string;
-    cubreHasta: string;
-    metodo: string;
-    referencia: string | null;
-  }[];
+  pagos: PagoDeSuscripcion[];
   avisos: { limite: string; nivel: 'holgado' | 'cerca' | 'pasado'; usado: number; tope: number }[];
+  facturacion: DatosDeFacturacion;
+}
+
+export type TipoDeComprobante = 'boleta' | 'factura';
+
+/** A nombre de quién se emiten los comprobantes del CRM. */
+export interface DatosDeFacturacion {
+  tipo: TipoDeComprobante;
+  /** RUC si es factura, DNI si es boleta. */
+  documento: string | null;
+  nombre: string | null;
+  direccion: string | null;
+}
+
+export interface PagoDeSuscripcion {
+  id: string;
+  importeCentimos: number;
+  moneda: string;
+  cubreDesde: string;
+  cubreHasta: string;
+  metodo: string;
+  referencia: string | null;
+  comprobante: {
+    /** `retrasado` = pasaron las 48 h y sigue sin subirse. */
+    estado: 'pendiente' | 'retrasado' | 'disponible';
+    medioId: string | null;
+    numero: string | null;
+    venceEn: string;
+    subidoEn: string | null;
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@ import {
   TOKEN_PLANTILLAS,
   TOKEN_ADAPTADORES,
   TOKEN_USO,
+  TOKEN_OPERADOR,
   TOKEN_PANEL,
   TOKEN_FLUJOS,
   TOKEN_EMBUDO,
@@ -61,6 +62,8 @@ import {
 } from './plantillas/plantillas.controller.js';
 import { UsoService } from './uso/uso.service.js';
 import { UsoController } from './uso/uso.controller.js';
+import { OperadorController } from './uso/operador.controller.js';
+import { OperadorService } from './uso/operador.service.js';
 import { PanelService } from './panel/panel.service.js';
 import { PanelController } from './panel/panel.controller.js';
 import { FlujosService } from './flujos/flujos.service.js';
@@ -147,6 +150,7 @@ export class AppModule {
         PlantillasWhatsappController,
         RespuestasRapidasController,
         UsoController,
+        OperadorController,
         PanelController,
         FlujosController,
         EmbudoController,
@@ -363,6 +367,11 @@ export class AppModule {
           useFactory: (db: BaseDeDatos) =>
             new UsoService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
         },
+        {
+          provide: TOKEN_OPERADOR,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) => new OperadorService({ db }),
+        },
         AuthGuard,
       ],
       exports: [
@@ -375,6 +384,7 @@ export class AppModule {
         TOKEN_MEDIOS,
         TOKEN_PLANTILLAS,
         TOKEN_USO,
+        TOKEN_OPERADOR,
         TOKEN_PANEL,
         TOKEN_FLUJOS,
         TOKEN_EMBUDO,

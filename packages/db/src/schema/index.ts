@@ -71,6 +71,11 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   /** Foto de perfil como medio propio, con URL firmada al pintarla (0034). */
   avatarMediaId: uuid('avatar_media_id'),
+  /**
+   * Personal de la PLATAFORMA, no de ningún inquilino (0039). Se activa por
+   * consola con el superusuario; no hay forma de hacerlo desde la aplicación.
+   */
+  isOperator: boolean('is_operator').notNull().default(false),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: creado,
   updatedAt: actualizado,
@@ -490,6 +495,12 @@ export const subscriptions = pgTable('subscriptions', {
   /** Copiado del plan al crear. No se lee del plan al evaluar. */
   graceDays: integer('grace_days').notNull().default(7),
   /** Cache para listados y deteccion de transiciones. Nadie decide con esto. */
+  /** Factura o boleta, y a nombre de quién (0039). */
+  billingDocType: text('billing_doc_type').notNull().default('boleta'),
+  /** RUC si es factura, DNI si es boleta. */
+  billingTaxId: text('billing_tax_id'),
+  billingName: text('billing_name'),
+  billingAddress: text('billing_address'),
   cachedState: text('cached_state'),
   cachedStateAt: timestamp('cached_state_at', { withTimezone: true }),
   provider: text('provider'),
@@ -676,6 +687,13 @@ export const subscriptionPayments = pgTable('subscription_payments', {
   method: text('method').notNull().default('transferencia'),
   reference: text('reference'),
   note: text('note'),
+  /**
+   * El comprobante emitido por este pago (0039). La aplicación solo puede
+   * escribir ESTAS tres columnas, y solo el personal de la plataforma.
+   */
+  receiptMediaId: uuid('receipt_media_id'),
+  receiptUploadedAt: timestamp('receipt_uploaded_at', { withTimezone: true }),
+  receiptNumber: text('receipt_number'),
   createdAt: creado,
 });
 

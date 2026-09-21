@@ -1,6 +1,11 @@
-import { useEffect, useState } from 'react';
-import type { Api } from '../../api/cliente.ts';
-import type { ResumenDeSuscripcion } from '../../api/tipos.ts';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ErrorDeApi, type Api } from '../../api/cliente.ts';
+import type {
+  DatosDeFacturacion,
+  PagoDeSuscripcion,
+  ResumenDeSuscripcion,
+  TipoDeComprobante,
+} from '../../api/tipos.ts';
 import estilos from './ajustes.module.css';
 
 interface Props {
@@ -115,6 +120,8 @@ export function Suscripcion({ api }: Props) {
         </div>
       </div>
 
+      <Facturacion api={api} datos={d.facturacion} alGuardar={setD} />
+
       <h3 className={estilos.tarjetaTitulo}>Pagos registrados</h3>
       {d.pagos.length === 0 ? (
         <p className={estilos.descripcion}>
@@ -129,22 +136,182 @@ export function Suscripcion({ api }: Props) {
               <th>Importe</th>
               <th>Forma</th>
               <th>Referencia</th>
+              <th>Comprobante</th>
             </tr>
           </thead>
           <tbody>
-            {d.pagos.map((p, i) => (
-              <tr key={i}>
+            {d.pagos.map((p) => (
+              <tr key={p.id}>
                 <td>
                   {fecha(p.cubreDesde)} — {fecha(p.cubreHasta)}
                 </td>
                 <td>{dinero(p.importeCentimos, p.moneda)}</td>
                 <td>{p.metodo}</td>
                 <td>{p.referencia ?? '—'}</td>
+                <td>
+                  <Comprobante api={api} pago={p} />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
     </section>
+  );
+}
+
+/**
+ * A nombre de quién se emite el comprobante.
+ *
+ * ## Por qué se pregunta, en vez de mandar siempre una boleta
+ *
+ * En Perú factura y boleta no son lo mismo: la factura da crédito fiscal y
+ * exige RUC, razón social y dirección; la boleta es para persona natural y no
+ * lo da. Un hotel formal necesita la primera, y si el CRM manda boletas, ese
+ * gasto no se puede deducir. Preguntarlo una vez evita un problema mensual.
+ */
+function Facturacion({
+  api,
+  datos,
+  alGuardar,
+}: {
+  api: Api;
+  datos: DatosDeFacturacion;
+  alGuardar: (d: ResumenDeSuscripcion) => void;
+}) {
+  const [tipo, setTipo] = useState<TipoDeComprobante>(datos.tipo);
+  const [documento, setDocumento] = useState(datos.documento ?? '');
+  const [nombre, setNombre] = useState(datos.nombre ?? '');
+  const [direccion, setDireccion] = useState(datos.direccion ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  const esFactura = tipo === 'factura';
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    setGuardando(true);
+    setError(null);
+    setAviso(null);
+    try {
+      alGuardar(
+        await api.guardarFacturacion({
+          tipo,
+          documento: documento.trim() || null,
+          nombre: nombre.trim() || null,
+          direccion: direccion.trim() || null,
+        }),
+      );
+      setAviso('Guardado. Los próximos comprobantes salen así.');
+    } catch (err) {
+      setError(err instanceof ErrorDeApi ? err.message : 'No se pudo guardar.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form className={estilos.formulario} onSubmit={guardar}>
+      <h3 className={estilos.tarjetaTitulo}>Comprobante de pago</h3>
+      <p className={estilos.descripcion}>
+        Lo emitimos nosotros y lo subimos aquí dentro de las 48 horas siguientes a registrar tu
+        pago. Elige qué necesitas.
+      </p>
+
+      <div className={estilos.campos}>
+        <label className={estilos.campo}>
+          <span>Tipo</span>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDeComprobante)}>
+            <option value="boleta">Boleta</option>
+            <option value="factura">Factura</option>
+          </select>
+          <span className={estilos.ayuda}>
+            {esFactura
+              ? 'Da crédito fiscal. Necesita RUC, razón social y dirección.'
+              : 'Para persona natural. No da crédito fiscal.'}
+          </span>
+        </label>
+        <label className={estilos.campo}>
+          <span>{esFactura ? 'RUC' : 'DNI (opcional)'}</span>
+          <input
+            inputMode="numeric"
+            maxLength={esFactura ? 11 : 8}
+            value={documento}
+            onChange={(e) => setDocumento(e.target.value.replace(/\D/g, ''))}
+            placeholder={esFactura ? '20XXXXXXXXX' : '########'}
+          />
+        </label>
+      </div>
+
+      <label className={estilos.campo}>
+        <span>{esFactura ? 'Razón social' : 'Nombre (opcional)'}</span>
+        <input maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      </label>
+
+      {/* La dirección solo la pide la factura: en una boleta sobra. */}
+      {esFactura && (
+        <label className={estilos.campo}>
+          <span>Dirección fiscal</span>
+          <input
+            maxLength={300}
+            value={direccion}
+            onChange={(e) => setDireccion(e.target.value)}
+            placeholder="Av. Grau 100, Barranca"
+          />
+        </label>
+      )}
+
+      {error && (
+        <p className={`${estilos.aviso} ${estilos.aviso_error}`} role="alert">
+          {error}
+        </p>
+      )}
+      {aviso && <p className={`${estilos.aviso} ${estilos.aviso_ok}`}>{aviso}</p>}
+
+      <div className={estilos.formularioAcciones}>
+        <button type="submit" className={estilos.primario} disabled={guardando}>
+          {guardando ? 'Guardando…' : 'Guardar'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * El comprobante de un pago: descargarlo, o saber cuándo llega.
+ *
+ * Se distingue «pendiente» de «retrasado» a propósito. Lo primero es normal
+ * —hay 48 horas— y lo segundo es un incumplimiento nuestro que el hotel tiene
+ * derecho a ver sin tener que preguntar por WhatsApp.
+ */
+function Comprobante({ api, pago }: { api: Api; pago: PagoDeSuscripcion }) {
+  const [abriendo, setAbriendo] = useState(false);
+  const c = pago.comprobante;
+
+  async function descargar() {
+    setAbriendo(true);
+    try {
+      // La URL se firma para unos minutos, así que se pide al pulsar y no al
+      // pintar la tabla: una lista de diez pagos pediría diez firmas que
+      // caducarían antes de usarse.
+      const { url } = await api.urlDeMedio(c.medioId!);
+      window.open(url, '_blank', 'noopener');
+    } finally {
+      setAbriendo(false);
+    }
+  }
+
+  if (c.estado === 'disponible') {
+    return (
+      <button className={estilos.secundario} onClick={() => void descargar()} disabled={abriendo}>
+        {abriendo ? 'Abriendo…' : (c.numero ?? 'Descargar')}
+      </button>
+    );
+  }
+  return (
+    <span className={c.estado === 'retrasado' ? estilos.retrasado : estilos.descripcion}>
+      {c.estado === 'retrasado' ? 'Nos hemos retrasado' : `Antes del ${fecha(c.venceEn)}`}
+    </span>
   );
 }
