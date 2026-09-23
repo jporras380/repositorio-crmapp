@@ -15,16 +15,27 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 **Decisión que manda sobre el resto:** la atención vive en la conversación y la venta en el embudo ([[ADR-013-lead-no-es-conversacion]]).
 
-## Deuda con nombre, encontrada por la guarda 5 (23 de septiembre)
+## La guarda 5, y las cuatro que encontró (23 de septiembre)
 
-La guarda nueva compara rutas de la API contra lo que pide el cliente web. Encontró **cuatro funciones entregadas sin pantalla**. **Tres se cerraron en PR-95** el mismo día: pedir acceso de soporte, ver qué falla con el permiso concedido, y subir el comprobante de un pago.
+La guarda compara rutas de la API contra lo que pide el cliente web. Nació porque el usuario preguntó dónde se crean los subusuarios y la respuesta fue «en ningún sitio». Encontró **otras cuatro funciones entregadas sin pantalla**, y **las cuatro quedaron cerradas el mismo día**:
 
-Queda una, y es de otro dueño:
+| Hallazgo | Cerrado en |
+|---|---|
+| El operador no podía pedir acceso de soporte desde la consola | PR-95 |
+| Con el permiso concedido, no había dónde ver qué falla | PR-95 |
+| Subir el comprobante de un pago solo por API | PR-95 |
+| La visibilidad entre agentes (ADR-008) solo por API | PR-96 |
 
-- **La política de visibilidad entre agentes** (ADR-008, `PATCH /v1/cuenta/visibilidad-conversaciones`) se cambia por API y no tiene ajuste en pantalla. Es un ajuste del **cliente**, no de la consola, y por eso no entró en PR-95. Va a **PR-96**.
+La sección de rutas en `PERMITIDOS` está **vacía**, y eso es el estado bueno.
+
+### Lo que queda como deuda de verdad
+
+- **No se pueden crear equipos.** `teams` y `team_members` existen desde la fase 0 y no las escribe nadie. Por eso PR-96 **no ofrece** el modo `team` de la visibilidad: con cero equipos se comporta como «las mías y las sin asignar», que no es lo que la palabra promete. Vuelve el día que se puedan crear.
+- `borrarTipo`: se pueden crear tipos de habitación y no borrarlos.
 
 ## Completado
 
+- **PR-96, qué ve cada agente** ([[bandeja]] §Visibilidad, con pantalla): cierra la última de las cuatro deudas de la guarda 5. La regla de ADR-008 llevaba desde 0010 **aplicándose de verdad** en la bandeja y en el embudo, y no había dónde cambiarla: se hacía con un PATCH a mano. Vive junto al reparto porque es la misma pregunta por el otro lado. **Solo se ofrecen dos de los tres modos**: `team` existe en la base pero no hay forma de crear un equipo, y una opción que no hace lo que dice es peor que no ofrecerla.
 - **PR-95, la consola sirve para algo** ([[facturacion]] §La consola, utilizable): lo señaló el usuario preguntando por el apartado para administrar los CRM de los clientes. La consola de PR-88 **enseñaba** todo y no dejaba **hacer** nada: decía «3 comprobantes sin subir» sin forma de subir ninguno, y el modo soporte de PR-90 dejaba al cliente aprobar un acceso que nadie podía pedir desde ninguna pantalla —se arrancaba con `curl`—. Cierra tres de las cuatro deudas que la guarda 5 encontró ayer. La ficha de una cuenta es enlazable (`#operador/<id>`).
 - **PR-94, el equipo de la cuenta** ([[web]] §Equipo): lo señaló el usuario preguntando dónde se crean los usuarios de un plan de 10 agentes. La respuesta era **en ningún sitio**: `POST /v1/invitaciones` existía desde fase 0, con límite de asientos y cuatro roles aplicados en 16 servicios, y no había ni método en el cliente web ni pantalla. Un cliente que pagaba por diez podía usar uno. Se añade la pantalla de equipo, la de aceptar la invitación, y **una quinta guarda**: rutas de la API que el cliente web no pide desde ningún sitio. Encontró otras cuatro, ahora deuda con nombre (ver abajo).
 - **PR-93, capturas en el chat de soporte** ([[facturacion]] §Capturas en el chat): lo pidió el usuario —«que pueda mandar foto o vídeo cuando soporte se lo pida»—. Reutiliza `media_assets` entero en vez de una segunda tubería. La decisión que importa es la ruta del operador: **solo firma un medio que cuelgue de un mensaje de soporte de esa cuenta**, y la condición está en el `JOIN`, no en un `if`. Sin ella, la consola pasaría a ser un lector universal de medios —una foto de un huésped incluida— y se caería la promesa que la sostiene. La guarda de deriva me paró: la columna estaba en la base y no en Drizzle.

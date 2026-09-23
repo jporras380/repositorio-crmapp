@@ -405,3 +405,43 @@ Con el efecto fuera, `PATCH /v1/conversaciones/:id/leida` no lo llamaba nadie, a
 El test que decía «abrir apaga el globo» se sustituyó por el contrario, que es ahora la regla: **pedir los mensajes no cambia el contador**.
 
 Comprobado contra la aplicación real: con el contador sembrado en 3, abrir el hilo en el navegador lo deja en 3; poner en espera lo deja en 0.
+
+## Visibilidad, con pantalla (PR-96, 2026-09-23)
+
+La regla de ADR-008 —qué conversaciones ve un agente de las de los demás— llevaba desde la migración 0010 **aplicándose de verdad**: filtra la bandeja y filtra el embudo. Lo que no había era dónde cambiarla. Se hacía con un `PATCH` a mano.
+
+Lo encontró la guarda de rutas sin pantalla de PR-94, y era la última de sus cuatro hallazgos.
+
+### Por qué vive junto al reparto
+
+Es la misma pregunta vista por los dos lados: el reparto dice **a quién le toca** una conversación, y la visibilidad **qué puede ver**. En dos pantallas separadas habría que cruzarlas de cabeza para entender por qué un agente no encuentra algo que se le asignó.
+
+Por eso `GET /v1/cuenta/reparto` devuelve también la visibilidad, y el `PATCH` pasó de **204 a 200** devolviendo la configuración entera: con 204 había que volver a pedirla, y entre una respuesta y otra la pantalla enseña el valor viejo.
+
+### Por qué solo dos modos de los tres
+
+La columna admite `all`, `team` y `assigned`. La pantalla ofrece **dos**.
+
+`team` no se ofrece porque **no hay forma de crear un equipo**: `teams` y `team_members` existen desde la fase 0 y no las escribe ningún endpoint ni ninguna pantalla. Con cero equipos, la cláusula se queda en «las mías más las sin asignar», que es exactamente `assigned` con otro nombre —y nada que ver con lo que la palabra promete a quien la elige.
+
+**Ofrecer una opción que no hace lo que dice es peor que no ofrecerla.** Vuelve el día que se puedan crear equipos; hasta entonces está en [[01-ESTADO]] como deuda con nombre.
+
+Si una cuenta ya está en `team` —se pudo poner por API— la pantalla lo **dice** en vez de marcar otra opción: marcar «toda la bandeja» sería mentir sobre lo que está pasando.
+
+### Detalles que importan
+
+- **Las sin asignar siempre se ven**, incluso en el modo restrictivo. Ocultarlas reproduce el fallo que más cuesta: una consulta nueva que nadie atiende. Está escrito en la propia opción, no en una ayuda aparte.
+- **Solo afecta al rol Agente.** Propietario, administrador y supervisor ven siempre todo, porque su trabajo es ver lo que los demás no atienden. Es la primera duda que genera este ajuste y va en el encabezado.
+- **Un agente la lee pero no la cambia.** Saber qué va a ver le sirve; decidir quién lee la correspondencia de los huéspedes no es suyo.
+- Hay un test que comprueba que cambiarla **surte efecto en la bandeja**, no solo que guarda la columna.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Ajustes → Reparto → **Qué ve cada agente**.
+2. Elige «Solo las suyas». Entra con un usuario de rol Agente: su bandeja se queda con las suyas y las sin asignar.
+3. Vuelve a «Toda la bandeja»: las ve todas otra vez.
+4. Con el usuario agente, el ajuste se ve pero no se puede tocar.
+
+![Qué ve cada agente](../adjuntos/2026-09-23-visibilidad.png)
+
+12 tests nuevos (5 de API —contra PostgreSQL— y 7 de pantalla).

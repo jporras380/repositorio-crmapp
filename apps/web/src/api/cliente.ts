@@ -281,6 +281,18 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { mime, bytes, nombre },
       }),
+    /**
+     * Qué ve un agente de las conversaciones de los demás (ADR-008).
+     *
+     * Devuelve el reparto entero: es la misma pantalla, y pedirlo aparte
+     * dejaría un parpadeo con el valor viejo.
+     */
+    guardarVisibilidad: (modo: 'all' | 'team' | 'assigned') =>
+      peticion<ConfiguracionDeReparto>('/v1/cuenta/visibilidad-conversaciones', {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { modo },
+      }),
     // --- IA asistida (BYOK) -------------------------------------------------
     iaAjustes: () => peticion<AjustesDeIa>('/v1/ia/ajustes', t),
     guardarIa: (d: {

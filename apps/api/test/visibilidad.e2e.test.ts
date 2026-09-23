@@ -185,7 +185,9 @@ const modo = (m: string) =>
     .patch('/v1/cuenta/visibilidad-conversaciones')
     .set(auth(tokenOwner))
     .send({ modo: m })
-    .expect(204);
+    // 200 y no 204 desde PR-96: devuelve la configuración para que la
+    // pantalla no tenga que volver a pedirla y enseñar el valor viejo.
+    .expect(200);
 
 describe('modo all (por defecto, como Kommo)', () => {
   it('el agente ve todo', async () => {
@@ -268,5 +270,61 @@ describe('quién puede cambiar la política', () => {
       [tenantId],
     );
     expect(rows.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * La visibilidad viaja con el reparto (PR-96).
+ *
+ * Llevaba desde 0010 aplicándose de verdad y **sin pantalla donde cambiarla**:
+ * se hacía con un PATCH a mano. Ahora vive junto al reparto porque es la misma
+ * pregunta vista por el otro lado —a quién le TOCA y qué puede VER—.
+ */
+describe('la visibilidad viaja con el reparto', () => {
+  it('el reparto la lleva, para pintar la pantalla con una sola petición', async () => {
+    await modo('all');
+    const r = await http.get('/v1/cuenta/reparto').set(auth(tokenOwner)).expect(200);
+    expect(r.body.visibilidad).toBe('all');
+  });
+
+  it('cambiarla devuelve la configuración ya actualizada', async () => {
+    // Con 204 habría que volver a pedirla, y entre una respuesta y otra la
+    // pantalla enseña el valor viejo.
+    const r = await http
+      .patch('/v1/cuenta/visibilidad-conversaciones')
+      .set(auth(tokenOwner))
+      .send({ modo: 'assigned' })
+      .expect(200);
+    expect(r.body.visibilidad).toBe('assigned');
+    expect(Array.isArray(r.body.miembros)).toBe(true);
+  });
+
+  it('lo guardado es lo que se lee después', async () => {
+    const r = await http.get('/v1/cuenta/reparto').set(auth(tokenOwner)).expect(200);
+    expect(r.body.visibilidad).toBe('assigned');
+  });
+
+  it('un agente la LEE —le dice qué va a ver— pero no la cambia', async () => {
+    const leer = await http.get('/v1/cuenta/reparto').set(auth(tokenAgente)).expect(200);
+    expect(leer.body.visibilidad).toBe('assigned');
+
+    const escribir = await http
+      .patch('/v1/cuenta/visibilidad-conversaciones')
+      .set(auth(tokenAgente))
+      .send({ modo: 'all' })
+      .expect(403);
+    expect(escribir.body.codigo).toBe('sin_permiso');
+  });
+
+  it('y el cambio surte efecto en la bandeja, no solo en el ajuste', async () => {
+    // Lo que hace que este ajuste importe: con `assigned` el agente deja de
+    // ver las de otros. Si solo guardara la columna, esto no cambiaría.
+    await modo('assigned');
+    const suyas = await idsVisibles(tokenAgente);
+
+    await modo('all');
+    const todas = await idsVisibles(tokenAgente);
+
+    expect(todas.length).toBeGreaterThan(suyas.length);
   });
 });

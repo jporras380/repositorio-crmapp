@@ -54,12 +54,9 @@ const PERMITIDOS = {
 
   // --- Rutas de la API sin pantalla ---------------------------------------
   //
-  // Las tres que había aquí —pedir acceso de soporte, ver qué falla y subir
-  // el comprobante— se resolvieron en PR-95. Queda una.
-  'PATCH /v1/cuenta/visibilidad-conversaciones':
-    'DEUDA (PR-96): la política de quién ve las conversaciones de quién ' +
-    '(ADR-008) se cambia por API y no tiene ajuste en pantalla. Es un ajuste ' +
-    'del CLIENTE, no de la consola, y por eso no entró en PR-95.',
+  // Las cuatro que encontró esta guarda el día que se escribió quedaron
+  // cerradas en PR-95 y PR-96. Que esta sección esté vacía es el estado
+  // bueno, no un olvido.
 
   // Estas dos no son deuda: son decisiones.
   'GET /v1/eventos':

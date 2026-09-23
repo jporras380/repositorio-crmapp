@@ -134,6 +134,8 @@ export interface EtiquetaConUso {
 /** Reparto automático de conversaciones: modo de la cuenta y quién entra. */
 export interface ConfiguracionDeReparto {
   modo: 'off' | 'least_busy';
+  /** Qué conversaciones ve un AGENTE (ADR-008). Los demás ven todo siempre. */
+  visibilidad: 'all' | 'team' | 'assigned';
   miembros: {
     userId: string;
     nombre: string;

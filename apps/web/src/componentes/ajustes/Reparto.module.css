@@ -51,4 +51,37 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+
+  /* --- Visibilidad entre agentes (PR-96) --------------------------------- */
+
+  .opciones {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  /* Cada opción con su explicación dentro: lo que cambia es quién ve la
+     correspondencia de los huéspedes, y eso no se elige por el título. */
+  .opcion {
+    display: flex;
+    align-items: start;
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .opcion:hover {
+    background: var(--surface-2);
+  }
+  .opcion input {
+    margin-block-start: 0.15rem;
+  }
+  .opcion:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--surface-2);
+  }
+  .opcion:has(input:disabled) {
+    cursor: default;
+    opacity: 0.7;
+  }
 }

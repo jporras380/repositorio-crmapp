@@ -265,12 +265,18 @@ export class BandejaController {
     return conContextoDePeticion(req, () => this.bandeja.guardarReparto(d));
   }
 
-  /** Política de visibilidad entre agentes (ADR-008). Solo owner/admin. */
+  /**
+   * Política de visibilidad entre agentes (ADR-008). Solo owner/admin.
+   *
+   * Devuelve la configuración de reparto entera —200 y no 204— porque la
+   * pantalla comparte las dos cosas: con 204 habría que volver a pedirla, y
+   * entre una respuesta y otra se ve el valor viejo.
+   */
   @Patch('cuenta/visibilidad-conversaciones')
-  @HttpCode(204)
-  async visibilidad(@Req() req: Req, @Body() body: unknown) {
+  @HttpCode(200)
+  visibilidad(@Req() req: Req, @Body() body: unknown) {
     const { modo } = validar(Visibilidad, body);
-    await conContextoDePeticion(req, () => this.bandeja.cambiarVisibilidad(modo));
+    return conContextoDePeticion(req, () => this.bandeja.cambiarVisibilidad(modo));
   }
 
   @Get('etiquetas')

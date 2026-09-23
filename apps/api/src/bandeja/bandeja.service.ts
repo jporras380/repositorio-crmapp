@@ -949,8 +949,12 @@ export class BandejaService {
   async reparto(): Promise<ConfiguracionDeReparto> {
     this.#exigirContexto();
     return this.#db.enTransaccion(async (c) => {
-      const t = await c.query<{ auto_assignment: 'off' | 'least_busy' }>(
-        `SELECT auto_assignment FROM tenants WHERE id = app.current_tenant_id()`,
+      const t = await c.query<{
+        auto_assignment: 'off' | 'least_busy';
+        conversation_visibility: 'all' | 'team' | 'assigned';
+      }>(
+        `SELECT auto_assignment, conversation_visibility
+           FROM tenants WHERE id = app.current_tenant_id()`,
       );
       const { rows } = await c.query<{
         user_id: string;
@@ -969,6 +973,7 @@ export class BandejaService {
       );
       return {
         modo: t.rows[0]?.auto_assignment ?? 'off',
+        visibilidad: t.rows[0]?.conversation_visibility ?? 'all',
         miembros: rows.map((r) => ({
           userId: r.user_id,
           nombre: r.full_name,
@@ -1016,7 +1021,7 @@ export class BandejaService {
   }
 
   /** Solo propietario o administrador cambian la política de la cuenta. */
-  async cambiarVisibilidad(modo: 'all' | 'team' | 'assigned'): Promise<void> {
+  async cambiarVisibilidad(modo: 'all' | 'team' | 'assigned'): Promise<ConfiguracionDeReparto> {
     const ctx = this.#exigirContexto();
     if (ctx.rol !== 'owner' && ctx.rol !== 'admin') {
       throw new ErrorDeNegocio(
@@ -1036,6 +1041,9 @@ export class BandejaService {
         [ctx.tenantId, ctx.userId, JSON.stringify({ modo })],
       );
     });
+    // Devuelve la configuración entera: la pantalla la comparte con el
+    // reparto, y pedirla otra vez dejaría un parpadeo con el valor viejo.
+    return this.reparto();
   }
 
   async #exigirConversacion(
@@ -1243,6 +1251,12 @@ async function botsQueUsanEtiquetas(c: PoolClient): Promise<Map<string, string[]
 
 export interface ConfiguracionDeReparto {
   modo: 'off' | 'least_busy';
+  /**
+   * Qué conversaciones ve un AGENTE (ADR-008). Viaja con el reparto porque
+   * es la misma pregunta —quién trabaja qué conversación— y así la pantalla
+   * se pinta con una sola petición.
+   */
+  visibilidad: 'all' | 'team' | 'assigned';
   miembros: {
     userId: string;
     nombre: string;
