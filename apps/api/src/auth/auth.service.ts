@@ -569,6 +569,122 @@ export class AuthService {
     });
   }
 
+  /**
+   * El equipo de la cuenta: quién está, quién falta por entrar y cuánto sitio
+   * queda.
+   *
+   * Es una respuesta aparte de `miembros()` y no una versión ampliada, porque
+   * **lleva los correos**. La otra los deja fuera a propósito: para elegir a
+   * quién asignar una conversación basta el nombre, y repartir la lista de
+   * correos del equipo por el frontend es justo lo que no hace falta. Aquí sí
+   * hacen falta —son lo que distingue a dos personas y a dónde se reenvía el
+   * enlace— y por eso esta la pide un gestor.
+   *
+   * Las invitaciones pendientes cuentan como asiento ocupado, igual que al
+   * invitar: si no, la pantalla diría «te quedan 7» mientras hay tres enlaces
+   * dando vueltas, y el aviso llegaría cuando ya no se puede deshacer.
+   */
+  async equipo(): Promise<{
+    miembros: { id: string; nombre: string; email: string; rol: Rol; esTu: boolean }[];
+    invitaciones: { id: string; email: string; rol: Rol; caducaEn: Date }[];
+    asientos: { ocupados: number; tope: number | null };
+  }> {
+    const ctx = this.#exigirGestorDeEquipo();
+    return this.#db.enTransaccion(async (c) => {
+      const { rows: miembros } = await c.query<{
+        id: string;
+        nombre: string;
+        email: string;
+        rol: Rol;
+      }>(
+        `SELECT u.id, u.full_name AS nombre, u.email, m.role AS rol
+           FROM memberships m
+           JOIN users u ON u.id = m.user_id
+          WHERE m.tenant_id = $1
+          ORDER BY u.full_name`,
+        [ctx.tenantId],
+      );
+
+      const { rows: invitaciones } = await c.query<{
+        id: string;
+        email: string;
+        rol: Rol;
+        expires_at: Date;
+      }>(
+        `SELECT id, email, role AS rol, expires_at
+           FROM invitations
+          WHERE tenant_id = $1 AND accepted_at IS NULL AND expires_at > now()
+          ORDER BY created_at DESC`,
+        [ctx.tenantId],
+      );
+
+      const { rows: cupo } = await c.query<{ tope: number | null }>(
+        `SELECT (p.limits ->> 'agentes')::int AS tope
+           FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+          WHERE s.tenant_id = $1`,
+        [ctx.tenantId],
+      );
+
+      return {
+        miembros: miembros.map((m) => ({ ...m, esTu: m.id === ctx.userId })),
+        invitaciones: invitaciones.map((i) => ({
+          id: i.id,
+          email: i.email,
+          rol: i.rol,
+          caducaEn: i.expires_at,
+        })),
+        asientos: {
+          ocupados: miembros.length + invitaciones.length,
+          tope: cupo[0]?.tope ?? null,
+        },
+      };
+    });
+  }
+
+  /**
+   * Retira una invitación que todavía no se usó.
+   *
+   * Hace falta porque un asiento lo ocupa también un enlace sin usar: sin
+   * esto, un correo mal escrito bloquea una plaza durante siete días y la
+   * única salida es subir de plan.
+   *
+   * Se borra la fila en vez de marcarla: el valor de guardarla sería el
+   * registro, y el registro ya está en `audit_log`. Una invitación caducada
+   * que sigue en la tabla solo sirve para volver a contarla mal algún día.
+   */
+  async cancelarInvitacion(id: string): Promise<void> {
+    const ctx = this.#exigirGestorDeEquipo();
+    await this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{ email: string }>(
+        `DELETE FROM invitations
+          WHERE id = $1 AND accepted_at IS NULL
+        RETURNING email`,
+        [id],
+      );
+      if (rows.length === 0) {
+        throw new ErrorDeNegocio(
+          'invitacion_no_pendiente',
+          'Esa invitación ya se usó o no existe.',
+          409,
+        );
+      }
+      await this.#auditar(c, ctx.tenantId, ctx.userId, 'invitacion.cancelada', 'invitation', id);
+    });
+  }
+
+  /** Ver y tocar el equipo es de quien responde por la cuenta, no de cualquiera. */
+  #exigirGestorDeEquipo() {
+    const ctx = this.#exigirContexto();
+    if (ctx.rol !== 'owner' && ctx.rol !== 'admin') {
+      throw new ErrorDeNegocio(
+        'sin_permiso',
+        'Solo el propietario o un administrador gestiona el equipo.',
+        403,
+      );
+    }
+    return ctx;
+  }
+
   // -------------------------------------------------------------------------
 
   /**

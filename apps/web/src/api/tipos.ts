@@ -528,6 +528,20 @@ export interface Miembro {
   rol: Sesion['rol'];
 }
 
+/**
+ * El equipo de la cuenta (PR-94).
+ *
+ * Aparte de `Miembro` porque lleva el correo: esa lista se pide para asignar
+ * conversaciones, y ahí basta el nombre.
+ */
+export interface Equipo {
+  miembros: { id: string; nombre: string; email: string; rol: Sesion['rol']; esTu: boolean }[];
+  /** Enlaces enviados y sin usar. Cada uno ocupa un asiento mientras vive. */
+  invitaciones: { id: string; email: string; rol: Sesion['rol']; caducaEn: string }[];
+  /** `tope` a `null` es un plan sin límite de asientos. */
+  asientos: { ocupados: number; tope: number | null };
+}
+
 export interface ResumenDeSuscripcion {
   plan: { codigo: string; nombre: string; precioPorAsientoCentimos: number; moneda: string } | null;
   estado: 'prueba' | 'activa' | 'gracia' | 'suspendida' | string;

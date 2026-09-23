@@ -167,6 +167,26 @@ export class AuthController {
     return conContextoDePeticion(req, () => this.auth.miembros());
   }
 
+  /**
+   * El equipo con los correos y los asientos. Solo gestores.
+   *
+   * Aparte de `/v1/usuarios` porque esa deja los correos fuera a propósito:
+   * para asignar una conversación basta el nombre.
+   */
+  @Get('v1/equipo')
+  @UseGuards(AuthGuard)
+  equipo(@Req() req: { contexto?: unknown }) {
+    return conContextoDePeticion(req, () => this.auth.equipo());
+  }
+
+  /** Retira un enlace sin usar: mientras vive, ocupa un asiento del plan. */
+  @Delete('v1/invitaciones/:id')
+  @HttpCode(204)
+  @UseGuards(AuthGuard)
+  cancelarInvitacion(@Req() req: { contexto?: unknown }, @Param('id') id: string) {
+    return conContextoDePeticion(req, () => this.auth.cancelarInvitacion(id));
+  }
+
   /** Prepara el segundo factor: devuelve el secreto para meterlo en la app. */
   @Post('v1/perfil/dos-pasos')
   @UseGuards(AuthGuard)

@@ -15,8 +15,20 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 **Decisión que manda sobre el resto:** la atención vive en la conversación y la venta en el embudo ([[ADR-013-lead-no-es-conversacion]]).
 
+## Deuda con nombre, encontrada por la guarda 5 (23 de septiembre)
+
+La guarda nueva compara rutas de la API contra lo que pide el cliente web. Además del hueco que la originó, encontró **cuatro funciones entregadas sin pantalla**. Están en `PERMITIDOS` con el motivo escrito, y son trabajo, no decisiones:
+
+- **El operador no puede PEDIR acceso de soporte desde la consola** (`POST /v1/operador/soporte`). La pantalla del cliente para aprobarlo sí existe, así que hoy el modo soporte de PR-90 solo se arranca con `curl`. Es la más grave: la función está entregada y no se puede usar.
+- **Con el permiso concedido, no hay pantalla que enseñe qué falla** (`GET /v1/operador/soporte/*/conversaciones`). Es la mitad útil del modo soporte.
+- **Subir el comprobante de un pago solo se puede por API** (`POST /v1/operador/pagos/*/comprobante`). El hotel sí ve el que se haya subido.
+- **La política de visibilidad entre agentes** (ADR-008, `PATCH /v1/cuenta/visibilidad-conversaciones`) se cambia por API y no tiene ajuste en pantalla.
+
+Las cuatro van a **PR-95**.
+
 ## Completado
 
+- **PR-94, el equipo de la cuenta** ([[web]] §Equipo): lo señaló el usuario preguntando dónde se crean los usuarios de un plan de 10 agentes. La respuesta era **en ningún sitio**: `POST /v1/invitaciones` existía desde fase 0, con límite de asientos y cuatro roles aplicados en 16 servicios, y no había ni método en el cliente web ni pantalla. Un cliente que pagaba por diez podía usar uno. Se añade la pantalla de equipo, la de aceptar la invitación, y **una quinta guarda**: rutas de la API que el cliente web no pide desde ningún sitio. Encontró otras cuatro, ahora deuda con nombre (ver abajo).
 - **PR-93, capturas en el chat de soporte** ([[facturacion]] §Capturas en el chat): lo pidió el usuario —«que pueda mandar foto o vídeo cuando soporte se lo pida»—. Reutiliza `media_assets` entero en vez de una segunda tubería. La decisión que importa es la ruta del operador: **solo firma un medio que cuelgue de un mensaje de soporte de esa cuenta**, y la condición está en el `JOIN`, no en un `if`. Sin ella, la consola pasaría a ser un lector universal de medios —una foto de un huésped incluida— y se caería la promesa que la sostiene. La guarda de deriva me paró: la columna estaba en la base y no en Drizzle.
 - **PR-92, ver qué hace un bot** ([[salesbots]] §Ver qué está haciendo un bot): el registro paso a paso se guardaba desde 0015 y la API existía; faltaba la pantalla, y era una de las deudas con nombre de la guarda. Ya no lo es. Va debajo del simulador porque uno dice lo que el bot HARÍA y el otro lo que HIZO. De paso, la guarda de clases CSS de PR-90 me paró a mí por dos clases sin declarar.
 - **PR-91, chat con soporte técnico** ([[facturacion]] §Chat con soporte): un hilo por cuenta dentro del CRM, que reemplaza escribir a un número personal por WhatsApp. Tabla propia y NO `conversations`: esa cuenta para los topes del plan y la tocan los bots —hay un test de que escribir a soporte no crea ninguna conversación—. La consola pone primero a quien espera respuesta, porque está parado.

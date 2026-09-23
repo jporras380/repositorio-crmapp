@@ -51,6 +51,7 @@ import type {
   HorasActivasDeFlujo,
   LimitesDeMedios,
   Miembro,
+  Equipo,
   Perfil,
   PermisoDeSoporte,
   PlanPublico,
@@ -163,6 +164,15 @@ export function crearApi(token: string | null) {
       nombreCompleto: string;
       planCode?: string;
     }) => peticion<Sesion & { expiraEn: number }>('/v1/cuentas', { metodo: 'POST', cuerpo: d }),
+    /**
+     * El invitado entra por su enlace. Va sin sesión a propósito: quien acepta
+     * todavía no tiene ninguna, y esa es la razón de que exista el enlace.
+     */
+    aceptarInvitacion: (d: { token: string; contrasena: string; nombreCompleto: string }) =>
+      peticion<Sesion & { expiraEn: number }>('/v1/invitaciones/aceptar', {
+        metodo: 'POST',
+        cuerpo: d,
+      }),
     yo: () => peticion<Yo>('/v1/yo', t),
     /** Consola del operador: todas las cuentas. 404 si no eres de la plataforma. */
     cuentasDeLaPlataforma: () => peticion<CuentaEnLaConsola[]>('/v1/operador/cuentas', t),
@@ -348,6 +358,23 @@ export function crearApi(token: string | null) {
         cuerpo: d,
       }),
     usuarios: () => peticion<Miembro[]>('/v1/usuarios', t),
+
+    // --- Equipo (PR-94) ----------------------------------------------------
+    /** Quien esta, quien falta por entrar y cuanto sitio queda. Solo gestores. */
+    equipo: () => peticion<Equipo>('/v1/equipo', t),
+    /**
+     * Invita a alguien. Devuelve el token en claro UNA vez: con el se arma el
+     * enlace que se le pasa a la persona, y no se puede volver a consultar.
+     */
+    invitar: (email: string, rol: Miembro['rol']) =>
+      peticion<{ id: string; token: string }>('/v1/invitaciones', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { email, rol },
+      }),
+    /** Retira un enlace sin usar: mientras vive, ocupa un asiento del plan. */
+    cancelarInvitacion: (id: string) =>
+      peticion<void>(`/v1/invitaciones/${id}`, { ...t, metodo: 'DELETE' }),
 
     // --- Salesbots ---------------------------------------------------------
     flujos: () => peticion<ResumenDeFlujo[]>('/v1/flujos', t),

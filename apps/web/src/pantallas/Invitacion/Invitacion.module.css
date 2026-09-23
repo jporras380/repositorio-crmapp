@@ -1,0 +1,114 @@
+/* Aceptar una invitación: la primera pantalla que ve quien entra a una cuenta
+   que no es suya. Una sola tarjeta centrada, porque no hay nada que elegir. */
+@layer components {
+  .pantalla {
+    min-block-size: 100dvb;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    padding: var(--space-6) var(--space-4);
+  }
+
+  .tarjeta {
+    inline-size: min(100%, 26rem);
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+
+  .titulo {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitulo {
+    margin: 0;
+    color: var(--fg-muted);
+    font-size: var(--text-md);
+  }
+
+  .formulario {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .campo {
+    display: grid;
+    gap: 0.25rem;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .campo input {
+    padding: 0.65rem 0.8rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-md);
+  }
+  .campo input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+  }
+
+  .ayuda,
+  .ayudaMal {
+    font-size: var(--text-xs);
+  }
+  .ayuda {
+    color: var(--fg-muted);
+  }
+  /* Lo que impide enviar se ve antes de pulsar, no después del rechazo. */
+  .ayudaMal {
+    color: var(--danger);
+  }
+
+  .acciones {
+    display: flex;
+    justify-content: end;
+    margin-block-start: var(--space-2);
+  }
+
+  .entrar {
+    padding: 0.7rem 1.2rem;
+    border-radius: var(--radius-md);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-weight: 600;
+    font-size: var(--text-md);
+    cursor: pointer;
+  }
+  .entrar:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .error {
+    margin: 0;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+
+  .pie {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+
+  .enlace {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    font-size: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+}

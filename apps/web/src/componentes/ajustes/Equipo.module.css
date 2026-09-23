@@ -1,0 +1,42 @@
+/* Lo propio de la pantalla de equipo. El resto sale de ajustes.module.css. */
+@layer components {
+  .enlaceTitulo {
+    margin: 0 0 0.4rem;
+    font-weight: 600;
+  }
+
+  /* El enlace entero a la vista, partido donde haga falta: si se recorta con
+     puntos suspensivos, quien no pueda usar el portapapeles no tiene forma de
+     copiarlo a mano. */
+  .enlace {
+    display: block;
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+
+  /* Cuál de las filas eres tú: en un equipo de tres con nombres parecidos,
+     saber en cuál no tocar el rol evita el susto. */
+  .tu {
+    margin-inline-start: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--radius-pill);
+    background: var(--hairline);
+    color: var(--fg-muted);
+    font-size: 0.65rem;
+    font-weight: 600;
+  }
+
+  /* `.tarjeta` es una rejilla de tres columnas —punto, contenido, acciones—
+     y con solo dos hijos el botón cae en la del medio, que es `1fr`: salió un
+     «Retirar» del ancho de la tarjeta entera. Lo encontró una captura; los
+     tests no, porque jsdom no calcula diseño. */
+  .accionDeTarjeta {
+    grid-column: 3;
+    justify-self: end;
+  }
+}

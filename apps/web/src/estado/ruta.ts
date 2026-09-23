@@ -13,6 +13,7 @@ export type Ruta =
       seccion:
         | 'perfil'
         | 'apariencia'
+        | 'equipo'
         | 'soporte'
         | 'canales'
         | 'etiquetas'
@@ -32,6 +33,8 @@ export type Ruta =
   | { pantalla: 'clientes'; clienteId: string | null }
   /** Alta pública: planes y creación de cuenta. La única sin sesión. */
   | { pantalla: 'alta' }
+  /** Alguien llega por un enlace de invitación. El token viene en el hash. */
+  | { pantalla: 'invitacion'; token: string }
   /** Consola del operador de la PLATAFORMA. No es de ningún hotel (0040). */
   | { pantalla: 'operador' }
   /** Catálogo del hotel y cotizador. */
@@ -42,6 +45,7 @@ export type Ruta =
 const SECCIONES = new Set([
   'perfil',
   'apariencia',
+  'equipo',
   'soporte',
   'canales',
   'etiquetas',
@@ -70,6 +74,11 @@ export function leerRuta(hash: string = location.hash): Ruta {
     };
   }
   if (hash.startsWith('#alta')) return { pantalla: 'alta' };
+  // `#invitacion=<token>`. Va con `=` y no con `/` porque el token es
+  // base64url y una barra dentro partiría la ruta por la mitad.
+  if (hash.startsWith('#invitacion=')) {
+    return { pantalla: 'invitacion', token: decodeURIComponent(hash.slice('#invitacion='.length)) };
+  }
   if (hash.startsWith('#operador')) return { pantalla: 'operador' };
   if (hash.startsWith('#hotel')) return { pantalla: 'hotel' };
   if (hash.startsWith('#reservas')) {
@@ -100,33 +109,35 @@ export function irA(ruta: Ruta): void {
       ? '#panel'
       : ruta.pantalla === 'alta'
         ? '#alta'
-        : ruta.pantalla === 'operador'
-          ? '#operador'
-          : ruta.pantalla === 'hotel'
-            ? '#hotel'
-            : ruta.pantalla === 'reservas'
-              ? ruta.reservaId
-                ? `#reservas/${ruta.reservaId}`
-                : '#reservas'
-              : ruta.pantalla === 'clientes'
-                ? ruta.clienteId
-                  ? `#clientes/${ruta.clienteId}`
-                  : '#clientes'
-                : ruta.pantalla === 'leads'
-                  ? ruta.leadId
-                    ? `#leads/${ruta.leadId}`
-                    : '#leads'
-                  : ruta.pantalla === 'flujos'
-                    ? ruta.flujoId
-                      ? `#flujos/${ruta.flujoId}`
-                      : '#flujos'
-                    : ruta.pantalla === 'ajustes'
-                      ? `#ajustes/${ruta.seccion}`
-                      : ruta.conversacionId
-                        ? `#c=${ruta.conversacionId}`
-                        : ruta.vista
-                          ? `#bandeja/${ruta.vista}`
-                          : '#bandeja';
+        : ruta.pantalla === 'invitacion'
+          ? `#invitacion=${encodeURIComponent(ruta.token)}`
+          : ruta.pantalla === 'operador'
+            ? '#operador'
+            : ruta.pantalla === 'hotel'
+              ? '#hotel'
+              : ruta.pantalla === 'reservas'
+                ? ruta.reservaId
+                  ? `#reservas/${ruta.reservaId}`
+                  : '#reservas'
+                : ruta.pantalla === 'clientes'
+                  ? ruta.clienteId
+                    ? `#clientes/${ruta.clienteId}`
+                    : '#clientes'
+                  : ruta.pantalla === 'leads'
+                    ? ruta.leadId
+                      ? `#leads/${ruta.leadId}`
+                      : '#leads'
+                    : ruta.pantalla === 'flujos'
+                      ? ruta.flujoId
+                        ? `#flujos/${ruta.flujoId}`
+                        : '#flujos'
+                      : ruta.pantalla === 'ajustes'
+                        ? `#ajustes/${ruta.seccion}`
+                        : ruta.conversacionId
+                          ? `#c=${ruta.conversacionId}`
+                          : ruta.vista
+                            ? `#bandeja/${ruta.vista}`
+                            : '#bandeja';
   if (hash) location.hash = hash;
   else history.pushState(null, '', location.pathname);
   window.dispatchEvent(new HashChangeEvent('hashchange'));

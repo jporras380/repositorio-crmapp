@@ -4,6 +4,7 @@ import type { Sesion, Yo } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
 import { Perfil } from '../../componentes/ajustes/Perfil.tsx';
 import { Apariencia } from '../../componentes/ajustes/Apariencia.tsx';
+import { Equipo } from '../../componentes/ajustes/Equipo.tsx';
 import { Soporte } from '../../componentes/ajustes/Soporte.tsx';
 import { Canales } from '../../componentes/ajustes/Canales.tsx';
 import { Plantillas } from '../../componentes/ajustes/Plantillas.tsx';
@@ -28,6 +29,7 @@ interface Props {
 const SECCIONES: [Seccion, string, string][] = [
   ['perfil', 'Mi cuenta', 'Tu nombre, tu foto, tus llaves y tus sesiones'],
   ['apariencia', 'Apariencia', 'Tema claro u oscuro y cuánta transparencia'],
+  ['equipo', 'Equipo', 'Quién entra a esta cuenta y qué puede hacer'],
   ['soporte', 'Soporte técnico', 'Escríbenos, y decide quién puede mirar tu cuenta'],
   ['canales', 'Canales', 'Números y cuentas conectadas'],
   ['etiquetas', 'Etiquetas', 'Crear, renombrar, cambiar de color y borrar'],
@@ -51,6 +53,16 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
       .catch(() => undefined);
   }, [api]);
   const gestor = sesion.rol !== 'agent';
+  /**
+   * El equipo es de quien responde por la cuenta, no de todo el que gestiona.
+   *
+   * Un supervisor entra en `gestor` —edita plantillas y contactos— pero la
+   * API le niega `/v1/equipo`. Si la sección saliera en el menú, abrirla le
+   * daría un 403 en la cara: un menú que ofrece lo que no se puede hacer es
+   * peor que uno más corto.
+   */
+  const dueno = sesion.rol === 'owner' || sesion.rol === 'admin';
+  const secciones = SECCIONES.filter(([id]) => id !== 'equipo' || dueno);
 
   return (
     <div className={estilos.pantalla}>
@@ -58,7 +70,7 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
       <nav className={`glass ${estilos.menu}`} aria-label="Ajustes">
         <h1 className={estilos.titulo}>Ajustes</h1>
         <ul className={estilos.lista}>
-          {SECCIONES.map(([id, nombre, detalle]) => (
+          {secciones.map(([id, nombre, detalle]) => (
             <li key={id}>
               <button
                 className={`${estilos.item} ${seccion === id ? estilos.itemActivo : ''}`}
@@ -75,6 +87,7 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
       <main className={`glass ${estilos.contenido}`}>
         {seccion === 'perfil' && <Perfil api={api} />}
         {seccion === 'apariencia' && <Apariencia />}
+        {seccion === 'equipo' && dueno && <Equipo api={api} gestor={dueno} />}
         {seccion === 'soporte' && <Soporte api={api} gestor={gestor} />}
         {seccion === 'canales' && <Canales api={api} gestor={gestor} />}
         {seccion === 'etiquetas' && <Etiquetas api={api} gestor={gestor} />}

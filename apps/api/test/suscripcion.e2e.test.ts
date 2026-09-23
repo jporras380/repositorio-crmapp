@@ -15,6 +15,7 @@ import { inicioDePeriodo, migrar, reintentandoSiChocaElCatalogo } from '@crmapp/
 import { AppModule } from '../src/app.module.js';
 import { FiltroDeErrores } from '../src/errores.js';
 import { AlmacenEnMemoria } from '@crmapp/storage';
+import { createHash } from 'node:crypto';
 
 const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
 const PORT = process.env['TEST_PG_PORT'] ?? '55432';
@@ -206,6 +207,107 @@ describe('límite de asientos al invitar', () => {
       [tenantId],
     );
     expect(Number(rows[0]!.n)).toBe(1);
+  });
+});
+
+/**
+ * El equipo de la cuenta (PR-94).
+ *
+ * Esto existía entero en la API desde fase 0 y **sin una sola pantalla**: un
+ * cliente que pagaba un plan de diez agentes solo podía usar uno. Lo que se
+ * prueba aquí es lo que la pantalla necesita para no mentir —asientos,
+ * pendientes, y quién puede mirarlo— y el camino de retirar un enlace, que
+ * es lo único nuevo de la API.
+ */
+describe('el equipo de la cuenta', () => {
+  it('lista a los miembros CON su correo: es lo que distingue a dos personas', async () => {
+    const r = await http.get('/v1/equipo').set(auth()).expect(200);
+    expect(r.body.miembros.length).toBeGreaterThan(0);
+    expect(r.body.miembros[0].email).toContain('@');
+    // Sin esto, la fila propia no se distingue de la del compañero.
+    expect(r.body.miembros.some((m: { esTu: boolean }) => m.esTu)).toBe(true);
+  });
+
+  it('los asientos cuentan miembros MAS invitaciones pendientes', async () => {
+    const r = await http.get('/v1/equipo').set(auth()).expect(200);
+    const { rows: miembros } = await admin.query<{ n: string }>(
+      `SELECT count(*) AS n FROM memberships WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    // Si las pendientes no contaran, la pantalla diría «te quedan 7» con tres
+    // enlaces dando vueltas.
+    expect(r.body.asientos.ocupados).toBe(Number(miembros[0]!.n) + r.body.invitaciones.length);
+    expect(r.body.asientos.tope).toBe(3);
+  });
+
+  it('la pendiente sale con su correo y su rol, para poder retirarla', async () => {
+    const r = await http.get('/v1/equipo').set(auth()).expect(200);
+    const pendiente = r.body.invitaciones.find(
+      (i: { email: string }) => i.email === 'tercero@acme.test',
+    );
+    expect(pendiente).toBeTruthy();
+    expect(pendiente.rol).toBe('agent');
+  });
+
+  it('retirar una invitación libera el asiento', async () => {
+    const antes = await http.get('/v1/equipo').set(auth()).expect(200);
+    const id = antes.body.invitaciones[0].id;
+
+    await http.delete(`/v1/invitaciones/${id}`).set(auth()).expect(204);
+
+    const despues = await http.get('/v1/equipo').set(auth()).expect(200);
+    expect(despues.body.asientos.ocupados).toBe(antes.body.asientos.ocupados - 1);
+    // Y con el asiento libre, vuelve a caber alguien: un correo mal escrito
+    // no puede bloquear una plaza siete días.
+    await http
+      .post('/v1/invitaciones')
+      .set(auth())
+      .send({ email: 'bien-escrito@acme.test', rol: 'agent' })
+      .expect(201);
+  });
+
+  it('retirar dos veces la misma no finge que salió bien', async () => {
+    const r0 = await http.get('/v1/equipo').set(auth()).expect(200);
+    const id = r0.body.invitaciones[0].id;
+    await http.delete(`/v1/invitaciones/${id}`).set(auth()).expect(204);
+    const r = await http.delete(`/v1/invitaciones/${id}`).set(auth()).expect(409);
+    expect(r.body.codigo).toBe('invitacion_no_pendiente');
+  });
+
+  it('un agente NO ve el equipo: los correos no son de cualquiera', async () => {
+    // El equipo lleva los correos de todo el mundo, y decidir quién entra a
+    // la cuenta no es del que atiende conversaciones.
+    await http
+      .post('/v1/invitaciones')
+      .set(auth())
+      .send({ email: 'curiosa@acme.test', rol: 'agent' })
+      .expect(201);
+    const { rows } = await admin.query<{ token_hash: string }>(
+      `SELECT token_hash FROM invitations WHERE email = 'curiosa@acme.test'`,
+    );
+    expect(rows).toHaveLength(1);
+
+    // Se acepta con un token nuevo emitido a mano: el de verdad no se guarda
+    // en claro en ningún sitio, que es justo la propiedad que interesa.
+    const sesionDeAgente = await (async () => {
+      const token = 'un-token-de-prueba-suficientemente-largo';
+      const hash = createHash('sha256').update(token).digest('hex');
+      await admin.query(`UPDATE invitations SET token_hash = $1 WHERE email = $2`, [
+        hash,
+        'curiosa@acme.test',
+      ]);
+      const r = await http
+        .post('/v1/invitaciones/aceptar')
+        .send({ token, contrasena: 'contrasena-muy-larga', nombreCompleto: 'Curiosa' })
+        .expect(200);
+      return r.body.token as string;
+    })();
+
+    const r = await http
+      .get('/v1/equipo')
+      .set({ Authorization: `Bearer ${sesionDeAgente}` })
+      .expect(403);
+    expect(r.body.codigo).toBe('sin_permiso');
   });
 });
 

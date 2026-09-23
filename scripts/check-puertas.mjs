@@ -51,6 +51,31 @@ const PERMITIDOS = {
 
   // --- Métodos del cliente web --------------------------------------------
   borrarTipo: 'DEUDA: se pueden crear tipos de habitación y no borrarlos.',
+
+  // --- Rutas de la API sin pantalla ---------------------------------------
+  //
+  // Las cuatro primeras las encontró esta guarda el día que se escribió, y
+  // son deuda de verdad, no decisiones. Van con nombre a [[01-ESTADO]].
+  'POST /v1/operador/soporte':
+    'DEUDA (PR-95): el operador no puede PEDIR acceso desde la consola. La ' +
+    'pantalla del cliente para aprobarlo sí existe, así que hoy el modo ' +
+    'soporte solo se arranca con curl.',
+  'GET /v1/operador/soporte/*/conversaciones':
+    'DEUDA (PR-95): con el permiso concedido, no hay pantalla que enseñe qué ' +
+    'está fallando en esa cuenta. Es la mitad útil del modo soporte.',
+  'POST /v1/operador/pagos/*/comprobante':
+    'DEUDA (PR-95): subir el comprobante de un pago solo se puede por API. ' +
+    'El hotel sí ve el que se haya subido.',
+  'PATCH /v1/cuenta/visibilidad-conversaciones':
+    'DEUDA (PR-95): la política de quién ve las conversaciones de quién ' +
+    '(ADR-008) se cambia por API y no tiene ajuste en pantalla.',
+
+  // Estas dos no son deuda: son decisiones.
+  'GET /v1/eventos':
+    'Flujo de eventos en vivo. Va con `fetch` en estado/eventos.ts y no por ' +
+    'el cliente, porque hace falta poner cabeceras y `EventSource` no deja.',
+  'GET /webhooks/*': 'Lo llama Meta, no el navegador.',
+  'POST /webhooks/*': 'Ídem.',
 };
 
 const fallos = [];
@@ -199,6 +224,98 @@ const fuentesWeb = [];
     for (const m of texto.matchAll(uso)) {
       if (!hoja.clases.has(m[1]) && !PERMITIDOS[m[1]]) {
         fallos.push(`${fuente} usa "${variable}.${m[1]}" y ${hoja.ruta} no declara esa clase`);
+      }
+    }
+  }
+}
+
+// --- 5. Rutas de la API a las que no llega el cliente web -----------------
+//
+// El punto ciego de las otras cuatro, y costó caro: la guarda 2 vigila
+// métodos del cliente web que nadie llama, pero `POST /v1/invitaciones`
+// llevaba desde fase 0 **sin que existiera el método**. No había nada que
+// marcar. Resultado: un cliente que pagaba un plan de diez agentes solo podía
+// usar uno, porque no había pantalla para dar de alta al segundo. Lo encontró
+// el usuario preguntando, no el repositorio.
+//
+// Se comparan caminos, no nombres: la ruta del controlador con los segmentos
+// `:param` convertidos en comodín, contra cada URL del cliente web con sus
+// `${...}` convertidos igual.
+{
+  const controladores = [];
+  const recorrerApi = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name === 'dist') continue;
+      const ruta = `${dir}/${e.name}`;
+      if (e.isDirectory()) recorrerApi(ruta);
+      else if (e.name.endsWith('.controller.ts')) controladores.push(ruta);
+    }
+  };
+  recorrerApi('apps/api/src');
+
+  // `/v1/x/:id/y` y `/v1/x/${id}/y` tienen que dar la misma cadena.
+  //
+  // Un `${...}` solo es un comodín cuando ES el segmento entero. Pegado al
+  // final de uno —`/v1/conversaciones${consulta(...)}`, que añade la cadena
+  // de consulta— no lo es, y tratarlo como tal convertía media API en `v1/*`
+  // y callaba la guarda. Se sustituye por una marca antes de partir, porque
+  // el propio interpolado puede llevar barras dentro.
+  const MARCA = '\u0000';
+
+  /**
+   * Sustituye cada `${...}` por una marca, contando llaves.
+   *
+   * Con una expresión regular no vale: `${consulta({ ...f })}` lleva llaves
+   * dentro y `[^}]*` se para en la primera, dejando un `)}` suelto que no
+   * casa con nada. Eso hacía callar a la guarda justo en las rutas con
+   * filtros, que son las más usadas.
+   */
+  const sinInterpolados = (texto) => {
+    let salida = '';
+    for (let i = 0; i < texto.length; i++) {
+      if (texto[i] === '$' && texto[i + 1] === '{') {
+        let hondo = 1;
+        i += 2;
+        while (i < texto.length && hondo > 0) {
+          if (texto[i] === '{') hondo++;
+          else if (texto[i] === '}') hondo--;
+          i++;
+        }
+        i--;
+        salida += MARCA;
+      } else salida += texto[i];
+    }
+    return salida;
+  };
+
+  const comodines = (camino) =>
+    sinInterpolados(camino)
+      .split('?')[0]
+      .split('/')
+      .filter(Boolean)
+      .map((s) => (s.startsWith(':') || s === MARCA ? '*' : s.split(MARCA).join('')))
+      .join('/');
+
+  // Todo lo que el cliente web pide, venga de comillas o de plantilla.
+  const pedidas = new Set();
+  // `[^(]*` y no `<[^>]*>`: el genérico puede ir anidado —`peticion<Pagina<
+  // ResumenDeConversacion>>`— y una clase que excluya `>` se para en el de
+  // dentro. Otra forma de que la guarda calle sin avisar.
+  const enCliente = new RegExp('peticion[^(]*[(]\\s*[`\'"]([^`\'"]+)', 'g');
+  const clienteWeb = readFileSync('apps/web/src/api/cliente.ts', 'utf8');
+  for (const m of clienteWeb.matchAll(enCliente)) pedidas.add(comodines(m[1]));
+
+  const deControlador = new RegExp("@Controller[(]\\s*'([^']*)'", '');
+  const deMetodo = new RegExp("@(Get|Post|Patch|Put|Delete)[(]\\s*'?([^')]*)'?\\s*[)]", 'g');
+
+  for (const ruta of controladores) {
+    const texto = readFileSync(ruta, 'utf8');
+    const prefijo = texto.match(deControlador)?.[1] ?? '';
+    for (const m of texto.matchAll(deMetodo)) {
+      const camino = comodines(`${prefijo}/${m[2] ?? ''}`);
+      const nombre = `${m[1].toUpperCase()} /${camino}`;
+      if (!pedidas.has(camino) && !PERMITIDOS[nombre]) {
+        fallos.push(`${nombre} existe en la API y el cliente web no la pide desde ningún sitio`);
       }
     }
   }

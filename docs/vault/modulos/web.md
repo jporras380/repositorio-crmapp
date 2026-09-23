@@ -487,3 +487,69 @@ Migración 0041: `GRANT SELECT ON plans TO crmapp_auth`. `plans` es catálogo de
 Abre `#alta` sin sesión, o pulsa «¿No tienes cuenta? Crea una» en el formulario de acceso. Elige un plan, escribe el nombre del negocio y mira cómo se rellena solo el identificador. Crea la cuenta: entras directo a tu propia bandeja, vacía y en prueba.
 
 22 tests nuevos (11 de API, 11 de pantalla).
+
+## Equipo: varias personas en una cuenta (PR-94, 2026-09-23)
+
+Lo señaló el usuario con una pregunta directa: *«si alguien elige Growth, 10 agentes, en qué apartado crea sus subusuarios?»*.
+
+La respuesta era **en ninguno**.
+
+### Lo que había, y lo que faltaba
+
+| Pieza | Estado antes |
+|---|---|
+| `POST /v1/invitaciones` con límite de asientos | Existía desde fase 0 |
+| `POST /v1/invitaciones/aceptar` | Existía |
+| Cuatro roles aplicados en 16 servicios | Existían |
+| Método `invitar()` en el cliente web | **No existía** |
+| Pantalla para invitar | **No existía** |
+| Pantalla para aceptar el enlace | **No existía** |
+
+O sea: un cliente que pagaba un plan de diez agentes **solo podía usar uno**, y dar de alta al segundo exigía entrar a la base de datos. Todo lo difícil estaba hecho y probado; lo que faltaba era el botón.
+
+### El enlace se copia, no se envía
+
+Mandar el correo exige contratar proveedor de envío, verificar el dominio y montar SPF y DKIM: coste recurrente y trabajo de infraestructura antes de que sirva de nada, y los servicios de coste recurrente están en la lista de no tocar. Copiar el enlace y pasarlo por WhatsApp funciona hoy y es como se comunica de verdad este equipo.
+
+El token se enseña **una sola vez**: en la base solo queda su `sha256`. Si se pierde, se retira la invitación y se hace otra.
+
+El enlace se arma en el navegador con `location.origin`. Guardarlo en el servidor obligaría a configurarle una URL pública, y en desarrollo apuntaría a producción.
+
+### Las invitaciones pendientes ocupan asiento, y por eso se pueden retirar
+
+Contarlas ya lo hacía `invitar()` desde fase 0 —tres enviadas a la vez meterían tres asientos por encima del tope—. Lo que faltaba era la consecuencia: si ocupan plaza, un correo mal escrito la bloquea siete días y la única salida sería subir de plan. De ahí `DELETE /v1/invitaciones/:id`, que borra la fila en vez de marcarla: el valor de guardarla sería el registro, y el registro ya está en `audit_log`.
+
+### Los roles se explican al elegirlos
+
+No son etiquetas: la API los aplica en dieciséis servicios. Elegir «supervisor» sin saber qué abre es elegir a ciegas, y quien invita está decidiendo sobre la correspondencia de sus huéspedes. La explicación del rol elegido va debajo del desplegable, no en una ayuda aparte.
+
+La sección **no sale en el menú** para quien no es dueño ni administrador. Un supervisor entra en `gestor` —edita plantillas y contactos— pero la API le niega `/v1/equipo`; un menú que ofrece lo que no se puede hacer es peor que uno más corto.
+
+### La quinta guarda, y lo que encontró
+
+Este fallo no lo encontró el repositorio: lo encontró el usuario preguntando. La guarda 2 vigila métodos del cliente web que nadie llama, y aquí **el método ni se había escrito**, así que no había nada que marcar.
+
+La guarda 5 compara caminos: la ruta de cada controlador, con los `:param` convertidos en comodín, contra cada URL del cliente web con sus `${...}` convertidos igual. Está comprobado que marca el fallo original: renombrando `/v1/invitaciones` en el cliente, se pone roja.
+
+Escribirla tuvo dos fallos propios que la dejaban **callada**, que es la peor forma de fallar de una guarda:
+
+1. `peticion<[^>]*>` no casaba con `peticion<Pagina<ResumenDeConversacion>>`: el genérico va anidado y la clase se para en el `>` de dentro.
+2. `[$][{][^}]*[}]` partía mal `${consulta({ ...f })}`, que lleva llaves dentro. Se sustituye contando llaves a mano.
+
+Con las dos arregladas, encontró **cuatro funciones entregadas sin pantalla** que están en [[01-ESTADO]] como deuda con nombre. La más grave: el operador no puede pedir acceso de soporte desde la consola, así que el modo soporte de PR-90 hoy solo se arranca con `curl`.
+
+### Lo que encontró la captura
+
+El botón «Retirar» salió del ancho de la tarjeta entera. `.tarjeta` es una rejilla de tres columnas —punto, contenido, acciones— y con solo dos hijos el botón cae en la del medio, que es `1fr`. Los 381 tests de pantalla estaban en verde: jsdom no calcula diseño.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Ajustes → **Equipo**. Arriba dice cuántos asientos usas de tu plan.
+2. Escribe un correo, elige «Agente» → **Crear invitación**. Sale el enlace y un botón de copiarlo.
+3. Abre ese enlace en otra ventana: pide nombre y contraseña, y entra directo. Aparece en «Quién está dentro».
+4. Invita a otro y **Retirar**: el contador de asientos baja.
+5. Con el plan lleno, el formulario se apaga y dice que hay que subir de plan.
+
+![La pantalla de equipo](../adjuntos/2026-09-23-equipo.png)
+
+22 tests nuevos (6 de API —contra PostgreSQL— y 16 de pantalla).
