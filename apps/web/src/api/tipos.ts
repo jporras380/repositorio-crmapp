@@ -84,6 +84,43 @@ export interface CuentaEnLaConsola {
   soporteSinLeer: number;
 }
 
+/**
+ * El detalle de una cuenta en la consola (PR-95).
+ *
+ * Aparte de la fila de la tabla: esa la pinta una sola consulta para todas
+ * las cuentas, y tiene un test de lista blanca que fija sus campos.
+ */
+export interface DetalleDeCuenta {
+  pagosPendientes: {
+    id: string;
+    importeCentimos: number;
+    moneda: string;
+    cubreDesde: string;
+    cubreHasta: string;
+    registradoEn: string;
+    venceEn: string;
+    /** Pasadas las 48 h: incumplimiento nuestro, no del cliente. */
+    vencido: boolean;
+  }[];
+  soporte: {
+    id: string;
+    motivo: string;
+    estado: 'pendiente' | 'activo';
+    expiraEn: string | null;
+  } | null;
+}
+
+/** Lo que falla en una cuenta, con el permiso de soporte concedido (0042). */
+export interface ConversacionDeSoporte {
+  id: string;
+  canal: string;
+  estado: string;
+  ultimoEntranteEn: string | null;
+  ultimoSalienteEn: string | null;
+  mensajesFallidos: number;
+  ultimoError: { tipo?: string; mensaje?: string } | null;
+}
+
 /** Etiqueta con dónde se usa, para el apartado donde se administran. */
 export interface EtiquetaConUso {
   id: string;

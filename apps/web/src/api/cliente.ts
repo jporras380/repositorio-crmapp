@@ -10,6 +10,8 @@ import type {
   ColumnaDelTablero,
   CuentaDeCanal,
   CuentaEnLaConsola,
+  DetalleDeCuenta,
+  ConversacionDeSoporte,
   CuentaDeInstagramDescubierta,
   PaginaDeFacebookDescubierta,
   AjustesDeIa,
@@ -176,6 +178,38 @@ export function crearApi(token: string | null) {
     yo: () => peticion<Yo>('/v1/yo', t),
     /** Consola del operador: todas las cuentas. 404 si no eres de la plataforma. */
     cuentasDeLaPlataforma: () => peticion<CuentaEnLaConsola[]>('/v1/operador/cuentas', t),
+    /** De UNA cuenta: sus pagos sin comprobante y el acceso de soporte. */
+    detalleDeCuenta: (tenantId: string) =>
+      peticion<DetalleDeCuenta>(`/v1/operador/cuentas/${tenantId}`, t),
+    /** Sube el comprobante de un pago de la cuenta que se diga. */
+    subirComprobante: (d: {
+      tenantId: string;
+      pagoId: string;
+      mediaAssetId: string;
+      numero?: string;
+    }) =>
+      peticion<{ adjuntado: true }>(`/v1/operador/pagos/${d.pagoId}/comprobante`, {
+        ...t,
+        metodo: 'POST',
+        cuerpo: {
+          tenantId: d.tenantId,
+          mediaAssetId: d.mediaAssetId,
+          ...(d.numero ? { numero: d.numero } : {}),
+        },
+      }),
+    /**
+     * Pide entrar a una cuenta. NO la abre: la abre el cliente desde sus
+     * ajustes, y por eso esto solo devuelve el identificador de la solicitud.
+     */
+    pedirAccesoDeSoporte: (tenantId: string, motivo: string) =>
+      peticion<{ id: string }>('/v1/operador/soporte', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: { tenantId, motivo },
+      }),
+    /** Qué está fallando en esa cuenta. Exige un permiso vivo. */
+    conversacionesDeSoporte: (tenantId: string) =>
+      peticion<ConversacionDeSoporte[]>(`/v1/operador/soporte/${tenantId}/conversaciones`, t),
     panel: () => peticion<ResumenDelPanel>('/v1/panel', t),
     informe: (periodo: ClaveDePeriodo) =>
       peticion<InformeDelPeriodo>(`/v1/panel/informe?periodo=${periodo}`, t),

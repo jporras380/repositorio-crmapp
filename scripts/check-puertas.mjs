@@ -54,21 +54,12 @@ const PERMITIDOS = {
 
   // --- Rutas de la API sin pantalla ---------------------------------------
   //
-  // Las cuatro primeras las encontró esta guarda el día que se escribió, y
-  // son deuda de verdad, no decisiones. Van con nombre a [[01-ESTADO]].
-  'POST /v1/operador/soporte':
-    'DEUDA (PR-95): el operador no puede PEDIR acceso desde la consola. La ' +
-    'pantalla del cliente para aprobarlo sí existe, así que hoy el modo ' +
-    'soporte solo se arranca con curl.',
-  'GET /v1/operador/soporte/*/conversaciones':
-    'DEUDA (PR-95): con el permiso concedido, no hay pantalla que enseñe qué ' +
-    'está fallando en esa cuenta. Es la mitad útil del modo soporte.',
-  'POST /v1/operador/pagos/*/comprobante':
-    'DEUDA (PR-95): subir el comprobante de un pago solo se puede por API. ' +
-    'El hotel sí ve el que se haya subido.',
+  // Las tres que había aquí —pedir acceso de soporte, ver qué falla y subir
+  // el comprobante— se resolvieron en PR-95. Queda una.
   'PATCH /v1/cuenta/visibilidad-conversaciones':
-    'DEUDA (PR-95): la política de quién ve las conversaciones de quién ' +
-    '(ADR-008) se cambia por API y no tiene ajuste en pantalla.',
+    'DEUDA (PR-96): la política de quién ve las conversaciones de quién ' +
+    '(ADR-008) se cambia por API y no tiene ajuste en pantalla. Es un ajuste ' +
+    'del CLIENTE, no de la consola, y por eso no entró en PR-95.',
 
   // Estas dos no son deuda: son decisiones.
   'GET /v1/eventos':

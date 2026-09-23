@@ -316,3 +316,47 @@ La primera salió con la burbuja del adjunto **vacía**. No era el código: el P
 ![Captura en el hilo de soporte](../adjuntos/2026-09-23-soporte-captura.png)
 
 16 tests nuevos (7 de API —contra PostgreSQL— y 9 de pantalla).
+
+## La consola, utilizable (PR-95, 2026-09-23)
+
+Lo señaló el usuario preguntando por *«el apartado donde vea todos los CRM de los clientes y administrarlos»*. Existía desde PR-88, y **solo miraba**.
+
+### Tres funciones entregadas y sin un botón
+
+| Lo que había | Lo que faltaba |
+|---|---|
+| La tabla decía «3 comprobantes sin subir» | Forma de subir ninguno |
+| El cliente podía **aprobar** un acceso de soporte | Forma de **pedirlo**: se arrancaba con `curl` |
+| Con el permiso vivo, la API decía qué falla | Pantalla que lo enseñara |
+
+Ninguna la encontró una revisión: las encontró la guarda 5 de PR-94. La segunda es la que peor pinta tiene: el modo soporte estaba **entregado, probado contra PostgreSQL y documentado**, y no se podía usar desde el producto.
+
+### Por qué un detalle aparte y no más columnas
+
+Para subir un comprobante hace falta saber **qué pagos** son, y la tabla solo lleva el recuento. Meterlos en ella la convertiría en una consulta por fila —hoy es una sola para todas las cuentas— y rompería el test de lista blanca que fija sus campos exactos, que está ahí justo para que una pantalla que cruza el aislamiento no crezca sola.
+
+Así que `GET /v1/operador/cuentas/:tenantId` devuelve dos cosas: los pagos sin comprobante y el acceso de soporte que haya. Corre con el **rol del operador**, igual que la tabla, y hay un test que fija sus claves exactas y que comprueba que ese rol sigue sin poder leer `messages`. Si alguien lo cambiara al rol de la aplicación «para que sea más fácil», se pone rojo.
+
+### Decisiones pequeñas
+
+- **El plazo va en cada pago, no en un aviso general.** «Fuera de plazo» es un incumplimiento nuestro con **ese** pago, y saber cuál es lo que permite hacer algo. No dice «vencido» a secas porque en un pago de cliente eso significa lo contrario.
+- **Pedir acceso exige un motivo de diez caracteres**, igual que la API. Lo lee el cliente antes de decidir y es lo único que tiene.
+- **Pedido y sin abrir no ofrece reintentar.** La decisión es del cliente; insistir desde aquí solo crea solicitudes duplicadas.
+- **Subir un comprobante recarga la tabla.** Dejarla diciendo «1 sin subir» después de subirlo es mentir en pantalla.
+- **La ficha es enlazable**: `#operador/<tenantId>`. «Mírale esto a esta cuenta» deja de ser «entra en la consola y busca Barranca en la lista».
+
+### La línea que sigue sin cruzarse
+
+Ni con el permiso concedido se ve una conversación. Lo que devuelve «qué está fallando» son canales, estados y errores de envío —lo que contesta «no me llega»— y no cuerpos de mensaje. Eso no lo promete esta pantalla: lo impide el rol de base de datos, y hay un test que lo comprueba **contra la base**.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Entra en `#operador` y pulsa **Ver hilo** en una cuenta. Se abre su ficha debajo de la tabla, y la URL cambia a `#operador/<id>`.
+2. Si le debes comprobantes, salen uno a uno con su importe y su plazo. Uno pasado de 48 h sale en rojo como **fuera de plazo**.
+3. **Subir comprobante** → elige el archivo. La tabla de arriba se actualiza sola.
+4. Escribe un motivo y **Pedir acceso**. Entra en esa cuenta como dueño → Ajustes → Soporte técnico: ahí está la solicitud con su motivo.
+5. Ábrela 1 hora. Vuelve a la consola: **Ver qué está fallando** lista canales y errores, sin un solo mensaje de huésped.
+
+![La consola con una cuenta abierta](../adjuntos/2026-09-23-consola-cuenta.png)
+
+18 tests nuevos (8 de API —contra PostgreSQL— y 10 de pantalla).

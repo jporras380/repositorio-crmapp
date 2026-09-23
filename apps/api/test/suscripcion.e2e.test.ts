@@ -983,3 +983,131 @@ describe('capturas en el chat de soporte', () => {
     await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
   });
 });
+
+/**
+ * El detalle de una cuenta en la consola (PR-95).
+ *
+ * La tabla decía «3 comprobantes sin subir» y con eso no se podía subir
+ * ninguno: faltaba saber QUÉ pagos son. Eso dejaba inservible la consola para
+ * lo único que se puede hacer desde ella.
+ *
+ * El test que importa es el último: el detalle corre con el rol del operador,
+ * así que tiene que seguir sin poder ver una conversación.
+ */
+describe('detalle de una cuenta en la consola', () => {
+  beforeAll(async () => {
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+  });
+
+  it('sin ser operador, el detalle no existe', async () => {
+    await admin.query(`UPDATE users SET is_operator = false WHERE email = 'jefe@acme.test'`);
+    await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(404);
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+  });
+
+  it('enumera los pagos SIN comprobante, con su plazo calculado', async () => {
+    const { rows } = await admin.query<{ id: string }>(
+      `INSERT INTO subscription_payments
+         (tenant_id, amount_cents, currency, covers_from, covers_to, method)
+       VALUES ($1, 7500, 'USD', now() - interval '30 days', now(), 'transferencia')
+       RETURNING id`,
+      [tenantId],
+    );
+
+    const r = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    const pago = r.body.pagosPendientes.find((p: { id: string }) => p.id === rows[0]!.id);
+    expect(pago).toBeTruthy();
+    expect(pago.importeCentimos).toBe(7500);
+    // 48 h desde que se registró. Se calcula, no se guarda: un plazo guardado
+    // y un pago con la fecha corregida se separan.
+    const plazo = new Date(pago.venceEn).getTime() - new Date(pago.registradoEn).getTime();
+    expect(plazo).toBe(48 * 3_600_000);
+    expect(pago.vencido).toBe(false);
+  });
+
+  it('un pago viejo sin comprobante sale como fuera de plazo', async () => {
+    await admin.query(
+      `INSERT INTO subscription_payments
+         (tenant_id, amount_cents, currency, covers_from, covers_to, method, created_at)
+       VALUES ($1, 100, 'USD', now() - interval '90 days', now() - interval '60 days',
+               'transferencia', now() - interval '5 days')`,
+      [tenantId],
+    );
+    const r = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    expect(r.body.pagosPendientes.some((p: { vencido: boolean }) => p.vencido)).toBe(true);
+  });
+
+  it('subir el comprobante lo saca de la lista de pendientes', async () => {
+    const antes = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    const pagoId = antes.body.pagosPendientes[0].id;
+
+    const { rows: medio } = await admin.query<{ id: string }>(
+      `INSERT INTO media_assets (tenant_id, kind, status, mime, bytes, storage_key)
+       VALUES ($1, 'document', 'stored', 'application/pdf', 2048, $2) RETURNING id`,
+      [tenantId, `${tenantId}/comprobante-consola.pdf`],
+    );
+
+    await http
+      .post(`/v1/operador/pagos/${pagoId}/comprobante`)
+      .set(auth())
+      .send({ tenantId, mediaAssetId: medio[0]!.id, numero: 'F001-00000999' })
+      .expect(201);
+
+    const despues = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    expect(despues.body.pagosPendientes).toHaveLength(antes.body.pagosPendientes.length - 1);
+    expect(despues.body.pagosPendientes.some((p: { id: string }) => p.id === pagoId)).toBe(false);
+  });
+
+  it('el acceso de soporte pedido sale en el detalle, para no pedirlo dos veces', async () => {
+    const sinNada = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    expect(sinNada.body.soporte).toBeNull();
+
+    await http
+      .post('/v1/operador/soporte')
+      .set(auth())
+      .send({ tenantId, motivo: 'Dicen que no les llegan los mensajes desde ayer por la tarde.' })
+      .expect(201);
+
+    const r = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    expect(r.body.soporte.estado).toBe('pendiente');
+    expect(r.body.soporte.motivo).toContain('no les llegan');
+  });
+
+  it('al abrirlo el cliente, el detalle pasa a activo con su fecha de fin', async () => {
+    const pedido = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    await http
+      .post(`/v1/cuenta/soporte/${pedido.body.soporte.id}/aprobar`)
+      .set(auth())
+      .send({ horas: 4 })
+      .expect(200);
+
+    const r = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    expect(r.body.soporte.estado).toBe('activo');
+    expect(new Date(r.body.soporte.expiraEn).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('revocado, el detalle deja de ofrecerlo como vivo', async () => {
+    const vivo = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    await http.post(`/v1/cuenta/soporte/${vivo.body.soporte.id}/revocar`).set(auth()).expect(200);
+    const r = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    expect(r.body.soporte).toBeNull();
+  });
+
+  it('el detalle NO abre la puerta a las conversaciones', async () => {
+    // Corre con el rol del operador, igual que la tabla. Si alguien lo
+    // cambiara al rol de la aplicación «para que sea más fácil», esto se pone
+    // rojo antes de que llegue a producción.
+    const r = await http.get(`/v1/operador/cuentas/${tenantId}`).set(auth()).expect(200);
+    expect(Object.keys(r.body).sort()).toEqual(['pagosPendientes', 'soporte']);
+
+    const cliente = await admin.connect();
+    try {
+      await cliente.query('BEGIN');
+      await cliente.query('SET LOCAL ROLE crmapp_operador');
+      await expect(cliente.query('SELECT * FROM messages')).rejects.toThrow(/permission denied/);
+    } finally {
+      await cliente.query('ROLLBACK');
+      cliente.release();
+    }
+  });
+});

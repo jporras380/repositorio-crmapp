@@ -29,6 +29,7 @@
  */
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import { inicioDePeriodo } from '@crmapp/db';
+import { venceElComprobante } from '@crmapp/core';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 
 /** Una cuenta vista desde fuera: lo justo para cobrar y para saber si va bien. */
@@ -65,6 +66,38 @@ export interface PagoDeOperador {
   pagoId: string;
   mediaAssetId: string;
   numero?: string | undefined;
+}
+
+/**
+ * El detalle de UNA cuenta: lo que hace falta para actuar sobre ella.
+ *
+ * Va aparte de la tabla y no como más columnas, por dos razones. La tabla la
+ * pinta una sola consulta para todas las cuentas (`cuentas()`), y meter aquí
+ * los pagos de cada una la convertiría en una consulta por fila. Y la lista
+ * tiene un test de lista blanca que fija sus campos exactos: una pantalla que
+ * cruza el aislamiento entre cuentas no debe crecer sin que alguien lo
+ * decida.
+ */
+export interface DetalleDeCuenta {
+  pagosPendientes: {
+    id: string;
+    importeCentimos: number;
+    moneda: string;
+    cubreDesde: Date;
+    cubreHasta: Date;
+    registradoEn: Date;
+    /** Hasta cuándo hay de plazo. Se calcula, no se guarda. */
+    venceEn: Date;
+    /** Ya pasadas las 48 h: es un incumplimiento nuestro, no del cliente. */
+    vencido: boolean;
+  }[];
+  /** El acceso de soporte a esta cuenta, si hay alguno vivo o pendiente. */
+  soporte: {
+    id: string;
+    motivo: string;
+    estado: 'pendiente' | 'activo';
+    expiraEn: Date | null;
+  } | null;
 }
 
 export class OperadorService {
@@ -119,6 +152,81 @@ export class OperadorService {
         ],
       );
       return { adjuntado: true as const };
+    });
+  }
+
+  /**
+   * Lo que hace falta para ACTUAR sobre una cuenta concreta.
+   *
+   * La tabla dice «3 sin subir» y con eso no se puede subir nada: hace falta
+   * saber qué pagos son. Eso era el hueco que dejaba la consola inservible
+   * para lo único que se puede hacer desde ella.
+   *
+   * Corre con el rol del operador, igual que la tabla: son cifras de
+   * facturación y el estado de un permiso, no correspondencia de nadie.
+   */
+  async detalleDe(tenantId: string): Promise<DetalleDeCuenta> {
+    const operador = await this.#exigirOperador();
+    const ahora = this.#ahora();
+
+    return this.#db.comoOperadorDeLaPlataforma(async (c) => {
+      const { rows: pagos } = await c.query<{
+        id: string;
+        amount_cents: number;
+        currency: string;
+        covers_from: Date;
+        covers_to: Date;
+        created_at: Date;
+      }>(
+        `SELECT id, amount_cents, currency, covers_from, covers_to, created_at
+           FROM subscription_payments
+          WHERE tenant_id = $1 AND receipt_media_id IS NULL
+          ORDER BY created_at`,
+        [tenantId],
+      );
+
+      // Solo el permiso que importa: uno pendiente de que lo abran, o uno
+      // abierto y sin caducar. El histórico lo ve el CLIENTE en su cuenta,
+      // que es de quien es el registro.
+      const { rows: soporte } = await c.query<{
+        id: string;
+        reason: string;
+        approved_at: Date | null;
+        expires_at: Date | null;
+      }>(
+        `SELECT id, reason, approved_at, expires_at
+           FROM support_grants
+          WHERE tenant_id = $1 AND requested_by = $2 AND revoked_at IS NULL
+            AND (approved_at IS NULL OR expires_at > now())
+          ORDER BY requested_at DESC
+          LIMIT 1`,
+        [tenantId, operador],
+      );
+
+      const g = soporte[0];
+      return {
+        pagosPendientes: pagos.map((p) => {
+          const venceEn = venceElComprobante(p.created_at);
+          return {
+            id: p.id,
+            importeCentimos: p.amount_cents,
+            moneda: p.currency,
+            cubreDesde: p.covers_from,
+            cubreHasta: p.covers_to,
+            registradoEn: p.created_at,
+            venceEn,
+            vencido: venceEn.getTime() <= ahora.getTime(),
+          };
+        }),
+        soporte: g
+          ? {
+              id: g.id,
+              motivo: g.reason,
+              estado: g.approved_at ? ('activo' as const) : ('pendiente' as const),
+              expiraEn: g.expires_at,
+            }
+          : null,
+      };
     });
   }
 

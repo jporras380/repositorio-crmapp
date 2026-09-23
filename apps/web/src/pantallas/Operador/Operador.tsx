@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { crearApi, ErrorDeApi } from '../../api/cliente.ts';
+import { irA } from '../../estado/ruta.ts';
 import type { CuentaEnLaConsola, Sesion, Yo } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
 import { useListaFiltrable, type ListaFiltrada } from '../../vista/listaFiltrable.ts';
 import { BarraDeFiltro, ContadorYPaginas } from '../../componentes/ajustes/FiltroDeLista.tsx';
-import { ChatDeSoporte } from '../../componentes/ajustes/ChatDeSoporte.tsx';
+import { CuentaDeLaPlataforma } from './CuentaDeLaPlataforma.tsx';
 import { importe } from '../../vista/dinero.ts';
 import { faltan, hace } from '../../vista/tiempo.ts';
 import estilos from './Operador.module.css';
@@ -32,31 +33,46 @@ import estilos from './Operador.module.css';
 
 interface Props {
   sesion: Sesion;
+  /**
+   * Una cuenta abierta al entrar, de `#operador/<tenantId>`.
+   *
+   * Hace la ficha enlazable: «mírale esto a esta cuenta» deja de ser
+   * «entra en la consola y busca Barranca en la lista».
+   */
+  cuentaInicial?: string | null;
   alSalir: () => void;
 }
 
-export function Operador({ sesion, alSalir }: Props) {
+export function Operador({ sesion, cuentaInicial = null, alSalir }: Props) {
   const api = useMemo(() => crearApi(sesion.token), [sesion.token]);
   const [yo, setYo] = useState<Yo | null>(null);
   const [cuentas, setCuentas] = useState<CuentaEnLaConsola[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Recargable: subir un comprobante cambia las cifras de la tabla, y dejarla
+  // diciendo «3 sin subir» después de subir uno es mentir en pantalla.
+  const recargar = useCallback(
+    () =>
+      api
+        .cuentasDeLaPlataforma()
+        .then(setCuentas)
+        .catch((e: unknown) =>
+          setError(
+            e instanceof ErrorDeApi && e.estado === 404
+              ? 'Esta consola es para el personal de la plataforma.'
+              : 'No se pudieron cargar las cuentas.',
+          ),
+        ),
+    [api],
+  );
 
   useEffect(() => {
     api
       .yo()
       .then(setYo)
       .catch(() => undefined);
-    api
-      .cuentasDeLaPlataforma()
-      .then(setCuentas)
-      .catch((e: unknown) =>
-        setError(
-          e instanceof ErrorDeApi && e.estado === 404
-            ? 'Esta consola es para el personal de la plataforma.'
-            : 'No se pudieron cargar las cuentas.',
-        ),
-      );
-  }, [api]);
+    void recargar();
+  }, [api, recargar]);
 
   const lista = useListaFiltrable(
     cuentas,
@@ -67,6 +83,14 @@ export function Operador({ sesion, alSalir }: Props) {
   const debiendo = (cuentas ?? []).filter((c) => c.comprobantesPendientes > 0).length;
   const escribiendo = (cuentas ?? []).filter((c) => c.soporteSinLeer > 0).length;
   const [chat, setChat] = useState<CuentaEnLaConsola | null>(null);
+
+  // La cuenta de la URL se abre cuando llega la lista, no antes: la ficha
+  // necesita el nombre y el plan, y eso viene de la tabla.
+  useEffect(() => {
+    if (!cuentaInicial || !cuentas) return;
+    const c = cuentas.find((x) => x.tenantId === cuentaInicial);
+    if (c) setChat(c);
+  }, [cuentaInicial, cuentas]);
 
   return (
     <div className={estilos.pantalla}>
@@ -129,7 +153,11 @@ export function Operador({ sesion, alSalir }: Props) {
             </thead>
             <tbody>
               {lista.visibles.map((c) => (
-                <Fila key={c.tenantId} c={c} alAbrirChat={() => setChat(c)} />
+                <Fila
+                  key={c.tenantId}
+                  c={c}
+                  alAbrirChat={() => irA({ pantalla: 'operador', tenantId: c.tenantId })}
+                />
               ))}
             </tbody>
           </table>
@@ -141,19 +169,19 @@ export function Operador({ sesion, alSalir }: Props) {
             nombre={{ uno: 'cuenta', varios: 'cuentas' }}
           />
         )}
-        {/* El hilo se abre debajo de la tabla y no en una ventana: al
-            responder hace falta seguir viendo el plan y el estado de los
-            canales de esa cuenta, que es la mitad del diagnóstico. */}
+        {/* La cuenta se abre debajo de la tabla y no en una ventana: al
+            trabajar sobre ella hace falta seguir viendo el plan y el estado
+            de los canales, que es la mitad del diagnóstico. */}
         {chat && (
-          <section className={estilos.chat}>
-            <header className={estilos.chatCabecera}>
-              <h2 className={estilos.chatTitulo}>Soporte · {chat.nombre}</h2>
-              <button className={estilos.cerrarChat} onClick={() => setChat(null)}>
-                Cerrar
-              </button>
-            </header>
-            <ChatDeSoporte api={api} tenantId={chat.tenantId} />
-          </section>
+          <CuentaDeLaPlataforma
+            api={api}
+            cuenta={chat}
+            alCerrar={() => {
+              setChat(null);
+              irA({ pantalla: 'operador', tenantId: null });
+            }}
+            alCambiar={() => void recargar()}
+          />
         )}
       </main>
     </div>

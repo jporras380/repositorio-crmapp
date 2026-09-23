@@ -17,17 +17,15 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Deuda con nombre, encontrada por la guarda 5 (23 de septiembre)
 
-La guarda nueva compara rutas de la API contra lo que pide el cliente web. Además del hueco que la originó, encontró **cuatro funciones entregadas sin pantalla**. Están en `PERMITIDOS` con el motivo escrito, y son trabajo, no decisiones:
+La guarda nueva compara rutas de la API contra lo que pide el cliente web. Encontró **cuatro funciones entregadas sin pantalla**. **Tres se cerraron en PR-95** el mismo día: pedir acceso de soporte, ver qué falla con el permiso concedido, y subir el comprobante de un pago.
 
-- **El operador no puede PEDIR acceso de soporte desde la consola** (`POST /v1/operador/soporte`). La pantalla del cliente para aprobarlo sí existe, así que hoy el modo soporte de PR-90 solo se arranca con `curl`. Es la más grave: la función está entregada y no se puede usar.
-- **Con el permiso concedido, no hay pantalla que enseñe qué falla** (`GET /v1/operador/soporte/*/conversaciones`). Es la mitad útil del modo soporte.
-- **Subir el comprobante de un pago solo se puede por API** (`POST /v1/operador/pagos/*/comprobante`). El hotel sí ve el que se haya subido.
-- **La política de visibilidad entre agentes** (ADR-008, `PATCH /v1/cuenta/visibilidad-conversaciones`) se cambia por API y no tiene ajuste en pantalla.
+Queda una, y es de otro dueño:
 
-Las cuatro van a **PR-95**.
+- **La política de visibilidad entre agentes** (ADR-008, `PATCH /v1/cuenta/visibilidad-conversaciones`) se cambia por API y no tiene ajuste en pantalla. Es un ajuste del **cliente**, no de la consola, y por eso no entró en PR-95. Va a **PR-96**.
 
 ## Completado
 
+- **PR-95, la consola sirve para algo** ([[facturacion]] §La consola, utilizable): lo señaló el usuario preguntando por el apartado para administrar los CRM de los clientes. La consola de PR-88 **enseñaba** todo y no dejaba **hacer** nada: decía «3 comprobantes sin subir» sin forma de subir ninguno, y el modo soporte de PR-90 dejaba al cliente aprobar un acceso que nadie podía pedir desde ninguna pantalla —se arrancaba con `curl`—. Cierra tres de las cuatro deudas que la guarda 5 encontró ayer. La ficha de una cuenta es enlazable (`#operador/<id>`).
 - **PR-94, el equipo de la cuenta** ([[web]] §Equipo): lo señaló el usuario preguntando dónde se crean los usuarios de un plan de 10 agentes. La respuesta era **en ningún sitio**: `POST /v1/invitaciones` existía desde fase 0, con límite de asientos y cuatro roles aplicados en 16 servicios, y no había ni método en el cliente web ni pantalla. Un cliente que pagaba por diez podía usar uno. Se añade la pantalla de equipo, la de aceptar la invitación, y **una quinta guarda**: rutas de la API que el cliente web no pide desde ningún sitio. Encontró otras cuatro, ahora deuda con nombre (ver abajo).
 - **PR-93, capturas en el chat de soporte** ([[facturacion]] §Capturas en el chat): lo pidió el usuario —«que pueda mandar foto o vídeo cuando soporte se lo pida»—. Reutiliza `media_assets` entero en vez de una segunda tubería. La decisión que importa es la ruta del operador: **solo firma un medio que cuelgue de un mensaje de soporte de esa cuenta**, y la condición está en el `JOIN`, no en un `if`. Sin ella, la consola pasaría a ser un lector universal de medios —una foto de un huésped incluida— y se caería la promesa que la sostiene. La guarda de deriva me paró: la columna estaba en la base y no en Drizzle.
 - **PR-92, ver qué hace un bot** ([[salesbots]] §Ver qué está haciendo un bot): el registro paso a paso se guardaba desde 0015 y la API existía; faltaba la pantalla, y era una de las deudas con nombre de la guarda. Ya no lo es. Va debajo del simulador porque uno dice lo que el bot HARÍA y el otro lo que HIZO. De paso, la guarda de clases CSS de PR-90 me paró a mí por dos clases sin declarar.

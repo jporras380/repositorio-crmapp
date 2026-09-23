@@ -55,6 +55,15 @@ export class OperadorController {
     return conContextoDePeticion(req, () => this.operador.cuentas());
   }
 
+  /**
+   * El detalle de una cuenta: sus pagos sin comprobante y el acceso de
+   * soporte que haya. Es lo que hace falta para ACTUAR sobre ella.
+   */
+  @Get('cuentas/:tenantId')
+  detalle(@Req() req: Req, @Param('tenantId') tenantId: string) {
+    return conContextoDePeticion(req, () => this.operador.detalleDe(tenantId));
+  }
+
   /** Pide entrar a una cuenta. No la abre: la abre el cliente. */
   @Post('soporte')
   @HttpCode(201)

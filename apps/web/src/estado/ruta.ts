@@ -36,7 +36,8 @@ export type Ruta =
   /** Alguien llega por un enlace de invitación. El token viene en el hash. */
   | { pantalla: 'invitacion'; token: string }
   /** Consola del operador de la PLATAFORMA. No es de ningún hotel (0040). */
-  | { pantalla: 'operador' }
+  /** La consola, y opcionalmente la ficha de una cuenta abierta. */
+  | { pantalla: 'operador'; tenantId: string | null }
   /** Catálogo del hotel y cotizador. */
   | { pantalla: 'hotel' }
   /** Reservas. Con una elegida, su ficha al lado de la lista. */
@@ -79,7 +80,9 @@ export function leerRuta(hash: string = location.hash): Ruta {
   if (hash.startsWith('#invitacion=')) {
     return { pantalla: 'invitacion', token: decodeURIComponent(hash.slice('#invitacion='.length)) };
   }
-  if (hash.startsWith('#operador')) return { pantalla: 'operador' };
+  if (hash.startsWith('#operador')) {
+    return { pantalla: 'operador', tenantId: hash.split('/')[1] ?? null };
+  }
   if (hash.startsWith('#hotel')) return { pantalla: 'hotel' };
   if (hash.startsWith('#reservas')) {
     return { pantalla: 'reservas', reservaId: hash.split('/')[1] ?? null };
@@ -112,7 +115,9 @@ export function irA(ruta: Ruta): void {
         : ruta.pantalla === 'invitacion'
           ? `#invitacion=${encodeURIComponent(ruta.token)}`
           : ruta.pantalla === 'operador'
-            ? '#operador'
+            ? ruta.tenantId
+              ? `#operador/${ruta.tenantId}`
+              : '#operador'
             : ruta.pantalla === 'hotel'
               ? '#hotel'
               : ruta.pantalla === 'reservas'

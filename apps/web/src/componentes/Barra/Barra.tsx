@@ -134,7 +134,7 @@ export function Barra({ api, yo, activa = 'bandeja', alSalir }: Props) {
           className={`${estilos.item} ${activa === 'operador' ? estilos.activo : ''}`}
           aria-current={activa === 'operador' ? 'page' : undefined}
           title="Cuentas de la plataforma"
-          onClick={() => irA({ pantalla: 'operador' })}
+          onClick={() => irA({ pantalla: 'operador', tenantId: null })}
         >
           <IconoPlataforma />
           <span className="visually-hidden">Cuentas de la plataforma</span>

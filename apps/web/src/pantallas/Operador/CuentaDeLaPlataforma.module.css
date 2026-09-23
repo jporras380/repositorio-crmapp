@@ -1,0 +1,228 @@
+/* Trabajar sobre una cuenta concreta, debajo de la tabla de la consola. */
+@layer components {
+  .panel {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    background: var(--surface-1);
+  }
+
+  .cabecera {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .titulo {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 700;
+  }
+
+  .slug {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+
+  .cerrar {
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .cerrar:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+
+  .seccion {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  /* --- Comprobantes ------------------------------------------------------ */
+
+  .pagos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .pago {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+  }
+
+  .pagoImporte {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .pagoDetalle {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+
+  /* Fuera de plazo es un incumplimiento NUESTRO, y se ve como tal. */
+  .vencido {
+    color: var(--danger);
+    font-weight: 600;
+  }
+
+  /* Botón de verdad aunque sea un <label>: el <input type=file> va oculto
+     porque su aspecto nativo no se puede peinar. */
+  .subir {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .subir:hover {
+    background: var(--hairline);
+  }
+
+  /* --- Acceso de soporte ------------------------------------------------- */
+
+  .pedir {
+    display: grid;
+    gap: var(--space-2);
+    justify-items: start;
+  }
+
+  .campo {
+    inline-size: 100%;
+    display: grid;
+    gap: 0.25rem;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+  .campo input,
+  .campo textarea {
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface-2);
+    color: var(--fg);
+    font: inherit;
+    font-size: var(--text-sm);
+    resize: vertical;
+  }
+  .campo input:focus-visible,
+  .campo textarea:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+  }
+
+  .ayuda {
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
+
+  .accion {
+    justify-self: start;
+    padding: 0.45rem 0.9rem;
+    border-radius: var(--radius-md);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .accion:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .estadoOk {
+    margin: 0;
+    padding: 0.45rem 0.7rem;
+    border-radius: var(--radius-sm);
+    background: var(--ok-soft);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .estadoEspera {
+    margin: 0;
+    padding: 0.45rem 0.7rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+
+  /* --- Lo que falla ------------------------------------------------------ */
+
+  .fallos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.3rem;
+    /* Cincuenta conversaciones empujarían el chat fuera de la pantalla. */
+    max-block-size: 18rem;
+    overflow-y: auto;
+  }
+
+  .fallo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+  }
+
+  .canal {
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+
+  /* El error entero y en su propia línea: recortarlo deja fuera justo la
+     parte que dice qué pasó. */
+  .errorDeEnvio {
+    inline-size: 100%;
+    color: var(--danger);
+    overflow-wrap: anywhere;
+  }
+
+  .vacio {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+
+  .error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: var(--text-sm);
+  }
+}

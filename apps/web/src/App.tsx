@@ -40,7 +40,9 @@ export function App() {
   }
   if (!sesion) return <Acceso alEntrar={iniciar} alRegistrarse={() => irA({ pantalla: 'alta' })} />;
   if (ruta.pantalla === 'panel') return <Panel sesion={sesion} alSalir={cerrar} />;
-  if (ruta.pantalla === 'operador') return <Operador sesion={sesion} alSalir={cerrar} />;
+  if (ruta.pantalla === 'operador') {
+    return <Operador sesion={sesion} cuentaInicial={ruta.tenantId} alSalir={cerrar} />;
+  }
   if (ruta.pantalla === 'hotel') return <Hotel sesion={sesion} alSalir={cerrar} />;
   if (ruta.pantalla === 'reservas') {
     return <Reservas sesion={sesion} reservaId={ruta.reservaId} alSalir={cerrar} />;
