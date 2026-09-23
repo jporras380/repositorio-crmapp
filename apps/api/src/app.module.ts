@@ -399,7 +399,13 @@ export class AppModule {
           provide: TOKEN_SOPORTE,
           inject: [TOKEN_DB],
           useFactory: (db: BaseDeDatos) =>
-            new SoporteService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
+            new SoporteService({
+              db,
+              // El mismo almacén que la bandeja: las capturas del chat son
+              // `media_assets` normales (0044), no una tubería aparte.
+              almacen: opciones.almacen ?? (opciones.s3 ? new AlmacenS3(opciones.s3) : null),
+              ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
+            }),
         },
         AuthGuard,
       ],

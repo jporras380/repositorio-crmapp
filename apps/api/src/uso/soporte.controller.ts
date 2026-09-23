@@ -15,7 +15,17 @@ import { AuthGuard, conContextoDePeticion } from '../auth/auth.guard.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import { HORAS_MAXIMAS, type SoporteService } from './soporte.service.js';
 
-const Mensaje = z.object({ cuerpo: z.string().trim().min(1).max(4000) });
+/**
+ * El cuerpo puede ir vacío SI hay captura: mandar una imagen sin texto es una
+ * forma legítima de decir «mira esto». Lo que no se acepta es un mensaje sin
+ * ninguna de las dos cosas, y eso lo comprueba el `refine`.
+ */
+const Mensaje = z
+  .object({
+    cuerpo: z.string().trim().max(4000),
+    mediaAssetId: z.string().uuid().optional(),
+  })
+  .refine((m) => m.cuerpo.length > 0 || m.mediaAssetId !== undefined);
 
 const Aprobacion = z.object({ horas: z.number().int().min(1).max(HORAS_MAXIMAS) });
 
@@ -49,8 +59,12 @@ export class SoporteController {
   @HttpCode(201)
   escribir(@Req() req: Req, @Body() body: unknown) {
     const r = Mensaje.safeParse(body);
-    if (!r.success) throw new ErrorDeNegocio('mensaje_vacio', 'Escribe qué te pasa.', 422);
-    return conContextoDePeticion(req, () => this.soporte.escribir(r.data.cuerpo));
+    if (!r.success) {
+      throw new ErrorDeNegocio('mensaje_vacio', 'Escribe qué te pasa o adjunta una captura.', 422);
+    }
+    return conContextoDePeticion(req, () =>
+      this.soporte.escribir(r.data.cuerpo, r.data.mediaAssetId ?? null),
+    );
   }
 
   @Post(':id/aprobar')

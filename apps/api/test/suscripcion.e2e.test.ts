@@ -14,6 +14,7 @@ import request from 'supertest';
 import { inicioDePeriodo, migrar, reintentandoSiChocaElCatalogo } from '@crmapp/db';
 import { AppModule } from '../src/app.module.js';
 import { FiltroDeErrores } from '../src/errores.js';
+import { AlmacenEnMemoria } from '@crmapp/storage';
 
 const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
 const PORT = process.env['TEST_PG_PORT'] ?? '55432';
@@ -67,6 +68,9 @@ beforeAll(async () => {
       soporteDatabaseUrl: url(DB, 'crmapp_soporte', 'crmapp_dev'),
       jwtSecret: 'secreto-de-test-de-al-menos-treinta-y-dos-caracteres',
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
+      // 0044: el chat de soporte firma capturas. Sin almacen, esas rutas
+      // responden 503 y no se probaria lo que se quiere probar.
+      almacen: new AlmacenEnMemoria(),
       modoSandbox: true,
     }),
     { logger: false, rawBody: true },
@@ -766,6 +770,114 @@ describe('chat con soporte', () => {
   it('quien no es operador no puede leer el hilo de otra cuenta', async () => {
     await admin.query(`UPDATE users SET is_operator = false WHERE email = 'jefe@acme.test'`);
     await http.get(`/v1/operador/soporte/${tenantId}/mensajes`).set(auth()).expect(404);
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+  });
+});
+
+/**
+ * Capturas en el chat de soporte (0044).
+ *
+ * «No me sale el boton» y una imagen del boton que no sale son la misma
+ * frase, pero solo una se entiende a la primera.
+ *
+ * El test que sostiene todo lo demas es el ultimo: que el operador **no
+ * pueda firmar un medio que no cuelgue de este hilo**. Sin esa condicion,
+ * esta ruta seria un lector universal de medios para la plataforma -una foto
+ * de un huesped incluida- y se caeria la promesa entera de la consola.
+ */
+describe('capturas en el chat de soporte', () => {
+  /** Un medio ya subido de la cuenta del hotel, como el que deja `MediosService`. */
+  async function medioDelHotel(nombre: string): Promise<string> {
+    const { rows } = await admin.query<{ id: string }>(
+      `INSERT INTO media_assets (tenant_id, kind, status, mime, bytes, storage_key, filename)
+       VALUES ($1, 'image', 'stored', 'image/png', 1024, $2, $3) RETURNING id`,
+      [tenantId, `${tenantId}/${nombre}.png`, `${nombre}.png`],
+    );
+    return rows[0]!.id;
+  }
+
+  let medioId: string;
+
+  beforeAll(async () => {
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+    medioId = await medioDelHotel('pantalla');
+  });
+
+  it('el cliente manda una captura SIN texto, y el hilo la lleva', async () => {
+    const r = await http
+      .post('/v1/cuenta/soporte/mensajes')
+      .set(auth())
+      .send({ cuerpo: '', mediaAssetId: medioId })
+      .expect(201);
+
+    const ultimo = r.body[r.body.length - 1];
+    expect(ultimo.medioId).toBe(medioId);
+    expect(ultimo.medioMime).toBe('image/png');
+    expect(ultimo.medioNombre).toBe('pantalla.png');
+    // Obligar a escribir algo junto a la captura solo produce mensajes que
+    // dicen «.».
+    expect(ultimo.cuerpo).toBe('');
+  });
+
+  it('un mensaje sin texto NI captura sigue sin poder enviarse', async () => {
+    await http.post('/v1/cuenta/soporte/mensajes').set(auth()).send({ cuerpo: '  ' }).expect(422);
+  });
+
+  it('una captura que no existe no cuela', async () => {
+    const r = await http
+      .post('/v1/cuenta/soporte/mensajes')
+      .set(auth())
+      .send({ cuerpo: 'mira', mediaAssetId: '01a00000-0000-7000-8000-00000000dead' })
+      .expect(409);
+    expect(r.body.codigo).toBe('adjunto_no_valido');
+  });
+
+  it('una captura a medio subir tampoco: se veria un hueco roto', async () => {
+    const { rows } = await admin.query<{ id: string }>(
+      `INSERT INTO media_assets (tenant_id, kind, status, mime, bytes, storage_key)
+       VALUES ($1, 'image', 'pending', 'image/png', 10, $2) RETURNING id`,
+      [tenantId, `${tenantId}/a-medias.png`],
+    );
+    const r = await http
+      .post('/v1/cuenta/soporte/mensajes')
+      .set(auth())
+      .send({ cuerpo: 'mira', mediaAssetId: rows[0]!.id })
+      .expect(409);
+    expect(r.body.codigo).toBe('adjunto_no_valido');
+  });
+
+  it('el operador ve la captura en el hilo y obtiene una URL firmada', async () => {
+    const hilo = await http
+      .get(`/v1/operador/soporte/${tenantId}/mensajes`)
+      .set(auth())
+      .expect(200);
+    const conMedio = hilo.body.find((m: { medioId: string | null }) => m.medioId === medioId);
+    expect(conMedio).toBeTruthy();
+
+    const r = await http
+      .get(`/v1/operador/soporte/${tenantId}/adjuntos/${medioId}`)
+      .set(auth())
+      .expect(200);
+    expect(r.body.url).toContain(tenantId);
+    // Vida corta: una URL de adjunto que no caduca es un adjunto publico.
+    expect(r.body.expiraEnSegundos).toBeLessThanOrEqual(300);
+  });
+
+  it('el operador NO puede firmar un medio que no cuelga del hilo', async () => {
+    // Un medio de la MISMA cuenta, pero de la bandeja: la foto de un huesped.
+    const deLaBandeja = await medioDelHotel('foto-de-un-huesped');
+    const r = await http
+      .get(`/v1/operador/soporte/${tenantId}/adjuntos/${deLaBandeja}`)
+      .set(auth())
+      .expect(404);
+    // Misma respuesta que inexistente: quien pregunta no averigua si el
+    // identificador existe en otra parte.
+    expect(r.body.codigo).toBe('medio_no_encontrado');
+  });
+
+  it('quien no es operador no firma nada', async () => {
+    await admin.query(`UPDATE users SET is_operator = false WHERE email = 'jefe@acme.test'`);
+    await http.get(`/v1/operador/soporte/${tenantId}/adjuntos/${medioId}`).set(auth()).expect(404);
     await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
   });
 });

@@ -124,4 +124,71 @@
     font-size: var(--text-xs);
     color: var(--danger);
   }
+
+  /* --- Capturas (0044) -------------------------------------------------- */
+
+  /* El adjunto elegido, antes de enviarlo: uno que no se ve hasta despues es
+     un adjunto que se manda sin querer. */
+  .adjunto {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.4rem 0.6rem;
+    border: 1px dashed var(--hairline);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    font-size: var(--text-xs);
+  }
+
+  .adjuntoNombre {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--fg-muted);
+  }
+
+  .quitar {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--danger);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+
+  /* Boton de verdad aunque sea un <label>: el <input type=file> esta oculto
+     porque su aspecto nativo no se puede peinar. */
+  .adjuntar {
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .adjuntar:hover {
+    background: var(--hairline);
+  }
+
+  /* Tope de alto: una captura de pantalla completa empujaria el resto del
+     hilo fuera de la vista. Se abre en una pestana si hace falta verla. */
+  .medio {
+    display: block;
+    max-inline-size: 100%;
+    max-block-size: 14rem;
+    border-radius: var(--radius-sm);
+    margin-block-end: 0.35rem;
+  }
+
+  .adjuntoRoto {
+    margin: 0 0 0.35rem;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+  }
 }

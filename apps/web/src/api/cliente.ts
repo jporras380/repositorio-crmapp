@@ -534,15 +534,26 @@ export function crearApi(token: string | null) {
       }),
     /** El hilo con soporte técnico. Abrirlo marca como leído lo respondido. */
     mensajesDeSoporte: () => peticion<MensajeDeSoporte[]>('/v1/cuenta/soporte/mensajes', t),
-    escribirASoporte: (cuerpo: string) =>
+    escribirASoporte: (cuerpo: string, mediaAssetId?: string) =>
       peticion<MensajeDeSoporte[]>('/v1/cuenta/soporte/mensajes', {
         ...t,
         metodo: 'POST',
-        cuerpo: { cuerpo },
+        cuerpo: { cuerpo, ...(mediaAssetId ? { mediaAssetId } : {}) },
       }),
     /** Desde la consola: el hilo de una cuenta, y responderle. */
     hiloDeSoporteDe: (tenantId: string) =>
       peticion<MensajeDeSoporte[]>(`/v1/operador/soporte/${tenantId}/mensajes`, t),
+    /**
+     * La captura de un mensaje del hilo, firmada.
+     *
+     * Solo la usa la consola: el cliente ve sus propios medios con
+     * `urlDeMedio`, que RLS ya le resuelve.
+     */
+    adjuntoDeSoporte: (tenantId: string, mediaAssetId: string) =>
+      peticion<{ url: string; expiraEnSegundos: number }>(
+        `/v1/operador/soporte/${tenantId}/adjuntos/${mediaAssetId}`,
+        t,
+      ),
     responderASoporte: (tenantId: string, cuerpo: string) =>
       peticion<MensajeDeSoporte[]>(`/v1/operador/soporte/${tenantId}/mensajes`, {
         ...t,

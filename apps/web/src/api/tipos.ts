@@ -18,6 +18,10 @@ export interface MensajeDeSoporte {
   cuerpo: string;
   creadoEn: string;
   leidoEn: string | null;
+  /** Captura o vídeo adjunto (0044). La URL se pide aparte y caduca. */
+  medioId: string | null;
+  medioMime: string | null;
+  medioNombre: string | null;
 }
 
 /** Un acceso de soporte a tu cuenta: quién, para qué y hasta cuándo. */

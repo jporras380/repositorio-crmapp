@@ -83,6 +83,21 @@ export class OperadorController {
     return conContextoDePeticion(req, () => this.soporte.responder(tenantId, r.data.cuerpo));
   }
 
+  /**
+   * La captura que mandó el cliente, firmada.
+   *
+   * El servicio solo la firma si cuelga de un mensaje de soporte de ESA
+   * cuenta: no es un lector de medios, es el adjunto de este hilo.
+   */
+  @Get('soporte/:tenantId/adjuntos/:mediaAssetId')
+  adjuntoDeSoporte(
+    @Req() req: Req,
+    @Param('tenantId') tenantId: string,
+    @Param('mediaAssetId') mediaAssetId: string,
+  ) {
+    return conContextoDePeticion(req, () => this.soporte.urlDeAdjunto(tenantId, mediaAssetId));
+  }
+
   /** Lo que está fallando en esa cuenta. Exige un permiso vivo. */
   @Get('soporte/:tenantId/conversaciones')
   conversacionesDeSoporte(@Req() req: Req, @Param('tenantId') tenantId: string) {

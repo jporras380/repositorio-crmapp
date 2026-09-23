@@ -714,6 +714,12 @@ export const supportMessages = pgTable('support_messages', {
   body: text('body').notNull(),
   /** Cuándo lo leyó el OTRO lado. Evita guardar un contador que se desincroniza. */
   readAt: timestamp('read_at', { withTimezone: true }),
+  /**
+   * Captura o vídeo que explica el problema (0044). Es un medio del INQUILINO
+   * como cualquier otro: que soporte pueda verlo es un permiso aparte y
+   * acotado, no una propiedad del archivo.
+   */
+  mediaAssetId: uuid('media_asset_id'),
   createdAt: creado,
 });
 

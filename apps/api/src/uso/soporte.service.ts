@@ -28,11 +28,15 @@
  * servicio se niega. Fallar cerrado.
  */
 import type { PoolClient } from 'pg';
+import type { Almacen } from '@crmapp/storage';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 
 /** Tope de lo que puede durar un permiso. Un día es una jornada de soporte. */
 export const HORAS_MAXIMAS = 24;
+
+/** Lo que vive una URL de adjunto. Igual que la de los medios del hilo. */
+const TTL_ADJUNTO = 300;
 
 export interface MensajeDeSoporte {
   id: string;
@@ -42,6 +46,10 @@ export interface MensajeDeSoporte {
   cuerpo: string;
   creadoEn: Date;
   leidoEn: Date | null;
+  /** Captura o vídeo adjunto (0044). La URL se firma al pedirla, no aquí. */
+  medioId: string | null;
+  medioMime: string | null;
+  medioNombre: string | null;
 }
 
 export interface PermisoDeSoporte {
@@ -59,9 +67,12 @@ export interface PermisoDeSoporte {
 export class SoporteService {
   readonly #db: BaseDeDatos;
   readonly #ahora: () => Date;
+  /** `null` si el almacenamiento no esta configurado: sin adjuntos, con aviso. */
+  readonly #almacen: Almacen | null;
 
-  constructor(o: { db: BaseDeDatos; ahora?: () => Date }) {
+  constructor(o: { db: BaseDeDatos; almacen?: Almacen | null; ahora?: () => Date }) {
     this.#db = o.db;
+    this.#almacen = o.almacen ?? null;
     this.#ahora = o.ahora ?? (() => new Date());
   }
 
@@ -250,19 +261,22 @@ export class SoporteService {
    * cuenta, y obligar a avisar al dueño para poder reportarlo solo garantiza
    * que no se reporte.
    */
-  async escribir(cuerpo: string): Promise<MensajeDeSoporte[]> {
+  async escribir(cuerpo: string, mediaAssetId?: string | null): Promise<MensajeDeSoporte[]> {
     const ctx = this.#exigirContexto();
     const texto = cuerpo.trim();
-    if (!texto) throw new ErrorDeNegocio('mensaje_vacio', 'Escribe qué te pasa.', 422);
+    if (!texto && !mediaAssetId) {
+      throw new ErrorDeNegocio('mensaje_vacio', 'Escribe qué te pasa o adjunta una captura.', 422);
+    }
 
-    return this.#db.enTransaccion(async (c) => {
-      await c.query(
-        `INSERT INTO support_messages (tenant_id, author_id, from_platform, body)
-         VALUES ($1, $2, false, $3)`,
-        [ctx.tenantId, ctx.userId, texto],
-      );
-      return leerHilo(c, ctx.tenantId);
-    });
+    return this.#db.enTransaccion(async (c) =>
+      insertar(c, {
+        tenantId: ctx.tenantId,
+        autorId: ctx.userId,
+        deLaPlataforma: false,
+        cuerpo: texto,
+        mediaAssetId: mediaAssetId ?? null,
+      }),
+    );
   }
 
   /** El hilo de una cuenta, desde la plataforma. Marca leído lo del cliente. */
@@ -294,13 +308,54 @@ export class SoporteService {
     const texto = cuerpo.trim();
     if (!texto) throw new ErrorDeNegocio('mensaje_vacio', 'Escribe la respuesta.', 422);
 
+    return this.#db.paraInquilino(tenantId, async (c) =>
+      insertar(c, {
+        tenantId,
+        autorId: operador,
+        deLaPlataforma: true,
+        cuerpo: texto,
+        mediaAssetId: null,
+      }),
+    );
+  }
+
+  /**
+   * La URL firmada de una captura del hilo.
+   *
+   * **La condición está en el SQL, no en un `if`.** El medio tiene que estar
+   * colgado de un mensaje de soporte DE ESA CUENTA; si no, no se firma. Sin
+   * ese JOIN, esta ruta sería un lector universal de medios para el operador
+   * —una foto de un huésped incluida— y eso es justo lo que la consola promete
+   * que no puede hacer.
+   *
+   * El cliente no pasa por aquí: para sus propios medios ya tiene
+   * `/v1/medios/:id/url`, que RLS resuelve sin preguntar nada.
+   */
+  async urlDeAdjunto(
+    tenantId: string,
+    mediaAssetId: string,
+  ): Promise<{ url: string; expiraEnSegundos: number }> {
+    await this.#exigirOperador();
+    const almacen = this.#exigirAlmacen();
+
     return this.#db.paraInquilino(tenantId, async (c) => {
-      await c.query(
-        `INSERT INTO support_messages (tenant_id, author_id, from_platform, body)
-         VALUES ($1, $2, true, $3)`,
-        [tenantId, operador, texto],
+      const { rows } = await c.query<{ storage_key: string | null; status: string }>(
+        `SELECT a.storage_key, a.status
+           FROM media_assets a
+           JOIN support_messages m ON m.media_asset_id = a.id
+          WHERE a.id = $1 AND m.tenant_id = $2
+          LIMIT 1`,
+        [mediaAssetId, tenantId],
       );
-      return leerHilo(c, tenantId);
+      const medio = rows[0];
+      // Ajeno al hilo e inexistente se contestan igual: quien pregunta no
+      // averigua si el identificador existe en otra cuenta.
+      if (!medio) throw new ErrorDeNegocio('medio_no_encontrado', 'El medio no existe.', 404);
+      if (medio.status !== 'stored' || !medio.storage_key) {
+        throw new ErrorDeNegocio('medio_no_disponible', 'La captura no está subida aún.', 409);
+      }
+      const url = await almacen.urlDeLectura(medio.storage_key, TTL_ADJUNTO);
+      return { url, expiraEnSegundos: TTL_ADJUNTO };
     });
   }
 
@@ -417,6 +472,17 @@ export class SoporteService {
     return ctx;
   }
 
+  #exigirAlmacen(): Almacen {
+    if (!this.#almacen) {
+      throw new ErrorDeNegocio(
+        'almacenamiento_no_configurado',
+        'El almacenamiento de archivos no está configurado.',
+        503,
+      );
+    }
+    return this.#almacen;
+  }
+
   #exigirGestor() {
     const ctx = this.#exigirContexto();
     if (ctx.rol !== 'owner' && ctx.rol !== 'admin') {
@@ -441,7 +507,45 @@ function estadoDe(
   return 'activo';
 }
 
-/** El hilo entero, con el nombre de quien escribió cada cosa. */
+/**
+ * Escribe un mensaje y devuelve el hilo ya con él dentro.
+ *
+ * El adjunto se valida **en el propio INSERT**, con un `SELECT` sobre
+ * `media_assets` en el `VALUES`: si el medio no es de esta cuenta o no está
+ * subido, la fila no entra. Comprobarlo antes en una consulta aparte dejaría
+ * un hueco entre la comprobación y la escritura, y sobre todo dejaría la
+ * garantía en el código en vez de en la base.
+ */
+async function insertar(
+  c: PoolClient,
+  m: {
+    tenantId: string;
+    autorId: string;
+    deLaPlataforma: boolean;
+    cuerpo: string;
+    mediaAssetId: string | null;
+  },
+): Promise<MensajeDeSoporte[]> {
+  const { rows } = await c.query<{ id: string }>(
+    `INSERT INTO support_messages (tenant_id, author_id, from_platform, body, media_asset_id)
+     SELECT $1, $2, $3, $4, $5::uuid
+      WHERE $5::uuid IS NULL
+         OR EXISTS (SELECT 1 FROM media_assets a
+                     WHERE a.id = $5::uuid AND a.tenant_id = $1 AND a.status = 'stored')
+    RETURNING id`,
+    [m.tenantId, m.autorId, m.deLaPlataforma, m.cuerpo, m.mediaAssetId],
+  );
+  if (rows.length === 0) {
+    throw new ErrorDeNegocio(
+      'adjunto_no_valido',
+      'Esa captura no está subida o no es de esta cuenta.',
+      409,
+    );
+  }
+  return leerHilo(c, m.tenantId);
+}
+
+/** El hilo entero, con el nombre de quien escribió cada cosa y su captura. */
 async function leerHilo(c: PoolClient, tenantId: string): Promise<MensajeDeSoporte[]> {
   const { rows } = await c.query<{
     id: string;
@@ -450,10 +554,15 @@ async function leerHilo(c: PoolClient, tenantId: string): Promise<MensajeDeSopor
     body: string;
     created_at: Date;
     read_at: Date | null;
+    media_asset_id: string | null;
+    medio_mime: string | null;
+    medio_nombre: string | null;
   }>(
-    `SELECT m.id, m.from_platform, u.full_name AS autor, m.body, m.created_at, m.read_at
+    `SELECT m.id, m.from_platform, u.full_name AS autor, m.body, m.created_at, m.read_at,
+            m.media_asset_id, a.mime AS medio_mime, a.filename AS medio_nombre
        FROM support_messages m
        LEFT JOIN users u ON u.id = m.author_id
+       LEFT JOIN media_assets a ON a.id = m.media_asset_id
       WHERE m.tenant_id = $1
       ORDER BY m.created_at
       LIMIT 200`,
@@ -466,5 +575,8 @@ async function leerHilo(c: PoolClient, tenantId: string): Promise<MensajeDeSopor
     cuerpo: f.body,
     creadoEn: f.created_at,
     leidoEn: f.read_at,
+    medioId: f.media_asset_id,
+    medioMime: f.medio_mime,
+    medioNombre: f.medio_nombre,
   }));
 }

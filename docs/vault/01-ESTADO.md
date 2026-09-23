@@ -1,11 +1,11 @@
 ---
 estado: vivo
-fecha: 2026-09-16
+fecha: 2026-09-23
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 16 de septiembre de 2026
+# Estado — 23 de septiembre de 2026
 
 **El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
 
@@ -17,6 +17,7 @@ El encargo nuevo reordena lo que falta alrededor de la **bandeja única** y aña
 
 ## Completado
 
+- **PR-93, capturas en el chat de soporte** ([[facturacion]] §Capturas en el chat): lo pidió el usuario —«que pueda mandar foto o vídeo cuando soporte se lo pida»—. Reutiliza `media_assets` entero en vez de una segunda tubería. La decisión que importa es la ruta del operador: **solo firma un medio que cuelgue de un mensaje de soporte de esa cuenta**, y la condición está en el `JOIN`, no en un `if`. Sin ella, la consola pasaría a ser un lector universal de medios —una foto de un huésped incluida— y se caería la promesa que la sostiene. La guarda de deriva me paró: la columna estaba en la base y no en Drizzle.
 - **PR-92, ver qué hace un bot** ([[salesbots]] §Ver qué está haciendo un bot): el registro paso a paso se guardaba desde 0015 y la API existía; faltaba la pantalla, y era una de las deudas con nombre de la guarda. Ya no lo es. Va debajo del simulador porque uno dice lo que el bot HARÍA y el otro lo que HIZO. De paso, la guarda de clases CSS de PR-90 me paró a mí por dos clases sin declarar.
 - **PR-91, chat con soporte técnico** ([[facturacion]] §Chat con soporte): un hilo por cuenta dentro del CRM, que reemplaza escribir a un número personal por WhatsApp. Tabla propia y NO `conversations`: esa cuenta para los topes del plan y la tocan los bots —hay un test de que escribir a soporte no crea ninguna conversación—. La consola pone primero a quien espera respuesta, porque está parado.
 - **PR-90, modo soporte** ([[facturacion]] §Modo soporte): el cliente deja entrar y solo un rato. Cuatro condiciones, y ninguna la garantiza el código: que el operador no pueda aprobarse a sí mismo y que soporte no pueda escribir lo impide PostgreSQL, y hay tests contra la base que lo demuestran. De aquí salió una guarda nueva —clases de CSS Modules que no existen en su hoja— que encontró **dos fallos ya presentes**, uno de ellos: un mensaje fallido se veía igual que uno entregado.

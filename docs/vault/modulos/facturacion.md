@@ -253,3 +253,66 @@ Añadir `soporteSinLeer` a la consola rompió el test que fija los campos exacto
 Ajustes → Soporte técnico: escribe algo. En la consola del operador aparece «1 cuenta espera respuesta» arriba y «1 sin leer» en rojo en su fila. Pulsa ahí, responde, y el cliente lo ve en su hilo sin que nadie se lo reenvíe.
 
 21 tests nuevos (10 de API, 11 de pantalla).
+
+## Capturas en el chat (PR-93, 2026-09-23)
+
+Lo pidió el usuario con sus palabras: «que pueda enviar foto o vídeo en caso el usuario interactua con el soporte le pida esa información de que sucede en su CRM».
+
+«No me sale el botón» y una captura del botón que no sale son la misma frase, pero solo una se entiende a la primera.
+
+### Por qué reutiliza `media_assets` y no una tubería nueva
+
+Ya existe todo: subida por URL firmada sin que los bytes pasen por la API, deduplicación por `sha256`, límite de tamaño, lista de tipos admitidos y descarga firmada de vida corta. Una segunda tubería para soporte sería mantener dos, y la segunda no tendría **ninguna** de esas cosas hasta que a alguien le tocara añadírselas.
+
+El medio es del **inquilino**, como cualquier otro. Que soporte pueda verlo es un permiso aparte y acotado, no una propiedad del archivo.
+
+### La decisión que sostiene la consola
+
+El cliente ve sus propias capturas por `/v1/medios/:id/url`, que RLS ya le resuelve. El operador **no puede** usar esa ruta: su contexto de sesión es su propio inquilino, no el del cliente.
+
+La tentación era darle una ruta que firmara cualquier `mediaAssetId` de cualquier cuenta. Eso habría roto en silencio la promesa que hace defendible toda la consola —**el operador no ve conversaciones de huéspedes**—, porque una foto de la bandeja es exactamente eso.
+
+Por eso `urlDeAdjunto` exige que el medio **cuelgue de un mensaje de soporte de esa cuenta**, con el `JOIN` dentro de la propia consulta:
+
+```sql
+FROM media_assets a
+JOIN support_messages m ON m.media_asset_id = a.id
+WHERE a.id = $1 AND m.tenant_id = $2
+```
+
+Un medio ajeno al hilo y uno inexistente se contestan igual (404): quien pregunta no averigua si el identificador existe en otra parte. Hay un test que crea un medio **de la misma cuenta** pero no adjunto, y comprueba que el operador recibe 404. Si alguien quitara ese `JOIN`, ese test se pone rojo.
+
+### El adjunto se valida en el INSERT, no antes
+
+```sql
+INSERT INTO support_messages (...)
+SELECT $1, $2, $3, $4, $5::uuid
+ WHERE $5::uuid IS NULL
+    OR EXISTS (SELECT 1 FROM media_assets a
+                WHERE a.id = $5::uuid AND a.tenant_id = $1 AND a.status = 'stored')
+```
+
+Comprobarlo antes en una consulta aparte dejaría un hueco entre la comprobación y la escritura, y sobre todo dejaría la garantía en el código en vez de en la base. Cero filas devueltas es «esa captura no es tuya o no está subida», y se responde 409.
+
+### Decisiones pequeñas
+
+- **El cuerpo deja de ser obligatorio cuando hay adjunto.** Mandar una captura sin texto es una forma legítima de decir «mira esto»; obligar a escribir algo solo produce mensajes que dicen «.». La reversa de 0044 rellena esos cuerpos con `(captura adjunta)` antes de volver a exigirlo.
+- **Adjunta el cliente, no soporte.** Quien tiene el problema delante es él. Cuanto menos escriba soporte en la cuenta de un cliente, menos hay que explicar después.
+- **Se sube al elegir el archivo, no al enviar.** Un vídeo de 8 MB por datos móviles convertiría «Enviar» en un botón que parece colgado.
+- **El adjunto elegido se ve antes de enviarlo, y se puede quitar.** Uno que no se ve hasta después es un adjunto que se manda sin querer.
+- **La URL se pide al pintar y caduca a los 5 minutos**, así que no se puede guardar en el mensaje ni reenviar por ahí.
+
+### Lo que encontró la captura de pantalla
+
+La primera salió con la burbuja del adjunto **vacía**. No era el código: el PNG que había sembrado para la prueba era de 1×1 píxel, y `max-inline-size: 100%` no agranda nada. Con una imagen de tamaño real se ve como debe. Vale la pena anotarlo porque el reflejo era ir a depurar el componente.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Ajustes → Soporte técnico → **Adjuntar**, elige una captura. Aparece su nombre encima del compositor con un «Quitar».
+2. **Enviar** sin escribir nada: la captura sale en el hilo.
+3. Desde la consola del operador, abre el hilo de esa cuenta: la misma captura se ve, firmada por la ruta acotada.
+4. Con `curl`, pide `/v1/operador/soporte/<cuenta>/adjuntos/<un medio de la bandeja>`: **404**.
+
+![Captura en el hilo de soporte](../adjuntos/2026-09-23-soporte-captura.png)
+
+16 tests nuevos (7 de API —contra PostgreSQL— y 9 de pantalla).
