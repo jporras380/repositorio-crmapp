@@ -10,6 +10,8 @@ interface Props {
   alCambiar: (f: FiltrosDeBandeja) => void;
   alGuardarVista: (nombre: string) => void | Promise<void>;
   alBorrarVista: (id: string) => void | Promise<void>;
+  /** Compartirla con el equipo, o dejar de hacerlo. Solo su autor. */
+  alCompartirVista: (id: string, compartida: boolean) => void | Promise<void>;
   alAplicarVista: (v: VistaDeBandeja) => void;
   alCerrar: () => void;
 }
@@ -59,6 +61,7 @@ export function PanelDeFiltros({
   alCambiar,
   alGuardarVista,
   alBorrarVista,
+  alCompartirVista,
   alAplicarVista,
   alCerrar,
 }: Props) {
@@ -151,25 +154,49 @@ export function PanelDeFiltros({
       </label>
 
       <section className={estilos.bloque} aria-label="Vistas guardadas">
-        <h3 className={estilos.bloqueTitulo}>Mis vistas</h3>
+        <h3 className={estilos.bloqueTitulo}>Vistas</h3>
         <ul className={estilos.vistas}>
           {vistas.map((v) => (
             <li key={v.id} className={estilos.vista}>
               <button className={estilos.aplicar} onClick={() => alAplicarVista(v)}>
                 {v.nombre}
+                {/* De quién es: una vista del equipo que uno no puede tocar
+                    tiene que distinguirse ANTES de buscarle el botón. */}
+                {v.compartida && (
+                  <span className={estilos.marcaCompartida}>
+                    {v.mia ? 'compartida' : 'del equipo'}
+                  </span>
+                )}
               </button>
-              <button
-                className={estilos.quitar}
-                aria-label={`Borrar la vista ${v.nombre}`}
-                onClick={() => void alBorrarVista(v.id)}
-              >
-                ×
-              </button>
+              {/* Solo su autor la comparte o la borra, igual que en la API. */}
+              {v.mia && (
+                <>
+                  <button
+                    className={estilos.quitar}
+                    aria-label={
+                      v.compartida
+                        ? `Dejar de compartir ${v.nombre}`
+                        : `Compartir ${v.nombre} con el equipo`
+                    }
+                    title={v.compartida ? 'Dejar de compartir' : 'Compartir con el equipo'}
+                    onClick={() => void alCompartirVista(v.id, !v.compartida)}
+                  >
+                    {v.compartida ? '↩' : '↑'}
+                  </button>
+                  <button
+                    className={estilos.quitar}
+                    aria-label={`Borrar la vista ${v.nombre}`}
+                    onClick={() => void alBorrarVista(v.id)}
+                  >
+                    ×
+                  </button>
+                </>
+              )}
             </li>
           ))}
           {vistas.length === 0 && (
             <li className={estilos.pista}>
-              Aún no has guardado ninguna. Ajusta los filtros y ponle un nombre.
+              Aún no hay ninguna. Ajusta los filtros y ponle un nombre.
             </li>
           )}
         </ul>

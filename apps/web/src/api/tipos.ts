@@ -479,6 +479,10 @@ export interface VistaDeBandeja {
   nombre: string;
   filtros: Record<string, string>;
   posicion: number;
+  /** Compartida con el equipo (0045). */
+  compartida: boolean;
+  /** La creé yo: solo entonces se puede compartir o borrar. */
+  mia: boolean;
 }
 
 export interface NotaInterna {

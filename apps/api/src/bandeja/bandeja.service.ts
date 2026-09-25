@@ -170,6 +170,10 @@ export interface VistaDeBandeja {
   nombre: string;
   filtros: Record<string, string>;
   posicion: number;
+  /** Compartida con el equipo (0045). */
+  compartida: boolean;
+  /** La creé yo: solo entonces se puede cambiar o borrar. */
+  mia: boolean;
 }
 
 export interface NotaInterna {
@@ -577,9 +581,16 @@ export class BandejaService {
         name: string;
         filters: Record<string, string>;
         position: number;
+        is_public: boolean;
+        mia: boolean;
       }>(
-        `SELECT id, name, filters, position FROM inbox_views
-          WHERE user_id = $1 ORDER BY position, created_at`,
+        // Las mías y las que el equipo comparte. Las compartidas van
+        // DESPUÉS: el orden que uno se ha puesto es el suyo, y que una vista
+        // ajena se cuele en medio mueve los atajos de sitio.
+        `SELECT id, name, filters, position, is_public, user_id = $1 AS mia
+           FROM inbox_views
+          WHERE user_id = $1 OR is_public
+          ORDER BY is_public, position, created_at`,
         [ctx.userId],
       );
       return rows.map((r) => ({
@@ -587,6 +598,8 @@ export class BandejaService {
         nombre: r.name,
         filtros: r.filters,
         posicion: r.position,
+        compartida: r.is_public,
+        mia: r.mia,
       }));
     });
   }
@@ -608,6 +621,43 @@ export class BandejaService {
       // espera quien ajusta un filtro y vuelve a pulsar «Guardar»; un error de
       // nombre repetido ahí solo obligaría a borrar y repetir.
       return { id: rows[0]?.id ?? id };
+    });
+  }
+
+  /**
+   * Comparte una vista con el equipo, o deja de compartirla.
+   *
+   * Solo su autor: el `WHERE user_id` es la única garantía de esto y vive
+   * aquí, no en una política, porque el contexto de sesión lleva el inquilino
+   * y no el usuario. Está escrito también en la migración 0045.
+   *
+   * Dejar de compartir **no la borra**: vuelve a ser privada de quien la hizo.
+   * Quien la usaba deja de verla, que es lo que se pide al despublicarla.
+   */
+  async compartirVista(vistaId: string, compartida: boolean): Promise<void> {
+    const ctx = this.#exigirContexto();
+    await this.#db.enTransaccion(async (c) => {
+      try {
+        const { rowCount } = await c.query(
+          `UPDATE inbox_views SET is_public = $3, updated_at = now()
+            WHERE id = $1 AND user_id = $2`,
+          [vistaId, ctx.userId, compartida],
+        );
+        if (rowCount === 0) {
+          // Una vista ajena y una inexistente se contestan igual: por separado
+          // le dirían a quien prueba identificadores cuáles existen.
+          throw new ErrorDeNegocio('vista_no_encontrada', 'Esa vista no existe.', 404);
+        }
+      } catch (error) {
+        if ((error as { code?: string }).code === '23505') {
+          throw new ErrorDeNegocio(
+            'nombre_compartido_repetido',
+            'El equipo ya tiene una vista compartida con ese nombre. Renombra la tuya antes de compartirla.',
+            409,
+          );
+        }
+        throw error;
+      }
     });
   }
 

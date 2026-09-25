@@ -153,4 +153,16 @@
   .boton:disabled {
     opacity: 0.45;
   }
+
+  /* De quien es la vista, dentro del propio boton: una del equipo que uno no
+     puede tocar tiene que distinguirse antes de buscarle el boton de borrar. */
+  .marcaCompartida {
+    margin-inline-start: 0.4rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: var(--radius-pill);
+    background: var(--hairline);
+    color: var(--fg-muted);
+    font-size: 0.6rem;
+    font-weight: 600;
+  }
 }

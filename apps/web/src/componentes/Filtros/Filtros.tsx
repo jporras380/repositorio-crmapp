@@ -20,6 +20,7 @@ interface Props {
   alCrearEtiqueta: (nombre: string, color: string | null) => Promise<void>;
   alGuardarVista: (nombre: string) => void | Promise<void>;
   alBorrarVista: (id: string) => void | Promise<void>;
+  alCompartirVista: (id: string, compartida: boolean) => void | Promise<void>;
 }
 
 /** Filtros que no salen de la fila de vistas: los que abre el panel. */
@@ -42,6 +43,7 @@ export function Filtros({
   alCrearEtiqueta,
   alGuardarVista,
   alBorrarVista,
+  alCompartirVista,
 }: Props) {
   const [creando, setCreando] = useState(false);
   const [abierto, setAbierto] = useState(false);
@@ -135,6 +137,7 @@ export function Filtros({
           alCambiar={alCambiar}
           alGuardarVista={alGuardarVista}
           alBorrarVista={alBorrarVista}
+          alCompartirVista={alCompartirVista}
           alAplicarVista={(v) => {
             // Una vista guardada es el filtro ENTERO, no un añadido: aplicarla
             // sobre lo que había dejaría restos invisibles de la búsqueda

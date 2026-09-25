@@ -529,6 +529,13 @@ export function crearApi(token: string | null) {
     reserva: (id: string) => peticion<DetalleDeReserva>(`/v1/reservas/${id}`, t),
     crearReserva: (d: PeticionDeReserva) =>
       peticion<DetalleDeReserva>('/v1/reservas', { ...t, metodo: 'POST', cuerpo: d }),
+    /** Compartir la vista con el equipo, o dejar de compartirla. Solo su autor. */
+    compartirVista: (id: string, compartida: boolean) =>
+      peticion<void>(`/v1/vistas/${id}/compartida`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { compartida },
+      }),
     moverReserva: (id: string, accion: AccionDeReserva) =>
       peticion<DetalleDeReserva>(`/v1/reservas/${id}/estado`, {
         ...t,

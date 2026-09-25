@@ -28,8 +28,25 @@ const EMBUDOS: Embudo[] = [
 ];
 
 const VISTAS: VistaDeBandeja[] = [
-  { id: 'v1', nombre: 'Sin responder de hoy', filtros: { atencion: 'por_responder' }, posicion: 0 },
+  {
+    id: 'v1',
+    nombre: 'Sin responder de hoy',
+    filtros: { atencion: 'por_responder' },
+    posicion: 0,
+    compartida: false,
+    mia: true,
+  },
 ];
+
+/** Una del equipo, hecha por otra persona: se ve y no se toca. */
+const DEL_EQUIPO: VistaDeBandeja = {
+  id: 'v9',
+  nombre: 'Urgentes del turno',
+  filtros: { atencion: 'por_responder' },
+  posicion: 0,
+  compartida: true,
+  mia: false,
+};
 
 function pintar(filtros = {}, extra: Partial<Parameters<typeof PanelDeFiltros>[0]> = {}) {
   const props = {
@@ -40,6 +57,7 @@ function pintar(filtros = {}, extra: Partial<Parameters<typeof PanelDeFiltros>[0
     alCambiar: vi.fn(),
     alGuardarVista: vi.fn(),
     alBorrarVista: vi.fn(),
+    alCompartirVista: vi.fn(),
     alAplicarVista: vi.fn(),
     alCerrar: vi.fn(),
     ...extra,
@@ -84,5 +102,46 @@ describe('PanelDeFiltros', () => {
     cleanup();
     pintar();
     expect(screen.queryByRole('button', { name: 'Quitar todos' })).toBeNull();
+  });
+});
+
+/**
+ * Vistas compartidas (0045).
+ *
+ * Lo que se prueba es lo que evita que el equipo acabe con cinco versiones de
+ * lo mismo, y la línea que lo hace seguro: una vista ajena se ve, se aplica, y
+ * no se puede tocar.
+ */
+describe('Vistas compartidas', () => {
+  it('una vista propia se puede compartir', async () => {
+    const p = pintar();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Compartir Sin responder de hoy con el equipo' }),
+    );
+    expect(p.alCompartirVista).toHaveBeenCalledWith('v1', true);
+  });
+
+  it('una ya compartida se puede dejar de compartir', async () => {
+    const p = pintar({}, { vistas: [{ ...VISTAS[0]!, compartida: true }] });
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Dejar de compartir Sin responder de hoy' }),
+    );
+    expect(p.alCompartirVista).toHaveBeenCalledWith('v1', false);
+  });
+
+  it('se distingue la propia compartida de la del equipo', async () => {
+    pintar({}, { vistas: [{ ...VISTAS[0]!, compartida: true }, DEL_EQUIPO] });
+    // Sin esto hay que pulsar para averiguar de quién es.
+    expect(screen.getByText('compartida')).toBeTruthy();
+    expect(screen.getByText('del equipo')).toBeTruthy();
+  });
+
+  it('la del equipo se APLICA pero no se toca', async () => {
+    const p = pintar({}, { vistas: [DEL_EQUIPO] });
+    await userEvent.click(screen.getByRole('button', { name: /Urgentes del turno/ }));
+    expect(p.alAplicarVista).toHaveBeenCalled();
+    // Borrar o compartir la de otro es de su autor, igual que en la API.
+    expect(screen.queryByRole('button', { name: /Borrar la vista/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /compartir/i })).toBeNull();
   });
 });

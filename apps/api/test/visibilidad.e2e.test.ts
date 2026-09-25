@@ -496,3 +496,98 @@ describe('equipos por la API', () => {
     ]);
   });
 });
+
+/**
+ * Vistas de bandeja compartidas (0045).
+ *
+ * La migración 0020 dejó escrito cómo hacer esto: «compartirlas es otra
+ * función, y cuando haga falta se añade una columna». Aquí se prueba con dos
+ * personas de verdad, que es lo único que demuestra que compartir sirve.
+ */
+describe('vistas compartidas', () => {
+  let mia: string;
+
+  it('una vista nueva es PRIVADA: compartir es un gesto, no el estado por defecto', async () => {
+    const r = await http
+      .post('/v1/vistas')
+      .set(auth(tokenOwner))
+      .send({ nombre: 'Sin responder hoy', filtros: { sinRespuesta: 'true' } })
+      .expect(201);
+    mia = r.body.id;
+
+    const propias = await http.get('/v1/vistas').set(auth(tokenOwner)).expect(200);
+    expect(propias.body.find((v: { id: string }) => v.id === mia).compartida).toBe(false);
+
+    // Y el agente no la ve.
+    const delAgente = await http.get('/v1/vistas').set(auth(tokenAgente)).expect(200);
+    expect(delAgente.body.find((v: { id: string }) => v.id === mia)).toBeUndefined();
+  });
+
+  it('compartida, el resto del equipo la ve —y sabe que no es suya', async () => {
+    await http
+      .patch(`/v1/vistas/${mia}/compartida`)
+      .set(auth(tokenOwner))
+      .send({ compartida: true })
+      .expect(204);
+
+    const delAgente = await http.get('/v1/vistas').set(auth(tokenAgente)).expect(200);
+    const v = delAgente.body.find((x: { id: string }) => x.id === mia);
+    expect(v).toBeTruthy();
+    expect(v.compartida).toBe(true);
+    // `mia` es lo que decide si se le enseñan los botones de tocarla.
+    expect(v.mia).toBe(false);
+
+    const delDueno = await http.get('/v1/vistas').set(auth(tokenOwner)).expect(200);
+    expect(delDueno.body.find((x: { id: string }) => x.id === mia).mia).toBe(true);
+  });
+
+  it('quien no la creó NO puede dejar de compartirla ni borrarla', async () => {
+    // Un 404 y no un 403: una vista ajena y una inexistente se contestan
+    // igual, para no confirmar identificadores a quien los prueba.
+    const r = await http
+      .patch(`/v1/vistas/${mia}/compartida`)
+      .set(auth(tokenAgente))
+      .send({ compartida: false })
+      .expect(404);
+    expect(r.body.codigo).toBe('vista_no_encontrada');
+
+    await http.delete(`/v1/vistas/${mia}`).set(auth(tokenAgente)).expect(404);
+
+    // Y sigue compartida después del intento.
+    const sigue = await http.get('/v1/vistas').set(auth(tokenAgente)).expect(200);
+    expect(sigue.body.find((x: { id: string }) => x.id === mia).compartida).toBe(true);
+  });
+
+  it('dos compartidas no pueden llamarse igual: el equipo no las distinguiría', async () => {
+    const suya = await http
+      .post('/v1/vistas')
+      .set(auth(tokenAgente))
+      .send({ nombre: 'Sin responder hoy', filtros: { canal: 'whatsapp' } })
+      .expect(201);
+
+    // Privadas con el mismo nombre conviven: no se cruzan.
+    const r = await http
+      .patch(`/v1/vistas/${suya.body.id}/compartida`)
+      .set(auth(tokenAgente))
+      .send({ compartida: true })
+      .expect(409);
+    expect(r.body.codigo).toBe('nombre_compartido_repetido');
+  });
+
+  it('dejar de compartirla NO la borra: vuelve a ser privada de su autor', async () => {
+    await http
+      .patch(`/v1/vistas/${mia}/compartida`)
+      .set(auth(tokenOwner))
+      .send({ compartida: false })
+      .expect(204);
+
+    // Quien la usaba deja de verla...
+    const delAgente = await http.get('/v1/vistas').set(auth(tokenAgente)).expect(200);
+    expect(delAgente.body.find((x: { id: string }) => x.id === mia)).toBeUndefined();
+    // ...y su autor la conserva entera.
+    const delDueno = await http.get('/v1/vistas').set(auth(tokenOwner)).expect(200);
+    expect(delDueno.body.find((x: { id: string }) => x.id === mia).filtros).toEqual({
+      sinRespuesta: 'true',
+    });
+  });
+});

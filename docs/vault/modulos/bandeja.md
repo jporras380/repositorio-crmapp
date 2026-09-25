@@ -503,3 +503,82 @@ Las conversaciones que llevaba quedan **sin equipo**, no cerradas ni perdidas: l
 ![La opción que antes no existía](../adjuntos/2026-09-25-visibilidad-equipos.png)
 
 22 tests nuevos (10 de API —contra PostgreSQL— y 12 de pantalla).
+
+## Vistas compartidas (PR-100, 2026-09-25)
+
+La migración 0020 dejó escrito cómo hacer esto el día que hiciera falta:
+
+> Por usuario y no por cuenta: la vista de un agente es su forma de trabajar,
+> no una configuración del hotel. **Compartirlas es otra función, y cuando
+> haga falta se añade una columna, no se rehace esto.**
+
+La 0045 es esa columna. Seguí la instrucción en vez de rehacer la tabla.
+
+### Para qué
+
+Un supervisor define «Sin responder hoy» con sus cinco filtros y la comparte
+una vez. Sin esto, cada agente la reconstruye a su manera y acaban existiendo
+cinco versiones distintas de lo mismo, con nadie mirando la misma bandeja.
+
+### Quién la toca, y dónde vive esa garantía
+
+La ve todo el equipo; la cambia y la borra **solo quien la creó**.
+
+Eso lo garantiza el servicio con un `WHERE user_id = $1`, **no una política de
+base de datos**, y está dicho así en la propia migración en vez de dejarlo
+creer. El motivo: la RLS de este proyecto lleva el inquilino en el contexto de
+sesión (`app.tenant_id`) y no el usuario, y no hay con qué escribir una
+política por autor sin añadir `app.user_id` a todas las transacciones.
+
+Es la única garantía de este cambio que vive en el código. Se aceptó porque el
+daño si se rompiera es que alguien borre una vista ajena **de su propia
+cuenta** —molesto, no grave, y sin salir del inquilino—, y no justifica tocar
+el mecanismo de sesión entero.
+
+Una vista ajena y una inexistente contestan **lo mismo**: 404. Por separado le
+dirían a quien prueba identificadores cuáles existen.
+
+### El nombre único cambia de ámbito
+
+Era único **por usuario**. Con vistas compartidas eso deja de bastar: dos
+personas pueden compartir dos «Urgentes» distintas y el equipo vería dos filas
+iguales sin forma de distinguirlas.
+
+Entre las compartidas, el nombre es único en toda la cuenta. Las privadas
+siguen siendo cosa de cada uno: que dos agentes tengan su propia «Urgentes» no
+molesta a nadie porque no se cruzan.
+
+### Decisiones pequeñas
+
+- **Nueva = privada.** Compartir es un gesto deliberado, no el estado por
+  defecto: una vista es la forma de trabajar de alguien hasta que decide que
+  sirve para todos.
+- **Las compartidas van después de las propias.** El orden que uno se ha puesto
+  es el suyo, y que una vista ajena se cuele en medio mueve los atajos de sitio.
+- **En la lista se distingue «compartida» (mía) de «del equipo» (de otro).**
+  Sin eso hay que pulsar para averiguar de quién es.
+- **Dejar de compartir no la borra**: vuelve a ser privada de su autor. Quien la
+  usaba deja de verla, que es lo que se pide al despublicarla. La reversa de la
+  migración hace lo mismo y lo dice.
+
+### Una excusa obsoleta en la guarda
+
+`PERMITIDOS` tenía `is_public: 'Vistas guardadas compartidas entre el equipo:
+pendiente.'` Al ir a implementarlo resultó que **esa columna no existía en
+`inbox_views`**: lo que la guarda estaba excusando era `plans.is_public`, que
+se usa desde PR-89.
+
+O sea, una entrada que tapaba una columna ya usada mientras describía una
+función sin columna. Es justo lo que el encabezado de la guarda advierte: *una
+lista de excepciones sin razones vuelve a ser el problema que esta guarda
+resuelve*. Quitada, y la guarda sigue verde.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Bandeja → Filtros. Ajusta un par y guárdalos con un nombre.
+2. En la lista, pulsa **↑** sobre esa vista: pasa a decir «compartida».
+3. Entra con otro usuario del equipo: la ve, dice «del equipo», y **no tiene
+   botones** de compartir ni borrar. Aplicarla sí funciona.
+4. Vuelve al primero y pulsa **↩**: el otro deja de verla y tú la conservas.
+
+9 tests nuevos (5 de API —con dos usuarios de verdad— y 4 de pantalla).

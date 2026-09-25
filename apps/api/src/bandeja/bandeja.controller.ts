@@ -96,6 +96,7 @@ const Envio: z.ZodType<PeticionDeEnvio, z.ZodTypeDef, unknown> = z.discriminated
 
 const Asignacion = z.object({ agenteId: z.string().uuid().nullable() });
 const Derivacion = z.object({ equipoId: z.string().uuid().nullable() });
+const Compartir = z.object({ compartida: z.boolean() });
 const Visibilidad = z.object({ modo: z.enum(['all', 'team', 'assigned']) });
 const Estado = z.object({ estado: z.enum(['open', 'pending', 'snoozed', 'closed']) });
 const Etiquetado = z.object({ tagId: z.string().uuid(), poner: z.boolean().default(true) });
@@ -251,6 +252,14 @@ export class BandejaController {
   guardarVista(@Req() req: Req, @Body() body: unknown) {
     const { nombre, filtros } = validar(Vista, body);
     return conContextoDePeticion(req, () => this.bandeja.guardarVista(nombre, filtros));
+  }
+
+  /** Compartirla con el equipo, o dejar de hacerlo. Solo su autor. */
+  @Patch('vistas/:id/compartida')
+  @HttpCode(204)
+  async compartirVista(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const { compartida } = validar(Compartir, body);
+    await conContextoDePeticion(req, () => this.bandeja.compartirVista(id, compartida));
   }
 
   @Delete('vistas/:id')

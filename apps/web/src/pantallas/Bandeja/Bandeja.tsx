@@ -216,6 +216,11 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
     setVistas(await api.vistas());
   }
 
+  async function compartirVista(id: string, compartida: boolean) {
+    await api.compartirVista(id, compartida);
+    setVistas(await api.vistas());
+  }
+
   const seleccionada = items.find((c) => c.id === seleccionadaId) ?? null;
   const fichaVisible = seleccionada !== null && paneles.fichaAbierta;
   const clases = [
@@ -243,6 +248,7 @@ export function Bandeja({ sesion, conversacionInicial, vistaInicial, alSalir }: 
           alCrearEtiqueta={nuevaEtiqueta}
           alGuardarVista={guardarVista}
           alBorrarVista={borrarVista}
+          alCompartirVista={compartirVista}
         />
         {/*
           El permiso se pide con un botón y solo mientras no se haya decidido:

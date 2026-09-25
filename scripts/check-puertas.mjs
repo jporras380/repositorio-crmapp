@@ -40,7 +40,6 @@ const PERMITIDOS = {
   duration_ms: 'Duración de audio y vídeo: no se lee del archivo todavía.',
   remote_url: 'URL del proveedor antes de descargar; solo la usa la descarga.',
   remote_expires_at: 'Ídem.',
-  is_public: 'Vistas guardadas compartidas entre el equipo: pendiente.',
   paused_until:
     'Hasta cuándo pausó Meta una plantilla. Enviar ya se bloquea por `status`; ' +
     'esto solo enriquecería el mensaje.',

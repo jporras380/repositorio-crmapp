@@ -821,6 +821,8 @@ export const inboxViews = pgTable('inbox_views', {
   name: text('name').notNull(),
   filters: jsonb('filters').notNull().default({}),
   position: integer('position').notNull().default(0),
+  /** Compartida con el equipo (0045). La ve cualquiera; la cambia su autor. */
+  isPublic: boolean('is_public').notNull().default(false),
   createdAt: creado,
   updatedAt: actualizado,
 });
