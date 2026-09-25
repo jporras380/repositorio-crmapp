@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Api } from '../../api/cliente.ts';
-import type { Etiqueta, ResumenDeConversacion } from '../../api/tipos.ts';
+import type { EquipoDeLaCuenta, Etiqueta, ResumenDeConversacion } from '../../api/tipos.ts';
 import { horaCorta, inicial } from '../../vista/tiempo.ts';
 import { pintar } from '../Filtros/Filtros.tsx';
 import { ReservaDeConversacion } from './ReservaDeConversacion.tsx';
@@ -113,6 +113,8 @@ export function PanelDeContacto({
         </p>
       </section>
 
+      <EquipoDeLaConversacion api={api} conversacion={conversacion} alCambiar={alCambiar} />
+
       <section className={estilos.seccion}>
         <h3 className={estilos.titulo}>Estado</h3>
         <div className={estilos.estados} role="radiogroup" aria-label="Estado">
@@ -194,5 +196,79 @@ export function PanelDeContacto({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * A qué equipo pertenece esta conversación (PR-97).
+ *
+ * Es un gesto distinto de asignar, y por eso va en su propio bloque:
+ * **asignar es «te toca a ti» y derivar es «esto es de Reservas»**. Una
+ * conversación puede estar en un equipo y sin persona concreta, que es justo
+ * lo que pasa al derivarla en recepción para que la coja quien pueda.
+ *
+ * Si la cuenta no tiene equipos, esto **no se pinta**. Un desplegable vacío
+ * en la ficha de cada conversación es ruido para quien nunca los va a usar.
+ */
+function EquipoDeLaConversacion({
+  api,
+  conversacion,
+  alCambiar,
+}: {
+  api: Api;
+  conversacion: ResumenDeConversacion;
+  alCambiar: () => void;
+}) {
+  const [equipos, setEquipos] = useState<EquipoDeLaCuenta[]>([]);
+  const [ocupado, setOcupado] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    api
+      .equipos()
+      .then((e) => {
+        if (vivo) setEquipos(e);
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, [api]);
+
+  if (equipos.length === 0) return null;
+
+  async function derivar(equipoId: string) {
+    setOcupado(true);
+    try {
+      await api.derivarAEquipo(conversacion.id, equipoId || null);
+      alCambiar();
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <section className={estilos.seccion}>
+      <h3 className={estilos.titulo}>Equipo</h3>
+      <label>
+        <span className="visually-hidden">Equipo que lleva esta conversación</span>
+        <select
+          className={estilos.accion}
+          value={conversacion.equipoId ?? ''}
+          disabled={ocupado}
+          onChange={(e) => void derivar(e.target.value)}
+        >
+          <option value="">Sin equipo</option>
+          {equipos.map((eq) => (
+            <option key={eq.id} value={eq.id}>
+              {eq.nombre}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className={estilos.nota}>
+        Derivarla no se la asigna a nadie: la sigue viendo el equipo entero.
+      </p>
+    </section>
   );
 }

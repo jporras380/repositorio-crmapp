@@ -31,6 +31,8 @@ function equipo(p: Partial<EquipoDeLaCuenta> = {}): EquipoDeLaCuenta {
 function pintar(datos = equipo(), gestor = true, extra: Record<string, unknown> = {}) {
   const api = {
     equipo: vi.fn().mockResolvedValue(datos),
+    // La lista de equipos vive dentro de esta pantalla desde PR-97.
+    equipos: vi.fn().mockResolvedValue([]),
     invitar: vi.fn().mockResolvedValue({ id: 'i1', token: 'un-token-largo' }),
     cancelarInvitacion: vi.fn().mockResolvedValue(undefined),
     ...extra,

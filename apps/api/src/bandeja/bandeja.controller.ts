@@ -95,6 +95,7 @@ const Envio: z.ZodType<PeticionDeEnvio, z.ZodTypeDef, unknown> = z.discriminated
 ]);
 
 const Asignacion = z.object({ agenteId: z.string().uuid().nullable() });
+const Derivacion = z.object({ equipoId: z.string().uuid().nullable() });
 const Visibilidad = z.object({ modo: z.enum(['all', 'team', 'assigned']) });
 const Estado = z.object({ estado: z.enum(['open', 'pending', 'snoozed', 'closed']) });
 const Etiquetado = z.object({ tagId: z.string().uuid(), poner: z.boolean().default(true) });
@@ -170,6 +171,17 @@ export class BandejaController {
   async asignar(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
     const { agenteId } = validar(Asignacion, body);
     await conContextoDePeticion(req, () => this.bandeja.asignar(id, agenteId));
+  }
+
+  /**
+   * Derivar a un equipo (PR-97). Distinto de asignar: asignar es «te toca a
+   * ti» y esto es «esto es de Reservas».
+   */
+  @Patch('conversaciones/:id/equipo')
+  @HttpCode(204)
+  async equipo(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const { equipoId } = validar(Derivacion, body);
+    await conContextoDePeticion(req, () => this.bandeja.ponerEnEquipo(id, equipoId));
   }
 
   @Patch('conversaciones/:id/estado')

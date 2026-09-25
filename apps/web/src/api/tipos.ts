@@ -146,6 +146,20 @@ export interface ConfiguracionDeReparto {
   }[];
 }
 
+/**
+ * Un equipo de la cuenta: Recepción, Reservas, Mantenimiento (PR-97).
+ *
+ * Las tablas existían desde 0002 sin que nadie las escribiera. Lo que las
+ * saca de ahí es el modo «por equipos» de la visibilidad.
+ */
+export interface EquipoDeLaCuenta {
+  id: string;
+  nombre: string;
+  miembros: { userId: string; nombre: string; rol: string }[];
+  /** Conversaciones sin cerrar que lleva. Lo que dice si el equipo está vivo. */
+  abiertas: number;
+}
+
 /** Un tramo abierto del horario: `["09:00", "13:00"]`, hora del hotel. */
 export type TramoDeHorario = [string, string];
 
@@ -200,6 +214,8 @@ export interface ResumenDeConversacion {
     usuario: string | null;
   };
   agenteId: string | null;
+  /** El equipo que lleva el hilo, si se derivó a uno (PR-97). */
+  equipoId: string | null;
   noLeidos: number;
   ultimoEntranteEn: string | null;
   ultimoSalienteEn: string | null;

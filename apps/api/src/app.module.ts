@@ -36,6 +36,7 @@ import {
   TOKEN_RESERVAS,
   TOKEN_IA,
   TOKEN_HORARIO,
+  TOKEN_EQUIPOS,
   TOKEN_EVENTOS,
 } from './tokens.js';
 import { AuthService } from './auth/auth.service.js';
@@ -83,6 +84,8 @@ import { IaService } from './ia/ia.service.js';
 import { IaController } from './ia/ia.controller.js';
 import { HorarioService } from './horario/horario.service.js';
 import { HorarioController } from './horario/horario.controller.js';
+import { EquiposController } from './equipos/equipos.controller.js';
+import { EquiposService } from './equipos/equipos.service.js';
 import { EventosService } from './eventos/eventos.service.js';
 import { EventosController } from './eventos/eventos.controller.js';
 import { clienteDeIa, type ClienteDeIa } from './ia/cliente-de-ia.js';
@@ -175,6 +178,7 @@ export class AppModule {
         ReservasController,
         IaController,
         HorarioController,
+        EquiposController,
         EventosController,
       ],
       providers: [
@@ -369,6 +373,11 @@ export class AppModule {
           provide: TOKEN_HORARIO,
           inject: [TOKEN_DB],
           useFactory: (db: BaseDeDatos) => new HorarioService({ db }),
+        },
+        {
+          provide: TOKEN_EQUIPOS,
+          inject: [TOKEN_DB],
+          useFactory: (db: BaseDeDatos) => new EquiposService({ db }),
         },
         {
           provide: TOKEN_IA,

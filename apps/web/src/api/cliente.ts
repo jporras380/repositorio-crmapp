@@ -17,6 +17,7 @@ import type {
   AjustesDeIa,
   EtiquetaConUso,
   ConfiguracionDeReparto,
+  EquipoDeLaCuenta,
   HorarioDeAtencion,
   BorradorDePlantilla,
   ProblemaDePlantilla,
@@ -231,6 +232,37 @@ export function crearApi(token: string | null) {
         ...t,
         metodo: 'PATCH',
         cuerpo: { agenteId },
+      }),
+    /**
+     * Derivar a un equipo. Distinto de asignar: asignar es «te toca a ti» y
+     * esto es «esto es de Reservas».
+     */
+    derivarAEquipo: (conversationId: string, equipoId: string | null) =>
+      peticion<void>(`/v1/conversaciones/${conversationId}/equipo`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { equipoId },
+      }),
+
+    // --- Equipos (PR-97) ----------------------------------------------------
+    /** Los equipos y quien esta en cada uno. Lo lee cualquiera del equipo. */
+    equipos: () => peticion<EquipoDeLaCuenta[]>('/v1/equipos', t),
+    crearEquipo: (nombre: string) =>
+      peticion<EquipoDeLaCuenta[]>('/v1/equipos', { ...t, metodo: 'POST', cuerpo: { nombre } }),
+    renombrarEquipo: (id: string, nombre: string) =>
+      peticion<EquipoDeLaCuenta[]>(`/v1/equipos/${id}`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { nombre },
+      }),
+    /** Borrarlo NO cierra sus conversaciones: quedan sin equipo. */
+    borrarEquipo: (id: string) =>
+      peticion<EquipoDeLaCuenta[]>(`/v1/equipos/${id}`, { ...t, metodo: 'DELETE' }),
+    cambiarMiembroDeEquipo: (id: string, userId: string, dentro: boolean) =>
+      peticion<EquipoDeLaCuenta[]>(`/v1/equipos/${id}/miembros`, {
+        ...t,
+        metodo: 'PATCH',
+        cuerpo: { userId, dentro },
       }),
     cambiarEstado: (conversationId: string, estado: string) =>
       peticion<void>(`/v1/conversaciones/${conversationId}/estado`, {

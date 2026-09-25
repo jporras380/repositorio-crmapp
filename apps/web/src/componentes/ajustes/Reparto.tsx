@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
-import type { ConfiguracionDeReparto } from '../../api/tipos.ts';
+import type { ConfiguracionDeReparto, EquipoDeLaCuenta } from '../../api/tipos.ts';
 import compartidos from './ajustes.module.css';
 import estilos from './Reparto.module.css';
 
@@ -58,7 +58,7 @@ export function Reparto({ api, administra }: Props) {
     }
   }
 
-  async function guardarVisibilidad(modo: 'all' | 'assigned') {
+  async function guardarVisibilidad(modo: 'all' | 'team' | 'assigned') {
     setOcupado(true);
     setError(null);
     try {
@@ -116,6 +116,7 @@ export function Reparto({ api, administra }: Props) {
 
       {config && (
         <Visibilidad
+          api={api}
           config={config}
           administra={administra}
           ocupado={ocupado}
@@ -158,29 +159,38 @@ export function Reparto({ api, administra }: Props) {
  *
  * ## Por qué solo dos opciones y no las tres de la base
  *
- * La columna admite `all`, `team` y `assigned`, pero **no hay forma de crear
- * un equipo**: `teams` y `team_members` existen desde la fase 0 y no las
- * escribe nadie. Con cero equipos, `team` se comporta como «las mías y las
- * sin asignar», que no tiene nada que ver con lo que la palabra promete.
+ * ## Por qué «por equipos» solo aparece cuando hay equipos
  *
- * Ofrecer una opción que no hace lo que dice es peor que no ofrecerla. Vuelve
- * el día que se puedan crear equipos, y hasta entonces es deuda con nombre.
+ * En PR-96 esta opción no existía: `teams` llevaba desde la fase 0 sin que
+ * nadie la escribiera, y con cero equipos el modo se comportaba como «solo
+ * las mías» —una opción que no hace lo que dice—. PR-97 la hizo real.
  *
- * Si una cuenta ya está en `team` —se pudo poner por API— se dice tal cual
- * en vez de enseñar otra cosa seleccionada.
+ * Sigue sin ofrecerse cuando la cuenta **no tiene ningún equipo**, por la
+ * misma razón: elegirla ahí no cambiaría nada y parecería que sí. En su
+ * lugar se dice dónde se crean.
  */
 function Visibilidad({
+  api,
   config,
   administra,
   ocupado,
   alCambiar,
 }: {
+  api: Api;
   config: ConfiguracionDeReparto;
   administra: boolean;
   ocupado: boolean;
-  alCambiar: (modo: 'all' | 'assigned') => Promise<void>;
+  alCambiar: (modo: 'all' | 'team' | 'assigned') => Promise<void>;
 }) {
-  const OPCIONES: { valor: 'all' | 'assigned'; titulo: string; explica: string }[] = [
+  const [equipos, setEquipos] = useState<EquipoDeLaCuenta[]>([]);
+  useEffect(() => {
+    api
+      .equipos()
+      .then(setEquipos)
+      .catch(() => undefined);
+  }, [api]);
+
+  const OPCIONES: { valor: 'all' | 'team' | 'assigned'; titulo: string; explica: string }[] = [
     {
       valor: 'all',
       titulo: 'Toda la bandeja',
@@ -195,6 +205,17 @@ function Visibilidad({
     },
   ];
 
+  // «Por equipos» solo si hay equipos: sin ellos se comporta igual que «solo
+  // las suyas», y ofrecerla sería prometer algo que no pasa.
+  if (equipos.length > 0) {
+    OPCIONES.splice(1, 0, {
+      valor: 'team',
+      titulo: 'Las de sus equipos',
+      explica:
+        'Un agente ve las de los equipos a los que pertenece, las suyas y las sin asignar. Recepción no ve lo de Mantenimiento.',
+    });
+  }
+
   return (
     <>
       <h3 className={compartidos.tarjetaTitulo}>Qué ve cada agente</h3>
@@ -203,11 +224,11 @@ function Visibilidad({
         siempre toda la bandeja: su trabajo es ver lo que los demás no atienden.
       </p>
 
-      {config.visibilidad === 'team' && (
+      {config.visibilidad === 'team' && equipos.length === 0 && (
         <p className={`${compartidos.aviso} ${compartidos.aviso_info}`} role="status">
-          Esta cuenta está en <strong>por equipos</strong>, puesto por API. Todavía no se pueden
-          crear equipos desde el producto, así que en la práctica cada agente ve las suyas y las sin
-          asignar. Elige una de las dos de abajo para dejarlo claro.
+          Esta cuenta está en <strong>por equipos</strong> y no tiene ninguno, así que en la
+          práctica cada agente ve las suyas y las sin asignar. Crea equipos en{' '}
+          <strong>Ajustes → Equipo</strong>, o elige otra opción aquí.
         </p>
       )}
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
 import type { Equipo as EquipoDeLaCuenta, Miembro } from '../../api/tipos.ts';
 import { faltan } from '../../vista/tiempo.ts';
+import { Equipos } from './Equipos.tsx';
 import estilos from './ajustes.module.css';
 import propios from './Equipo.module.css';
 
@@ -286,6 +287,18 @@ export function Equipo({ api, gestor }: Props) {
           </div>
         </>
       )}
+
+      {/* Los equipos van DESPUÉS de las personas: primero existe la gente y
+          luego se agrupa, y en ese orden se lee la pantalla de arriba abajo. */}
+      <Equipos
+        api={api}
+        gestor={gestor}
+        personas={(equipo?.miembros ?? []).map((m) => ({
+          userId: m.id,
+          nombre: m.nombre,
+          rol: m.rol,
+        }))}
+      />
     </section>
   );
 }

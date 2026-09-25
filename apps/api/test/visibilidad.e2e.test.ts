@@ -328,3 +328,171 @@ describe('la visibilidad viaja con el reparto', () => {
     expect(todas.length).toBeGreaterThan(suyas.length);
   });
 });
+
+/**
+ * Equipos por la API (PR-97).
+ *
+ * `teams`, `team_members` y `conversations.team_id` existían desde 0002 y
+ * 0004 **leéndose y sin que nadie las escribiera**. Los tests de arriba
+ * sembraban los equipos con SQL directo, así que demostraban que la regla
+ * funciona pero no que se pueda montar desde el producto.
+ *
+ * Lo que se prueba aquí es el recorrido entero por HTTP: crear el equipo,
+ * meter a alguien, derivar una conversación, y que el modo `team` cambie lo
+ * que ese agente ve. Si faltara cualquiera de las tres piezas, la
+ * funcionalidad sería decorativa.
+ */
+describe('equipos por la API', () => {
+  let nuevoEquipo: string;
+  /** Propia, no la del escenario de arriba: los tests de antes la asignan. */
+  let paraDerivar: string;
+
+  it('un agente los LEE —sabe a dónde derivar— pero no los monta', async () => {
+    await http.get('/v1/equipos').set(auth(tokenAgente)).expect(200);
+    const r = await http
+      .post('/v1/equipos')
+      .set(auth(tokenAgente))
+      .send({ nombre: 'Suyo' })
+      .expect(403);
+    expect(r.body.codigo).toBe('sin_permiso');
+  });
+
+  it('crear uno lo devuelve en la lista, con su contador a cero', async () => {
+    const r = await http
+      .post('/v1/equipos')
+      .set(auth(tokenOwner))
+      .send({ nombre: 'Mantenimiento' })
+      .expect(201);
+    const eq = r.body.find((e: { nombre: string }) => e.nombre === 'Mantenimiento');
+    expect(eq).toBeTruthy();
+    expect(eq.abiertas).toBe(0);
+    expect(eq.miembros).toEqual([]);
+    nuevoEquipo = eq.id;
+  });
+
+  it('el nombre no se puede repetir: es lo que se elige en un desplegable', async () => {
+    const r = await http
+      .post('/v1/equipos')
+      .set(auth(tokenOwner))
+      .send({ nombre: 'Mantenimiento' })
+      .expect(409);
+    expect(r.body.codigo).toBe('equipo_repetido');
+  });
+
+  it('meter a alguien es idempotente: marcar dos veces no es un error', async () => {
+    await http
+      .patch(`/v1/equipos/${nuevoEquipo}/miembros`)
+      .set(auth(tokenOwner))
+      .send({ userId: otroAgenteId, dentro: true })
+      .expect(200);
+    const r = await http
+      .patch(`/v1/equipos/${nuevoEquipo}/miembros`)
+      .set(auth(tokenOwner))
+      .send({ userId: otroAgenteId, dentro: true })
+      .expect(200);
+    const eq = r.body.find((e: { id: string }) => e.id === nuevoEquipo);
+    expect(eq.miembros).toHaveLength(1);
+  });
+
+  it('una persona puede estar en VARIOS equipos', async () => {
+    // En un hotel pequeño, quien atiende recepción lleva también las reservas.
+    await http
+      .patch(`/v1/equipos/${equipoId}/miembros`)
+      .set(auth(tokenOwner))
+      .send({ userId: otroAgenteId, dentro: true })
+      .expect(200);
+    const r = await http.get('/v1/equipos').set(auth(tokenOwner)).expect(200);
+    const enCuantos = r.body.filter((e: { miembros: { userId: string }[] }) =>
+      e.miembros.some((m) => m.userId === otroAgenteId),
+    );
+    expect(enCuantos.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('derivar una conversación la pone en el equipo, sin asignársela a nadie', async () => {
+    paraDerivar = await conversacion('Derivable', null, null);
+    await http
+      .patch(`/v1/conversaciones/${paraDerivar}/equipo`)
+      .set(auth(tokenOwner))
+      .send({ equipoId: nuevoEquipo })
+      .expect(204);
+
+    const r = await http.get('/v1/conversaciones').set(auth(tokenOwner)).expect(200);
+    const c = r.body.items.find((i: { id: string }) => i.id === paraDerivar);
+    expect(c.equipoId).toBe(nuevoEquipo);
+    // Derivar no es asignar: sigue sin dueño.
+    expect(c.agenteId).toBeNull();
+
+    const lista = await http.get('/v1/equipos').set(auth(tokenOwner)).expect(200);
+    expect(lista.body.find((e: { id: string }) => e.id === nuevoEquipo).abiertas).toBe(1);
+  });
+
+  it('un equipo inventado no cuela', async () => {
+    const r = await http
+      .patch(`/v1/conversaciones/${paraDerivar}/equipo`)
+      .set(auth(tokenOwner))
+      .send({ equipoId: '01a00000-0000-7000-8000-00000000dead' })
+      .expect(422);
+    expect(r.body.codigo).toBe('equipo_invalido');
+  });
+
+  it('y el modo `team` cambia lo que ve ese agente: el recorrido entero', async () => {
+    // Esta es la prueba de que las tres piezas juntas hacen algo. Con una
+    // sola de ellas, la funcionalidad sería decorativa.
+    await http
+      .patch(`/v1/conversaciones/${ajena}/equipo`)
+      .set(auth(tokenOwner))
+      .send({ equipoId: nuevoEquipo })
+      .expect(204);
+    await http
+      .patch(`/v1/equipos/${nuevoEquipo}/miembros`)
+      .set(auth(tokenOwner))
+      .send({ userId: agenteId, dentro: true })
+      .expect(200);
+
+    await modo('team');
+    const conEquipo = await idsVisibles(tokenAgente);
+    expect(conEquipo).toContain(ajena);
+
+    // Y sacarlo del equipo se la quita de delante.
+    await http
+      .patch(`/v1/equipos/${nuevoEquipo}/miembros`)
+      .set(auth(tokenOwner))
+      .send({ userId: agenteId, dentro: false })
+      .expect(200);
+    expect(await idsVisibles(tokenAgente)).not.toContain(ajena);
+  });
+
+  it('borrar el equipo NO cierra sus conversaciones: quedan sin equipo', async () => {
+    // Perder trabajo en curso por reorganizar el organigrama sería el peor
+    // cambio posible. El `ON DELETE SET NULL` de 0004 lo impide.
+    await modo('all');
+    await http.delete(`/v1/equipos/${nuevoEquipo}`).set(auth(tokenOwner)).expect(200);
+
+    const r = await http.get('/v1/conversaciones').set(auth(tokenOwner)).expect(200);
+    const c = r.body.items.find((i: { id: string }) => i.id === paraDerivar);
+    expect(c).toBeTruthy();
+    expect(c.equipoId).toBeNull();
+  });
+
+  it('renombrar uno que no existe da 404', async () => {
+    const r = await http
+      .patch('/v1/equipos/01a00000-0000-7000-8000-00000000dead')
+      .set(auth(tokenOwner))
+      .send({ nombre: 'Lo que sea' })
+      .expect(404);
+    expect(r.body.codigo).toBe('equipo_no_encontrado');
+  });
+
+  it('todo queda en la auditoría de la cuenta', async () => {
+    const { rows } = await admin.query<{ action: string }>(
+      `SELECT DISTINCT action FROM audit_log
+        WHERE tenant_id = $1 AND action LIKE 'equipo%' ORDER BY action`,
+      [tenantId],
+    );
+    expect(rows.map((r) => r.action)).toEqual([
+      'equipo.borrado',
+      'equipo.creado',
+      'equipo.miembro',
+    ]);
+  });
+});

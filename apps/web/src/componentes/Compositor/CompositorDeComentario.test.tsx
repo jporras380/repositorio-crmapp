@@ -13,6 +13,7 @@ const hilo: ResumenDeConversacion = {
   publicacionId: 'post.7',
   contacto: { id: 'p1', nombre: 'caro.rp', handle: 'caro.rp', telefono: null, usuario: null },
   agenteId: null,
+  equipoId: null,
   noLeidos: 1,
   ultimoEntranteEn: null,
   ultimoSalienteEn: null,

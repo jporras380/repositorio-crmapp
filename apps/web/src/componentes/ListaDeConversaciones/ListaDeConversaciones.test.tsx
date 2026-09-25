@@ -13,6 +13,7 @@ const base: ResumenDeConversacion = {
   publicacionId: null,
   contacto: { id: 'p1', nombre: 'Ana Pérez', handle: '+51999', telefono: null, usuario: null },
   agenteId: null,
+  equipoId: null,
   noLeidos: 3,
   ultimoEntranteEn: new Date().toISOString(),
   ultimoSalienteEn: null,

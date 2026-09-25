@@ -445,3 +445,61 @@ Si una cuenta ya está en `team` —se pudo poner por API— la pantalla lo **di
 ![Qué ve cada agente](../adjuntos/2026-09-23-visibilidad.png)
 
 12 tests nuevos (5 de API —contra PostgreSQL— y 7 de pantalla).
+
+## Equipos (PR-97, 2026-09-25)
+
+Lo que desbloquea es el modo «por equipos» de la visibilidad, que PR-96 dejó fuera porque sin equipos no hacía lo que prometía.
+
+### Tres tablas muertas desde la fase 0
+
+| Tabla | Desde | Estado antes |
+|---|---|---|
+| `teams` | 0002 | Se lee en la cláusula de visibilidad. Nadie la escribe |
+| `team_members` | 0002 | Ídem |
+| `conversations.team_id` | 0004 | Ídem |
+
+No fue el olvido de una tarde: llevaban ahí desde el principio mientras el producto crecía alrededor. Lo que las sacó de ahí no fue una revisión sino una consecuencia: al no poder ofrecer una opción de PR-96, quedó escrito por qué.
+
+**No hizo falta migración.** Las tablas están con su RLS, su `UNIQUE (tenant_id, name)` y su `ON DELETE SET NULL`.
+
+### Por qué las tres piezas o ninguna
+
+Con equipos pero sin miembros, la cláusula no encuentra los equipos de nadie. Con equipos y miembros pero sin derivar conversaciones, `team_id` sigue siendo NULL en todas. **Con una sola pieza, la funcionalidad es decorativa** — la misma familia de fallo que persigue `check-puertas.mjs`.
+
+Por eso el test que importa hace el recorrido entero por HTTP: crea el equipo, mete al agente, deriva una conversación, pone el modo `team`, y comprueba que ese agente **empieza a verla**. Luego lo saca del equipo y comprueba que **deja de verla**.
+
+### Derivar no es asignar
+
+Son dos gestos distintos y por eso van en dos bloques distintos de la ficha:
+
+- **Asignar** es «te toca a ti».
+- **Derivar** es «esto es de Reservas».
+
+Una conversación puede estar en un equipo y sin persona concreta, que es justo lo que pasa al derivarla en recepción para que la coja quien pueda. Hay un test de que derivar **no** rellena `assignee_user_id`.
+
+El selector **no se pinta** si la cuenta no tiene equipos: un desplegable vacío en la ficha de cada conversación es ruido para quien nunca los va a usar.
+
+### Borrar un equipo no borra su trabajo
+
+Las conversaciones que llevaba quedan **sin equipo**, no cerradas ni perdidas: lo garantiza el `ON DELETE SET NULL` de 0004. Perder trabajo en curso por reorganizar el organigrama sería el peor cambio posible, así que el aviso de confirmación lo dice **antes**, con el número concreto: «*Recepción* lleva 3 conversaciones abiertas. No se cierran». Un equipo sin conversaciones no gasta ese párrafo.
+
+### Decisiones pequeñas
+
+- **Una persona puede estar en varios equipos.** En un hotel pequeño, quien atiende recepción lleva también las reservas por la tarde. La cláusula de visibilidad ya lo contemplaba.
+- **Meter a alguien es idempotente.** Marcar dos veces la misma casilla no es un error que merezca enseñarse a nadie.
+- **El contador de abiertas va en cada equipo.** Es lo único que distingue uno vivo de uno que alguien creó y dejó.
+- **El reparto automático NO filtra por equipo.** Sigue mirando a la persona con menos conversaciones abiertas. Cambiar cómo se reparte el trabajo de un día para otro sin que nadie lo haya pedido sería pasarse; el dato ya está para cuando se pida.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Ajustes → Equipo → abajo, **Equipos**. Crea «Recepción».
+2. Pulsa su nombre: salen las personas de la cuenta. Marca a un agente.
+3. Ajustes → Reparto: ahora aparece **«Las de sus equipos»**, que antes no existía. Elígela.
+4. En una conversación, ficha del contacto → **Equipo** → Recepción.
+5. Entra con ese agente: la ve. Sácalo del equipo: deja de verla.
+
+![Equipos](../adjuntos/2026-09-25-equipos.png)
+
+![La opción que antes no existía](../adjuntos/2026-09-25-visibilidad-equipos.png)
+
+22 tests nuevos (10 de API —contra PostgreSQL— y 12 de pantalla).

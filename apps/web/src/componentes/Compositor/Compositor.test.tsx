@@ -13,6 +13,7 @@ const conversacion: ResumenDeConversacion = {
   publicacionId: null,
   contacto: { id: 'p1', nombre: 'Ana', handle: null, telefono: null, usuario: null },
   agenteId: null,
+  equipoId: null,
   noLeidos: 0,
   ultimoEntranteEn: null,
   ultimoSalienteEn: null,

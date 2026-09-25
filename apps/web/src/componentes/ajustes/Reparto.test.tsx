@@ -19,7 +19,11 @@ const CONFIG: ConfiguracionDeReparto = {
 describe('Ajustes → Reparto', () => {
   it('encenderlo lo guarda y dice entre cuántas personas reparte', async () => {
     const guardarReparto = vi.fn().mockResolvedValue({ ...CONFIG, modo: 'least_busy' });
-    const api = { reparto: vi.fn().mockResolvedValue(CONFIG), guardarReparto } as unknown as Api;
+    const api = {
+      reparto: vi.fn().mockResolvedValue(CONFIG),
+      equipos: vi.fn().mockResolvedValue([]),
+      guardarReparto,
+    } as unknown as Api;
     render(<Reparto api={api} administra={true} />);
     expect(
       await screen.findByText(/Apagado: las conversaciones nuevas quedan sin asignar/),
@@ -31,7 +35,11 @@ describe('Ajustes → Reparto', () => {
 
   it('marcar a alguien lo mete en el reparto', async () => {
     const guardarReparto = vi.fn().mockResolvedValue(CONFIG);
-    const api = { reparto: vi.fn().mockResolvedValue(CONFIG), guardarReparto } as unknown as Api;
+    const api = {
+      reparto: vi.fn().mockResolvedValue(CONFIG),
+      equipos: vi.fn().mockResolvedValue([]),
+      guardarReparto,
+    } as unknown as Api;
     render(<Reparto api={api} administra={true} />);
     await userEvent.click(await screen.findByRole('checkbox', { name: /Beto/ }));
     expect(guardarReparto).toHaveBeenCalledWith({ miembros: [{ userId: 'u2', recibe: true }] });
@@ -39,6 +47,9 @@ describe('Ajustes → Reparto', () => {
 
   it('encendido sin nadie marcado avisa de que quedarán sin asignar', async () => {
     const api = {
+      // Visibilidad ofrece «por equipos» solo si los hay (PR-97): sin este
+      // mock, su propio fallo taparía al que se está probando.
+      equipos: vi.fn().mockResolvedValue([]),
       reparto: vi.fn().mockResolvedValue({
         modo: 'least_busy',
         visibilidad: 'all',
@@ -50,7 +61,10 @@ describe('Ajustes → Reparto', () => {
   });
 
   it('quien no administra ve el reparto pero no lo cambia', async () => {
-    const api = { reparto: vi.fn().mockResolvedValue(CONFIG) } as unknown as Api;
+    const api = {
+      reparto: vi.fn().mockResolvedValue(CONFIG),
+      equipos: vi.fn().mockResolvedValue([]),
+    } as unknown as Api;
     render(<Reparto api={api} administra={false} />);
     const casilla = (await screen.findByRole('checkbox', { name: /Ana/ })) as HTMLInputElement;
     expect(casilla.disabled).toBe(true);
@@ -67,9 +81,15 @@ describe('Ajustes → Reparto', () => {
  * es de cualquiera— y que no se ofrece una opción que no hace lo que dice.
  */
 describe('Ajustes → Qué ve cada agente', () => {
-  function pintar(config: ConfiguracionDeReparto, administra = true) {
+  function pintar(
+    config: ConfiguracionDeReparto,
+    administra = true,
+    equipos: { id: string; nombre: string; miembros: []; abiertas: number }[] = [],
+  ) {
     const guardarVisibilidad = vi.fn().mockResolvedValue({ ...config, visibilidad: 'assigned' });
     const api = {
+      // Visibilidad ofrece «por equipos» solo si los hay (PR-97).
+      equipos: vi.fn().mockResolvedValue(equipos),
       reparto: vi.fn().mockResolvedValue(config),
       guardarReparto: vi.fn(),
       guardarVisibilidad,
@@ -92,11 +112,19 @@ describe('Ajustes → Qué ve cada agente', () => {
     expect(screen.getByText(/Las sin asignar también/)).toBeTruthy();
   });
 
-  it('NO ofrece «por equipos»: no se pueden crear equipos todavía', async () => {
+  it('sin equipos NO ofrece «por equipos»', async () => {
     pintar(CONFIG);
     await screen.findByText(/Toda la bandeja/);
-    // Ofrecer una opción que no hace lo que dice es peor que no ofrecerla.
-    expect(screen.queryByText(/por equipo/i)).toBeNull();
+    // Sin equipos se comporta igual que «solo las suyas»: ofrecerla sería
+    // prometer algo que no pasa.
+    expect(screen.queryByText(/Las de sus equipos/)).toBeNull();
+  });
+
+  it('con equipos SÍ la ofrece: PR-97 la hizo real', async () => {
+    pintar(CONFIG, true, [{ id: 'e1', nombre: 'Recepción', miembros: [], abiertas: 0 }]);
+    expect(await screen.findByText(/Las de sus equipos/)).toBeTruthy();
+    // Y explica el caso concreto, no la mecánica.
+    expect(screen.getByText(/Recepción no ve lo de Mantenimiento/)).toBeTruthy();
   });
 
   it('cambiarla la guarda', async () => {
@@ -116,15 +144,12 @@ describe('Ajustes → Qué ve cada agente', () => {
     ).toBe(false);
   });
 
-  it('una cuenta en «team» lo dice en vez de enseñar otra cosa marcada', async () => {
+  it('en «team» pero sin ningún equipo, lo dice y dice dónde crearlos', async () => {
     pintar({ ...CONFIG, visibilidad: 'team' });
-    // Se pudo poner por API. Marcar «toda la bandeja» sería mentir sobre lo
-    // que está pasando de verdad.
-    expect(await screen.findByText(/puesto por API/)).toBeTruthy();
-    const todas = (await screen.findByRole('radio', {
-      name: /Toda la bandeja/,
-    })) as HTMLInputElement;
-    expect(todas.checked).toBe(false);
+    // Marcar otra opción sería mentir sobre lo que está pasando; y sin decir
+    // dónde se arregla, el aviso es una queja.
+    expect(await screen.findByText(/no tiene ninguno/)).toBeTruthy();
+    expect(screen.getByText(/Ajustes → Equipo/)).toBeTruthy();
   });
 
   it('quien no administra la ve pero no la toca', async () => {

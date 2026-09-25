@@ -1,11 +1,11 @@
 ---
 estado: vivo
-fecha: 2026-09-23
+fecha: 2026-09-25
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 23 de septiembre de 2026
+# Estado — 25 de septiembre de 2026
 
 **El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
 
@@ -30,11 +30,13 @@ La sección de rutas en `PERMITIDOS` está **vacía**, y eso es el estado bueno.
 
 ### Lo que queda como deuda de verdad
 
-- **No se pueden crear equipos.** `teams` y `team_members` existen desde la fase 0 y no las escribe nadie. Por eso PR-96 **no ofrece** el modo `team` de la visibilidad: con cero equipos se comporta como «las mías y las sin asignar», que no es lo que la palabra promete. Vuelve el día que se puedan crear.
-- `borrarTipo`: se pueden crear tipos de habitación y no borrarlos.
+- `borrarTipo`: se pueden crear tipos de habitación y no borrarlos. **Única deuda con nombre que queda.**
+
+Cerrada en PR-97: crear equipos. Con ellos, el modo «por equipos» de la visibilidad ya se ofrece, y `business_hours.team_id` —horario distinto por equipo— pasa de imposible a pendiente.
 
 ## Completado
 
+- **PR-97, equipos** ([[bandeja]] §Equipos): desbloquea el modo «por equipos» que PR-96 no pudo ofrecer. `teams`, `team_members` y `conversations.team_id` existían desde 0002 y 0004 **leéndose y sin que nadie las escribiera**: tres tablas muertas desde la fase 0. Hacían falta las tres piezas —crear el equipo, meter gente, derivar la conversación— porque con una sola la funcionalidad es decorativa. Sin migración: todo estaba ya en la base.
 - **PR-96, qué ve cada agente** ([[bandeja]] §Visibilidad, con pantalla): cierra la última de las cuatro deudas de la guarda 5. La regla de ADR-008 llevaba desde 0010 **aplicándose de verdad** en la bandeja y en el embudo, y no había dónde cambiarla: se hacía con un PATCH a mano. Vive junto al reparto porque es la misma pregunta por el otro lado. **Solo se ofrecen dos de los tres modos**: `team` existe en la base pero no hay forma de crear un equipo, y una opción que no hace lo que dice es peor que no ofrecerla.
 - **PR-95, la consola sirve para algo** ([[facturacion]] §La consola, utilizable): lo señaló el usuario preguntando por el apartado para administrar los CRM de los clientes. La consola de PR-88 **enseñaba** todo y no dejaba **hacer** nada: decía «3 comprobantes sin subir» sin forma de subir ninguno, y el modo soporte de PR-90 dejaba al cliente aprobar un acceso que nadie podía pedir desde ninguna pantalla —se arrancaba con `curl`—. Cierra tres de las cuatro deudas que la guarda 5 encontró ayer. La ficha de una cuenta es enlazable (`#operador/<id>`).
 - **PR-94, el equipo de la cuenta** ([[web]] §Equipo): lo señaló el usuario preguntando dónde se crean los usuarios de un plan de 10 agentes. La respuesta era **en ningún sitio**: `POST /v1/invitaciones` existía desde fase 0, con límite de asientos y cuatro roles aplicados en 16 servicios, y no había ni método en el cliente web ni pantalla. Un cliente que pagaba por diez podía usar uno. Se añade la pantalla de equipo, la de aceptar la invitación, y **una quinta guarda**: rutas de la API que el cliente web no pide desde ningún sitio. Encontró otras cuatro, ahora deuda con nombre (ver abajo).

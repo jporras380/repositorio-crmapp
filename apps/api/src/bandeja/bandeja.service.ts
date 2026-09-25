@@ -77,6 +77,8 @@ export interface ResumenDeConversacion {
     usuario: string | null;
   };
   agenteId: string | null;
+  /** El equipo que lleva el hilo, si se derivó a uno (PR-97). */
+  equipoId: string | null;
   noLeidos: number;
   ultimoEntranteEn: Date | null;
   ultimoSalienteEn: Date | null;
@@ -281,6 +283,7 @@ export class BandejaService {
 
       const { rows } = await c.query<FilaResumen>(
         `SELECT c.id, ca.channel AS canal, c.status AS estado, c.assignee_user_id,
+                c.team_id,
                 c.kind, c.external_thread_id, c.snoozed_until,
                 ${ESTADO_DE_ATENCION} AS atencion,
                 c.unread_count, c.last_inbound_at, c.last_outbound_at,
@@ -641,6 +644,42 @@ export class BandejaService {
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
          VALUES ($1, $2, 'conversacion.asignada', 'conversation', $3, $4)`,
         [ctx.tenantId, ctx.userId, conversationId, JSON.stringify({ agenteId })],
+      );
+    });
+  }
+
+  /**
+   * A qué equipo pertenece esta conversación (PR-97).
+   *
+   * `conversations.team_id` existía desde 0004 **leéndose y sin que nadie la
+   * escribiera**: la cláusula de visibilidad por equipos la consultaba y
+   * siempre encontraba NULL, así que el modo no hacía nada. Esto es lo que lo
+   * hace real.
+   *
+   * Es un gesto distinto de asignar: asignar es «te toca a ti» y esto es «esto
+   * es de Reservas». Una conversación puede estar en un equipo y sin persona
+   * concreta, que es justo lo que pasa al derivarla.
+   */
+  async ponerEnEquipo(conversationId: string, equipoId: string | null): Promise<void> {
+    const ctx = this.#exigirContexto();
+    await this.#db.enTransaccion(async (c) => {
+      await this.#exigirConversacion(c, conversationId);
+      if (equipoId) {
+        // RLS ya limita a la cuenta: un equipo de otro inquilino no existe
+        // desde aquí y cae en este mismo error.
+        const { rows } = await c.query(`SELECT 1 FROM teams WHERE id = $1`, [equipoId]);
+        if (rows.length === 0) {
+          throw new ErrorDeNegocio('equipo_invalido', 'Ese equipo no existe.', 422);
+        }
+      }
+      await c.query(`UPDATE conversations SET team_id = $2, updated_at = now() WHERE id = $1`, [
+        conversationId,
+        equipoId,
+      ]);
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'conversacion.equipo', 'conversation', $3, $4)`,
+        [ctx.tenantId, ctx.userId, conversationId, JSON.stringify({ equipoId })],
       );
     });
   }
@@ -1129,6 +1168,7 @@ interface FilaResumen {
   id: string;
   canal: string;
   estado: string;
+  team_id: string | null;
   kind: string;
   external_thread_id: string | null;
   assignee_user_id: string | null;
@@ -1190,6 +1230,7 @@ function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {
       usuario: f.usuario,
     },
     agenteId: f.assignee_user_id,
+    equipoId: f.team_id,
     noLeidos: f.unread_count,
     ultimoEntranteEn: f.last_inbound_at,
     ultimoSalienteEn: f.last_outbound_at,
