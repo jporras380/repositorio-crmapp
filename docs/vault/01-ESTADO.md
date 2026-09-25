@@ -30,12 +30,15 @@ La sección de rutas en `PERMITIDOS` está **vacía**, y eso es el estado bueno.
 
 ### Lo que queda como deuda de verdad
 
-- `borrarTipo`: se pueden crear tipos de habitación y no borrarlos. **Única deuda con nombre que queda.**
+**No queda ninguna.** `PERMITIDOS` solo tiene decisiones —columnas que aún no se usan por un motivo escrito, y rutas que no llama el navegador—, sin una sola entrada que diga DEUDA.
 
-Cerrada en PR-97: crear equipos. Con ellos, el modo «por equipos» de la visibilidad ya se ofrece, y `business_hours.team_id` —horario distinto por equipo— pasa de imposible a pendiente.
+Cerradas estos dos días: pedir acceso de soporte desde la consola, ver qué falla, subir el comprobante, la visibilidad entre agentes, crear equipos y borrar un tipo de habitación.
+
+Lo que PR-97 deja al alcance sin ser deuda: `business_hours.team_id` —horario distinto por equipo— pasa de imposible a posible.
 
 ## Completado
 
+- **PR-98, borrar un tipo de habitación** ([[hotel]] §Borrar un tipo): cierra **la última deuda con nombre** de la guarda. El endpoint y el método del cliente existían; faltaba el botón, y llevaba meses anotado. Solo se ofrece cuando el tipo **no tiene habitaciones**: con ellas la API contesta 409, y enseñar un botón que siempre falla es peor que no tenerlo. De paso, el paso de MinIO del CI ya falla diciendo por qué en vez de agotarse en silencio.
 - **PR-97, equipos** ([[bandeja]] §Equipos): desbloquea el modo «por equipos» que PR-96 no pudo ofrecer. `teams`, `team_members` y `conversations.team_id` existían desde 0002 y 0004 **leéndose y sin que nadie las escribiera**: tres tablas muertas desde la fase 0. Hacían falta las tres piezas —crear el equipo, meter gente, derivar la conversación— porque con una sola la funcionalidad es decorativa. Sin migración: todo estaba ya en la base.
 - **PR-96, qué ve cada agente** ([[bandeja]] §Visibilidad, con pantalla): cierra la última de las cuatro deudas de la guarda 5. La regla de ADR-008 llevaba desde 0010 **aplicándose de verdad** en la bandeja y en el embudo, y no había dónde cambiarla: se hacía con un PATCH a mano. Vive junto al reparto porque es la misma pregunta por el otro lado. **Solo se ofrecen dos de los tres modos**: `team` existe en la base pero no hay forma de crear un equipo, y una opción que no hace lo que dice es peor que no ofrecerla.
 - **PR-95, la consola sirve para algo** ([[facturacion]] §La consola, utilizable): lo señaló el usuario preguntando por el apartado para administrar los CRM de los clientes. La consola de PR-88 **enseñaba** todo y no dejaba **hacer** nada: decía «3 comprobantes sin subir» sin forma de subir ninguno, y el modo soporte de PR-90 dejaba al cliente aprobar un acceso que nadie podía pedir desde ninguna pantalla —se arrancaba con `curl`—. Cierra tres de las cuatro deudas que la guarda 5 encontró ayer. La ficha de una cuenta es enlazable (`#operador/<id>`).

@@ -93,10 +93,19 @@ jobs:
       - name: MinIO (solo para packages/storage)
         run: |
           docker run -d --name minio -p 9000:9000             -e MINIO_ROOT_USER=crmapp -e MINIO_ROOT_PASSWORD=crmapp_dev_secret             quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z.hotfix.7aa24e772 server /data
+          # El bucle TIENE que fallar si no arranca. Antes se agotaba en
+          # silencio y el error salía dos líneas más abajo, en `mc`, con un
+          # mensaje que no dice nada del contenedor. Media hora de bosque.
+          arrancado=no
           for i in $(seq 1 30); do
-            curl -sf http://localhost:9000/minio/health/live && break
+            if curl -sf http://localhost:9000/minio/health/live; then arrancado=si; break; fi
             sleep 1
           done
+          if [ "$arrancado" != si ]; then
+            echo "MinIO no respondio al health check en 30 s. Sus logs:"
+            docker logs minio || true
+            exit 1
+          fi
           docker run --rm --network host --entrypoint sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z -c             "mc alias set local http://localhost:9000 crmapp crmapp_dev_secret && mc mb --ignore-existing local/crmapp-media"
 
       - name: Tests

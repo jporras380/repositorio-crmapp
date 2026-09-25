@@ -221,4 +221,19 @@
     border-radius: var(--radius-sm);
     border: 1px solid var(--hairline);
   }
+
+  /* Borrar es irreversible y archivar no: se distinguen a la vista para que
+     nadie pulse uno creyendo que pulsa el otro. */
+  .peligroBoton {
+    font-size: var(--text-xs);
+    color: var(--danger);
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--danger);
+    background: transparent;
+    cursor: pointer;
+  }
+  .peligroBoton:hover {
+    background: var(--danger-soft);
+  }
 }

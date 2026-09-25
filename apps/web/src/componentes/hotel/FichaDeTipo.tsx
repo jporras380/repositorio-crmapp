@@ -10,6 +10,8 @@ interface Props {
   /** Solo propietario o administrador cambian el catálogo. */
   puedeEditar: boolean;
   alCambiar: () => void | Promise<void>;
+  /** Tras borrarlo ya no existe: la pantalla tiene que dejar de enseñarlo. */
+  alBorrar?: (() => void) | undefined;
 }
 
 const ESTADOS: { valor: EstadoDeHabitacion; texto: string }[] = [
@@ -31,7 +33,7 @@ const NOMBRE_DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viern
  * Los importes se escriben como una persona («180» o «180,50») y viajan en
  * céntimos: el dinero no cruza la red con decimales.
  */
-export function FichaDeTipo({ api, tipo, puedeEditar, alCambiar }: Props) {
+export function FichaDeTipo({ api, tipo, puedeEditar, alCambiar, alBorrar }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [habitacion, setHabitacion] = useState('');
   const [tarifa, setTarifa] = useState({
@@ -331,6 +333,25 @@ export function FichaDeTipo({ api, tipo, puedeEditar, alCambiar }: Props) {
           >
             {tipo.activo ? 'Archivar tipo' : 'Volver a ofrecerlo'}
           </button>
+          {/* Borrar de verdad, que no existía: se podían crear tipos y no
+              quitarlos, y era la deuda con nombre más vieja de la guarda.
+              Solo se ofrece SIN habitaciones: con ellas la API contesta 409,
+              y enseñar un botón que siempre falla es peor que no tenerlo.
+              Para dejar de ofrecer un tipo que sí tiene, está archivar. */}
+          {tipo.habitaciones.length === 0 && (
+            <button
+              className={estilos.peligroBoton}
+              onClick={() => {
+                if (!confirm(`¿Borrar el tipo «${tipo.nombre}»? No tiene habitaciones.`)) return;
+                void hacer(async () => {
+                  await api.borrarTipo(tipo.id);
+                  alBorrar?.();
+                });
+              }}
+            >
+              Borrar tipo
+            </button>
+          )}
         </footer>
       )}
     </section>

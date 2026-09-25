@@ -173,7 +173,13 @@ export function Hotel({ sesion, alSalir }: Props) {
 
           {/* --- Ficha ------------------------------------------------------ */}
           {tipo ? (
-            <FichaDeTipo api={api} tipo={tipo} puedeEditar={puedeEditar} alCambiar={cargar} />
+            <FichaDeTipo
+              api={api}
+              tipo={tipo}
+              puedeEditar={puedeEditar}
+              alCambiar={cargar}
+              alBorrar={() => setElegido(null)}
+            />
           ) : (
             <section className={`glass ${estilos.sinTipo}`}>
               <p>Elige un tipo de habitación para ver sus habitaciones y sus tarifas.</p>

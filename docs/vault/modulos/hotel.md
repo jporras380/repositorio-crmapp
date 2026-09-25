@@ -44,3 +44,31 @@ Un tipo con habitaciones **no se borra**: se archiva. El servidor dice cuántas 
 - **Disponibilidad.** No hay calendario de ocupación ni se impide la sobreventa: decisión del usuario para esta entrega. Las habitaciones tienen estado —disponible, mantenimiento, fuera de servicio—, que es lo que se mira a diario.
 - **Guardar el precio.** El catálogo cambia; una reserva hecha no puede cambiar con él. Por eso la reserva copiará la cotización al crearse en vez de apuntar a la tarifa.
 - Temporadas recurrentes («todos los años del 26 al 30 de julio»): hoy cada año es una tarifa.
+
+## Borrar un tipo (PR-98, 2026-09-25)
+
+La última deuda con nombre de `check-puertas.mjs`, y llevaba meses anotada: *«se pueden crear tipos de habitación y no borrarlos»*.
+
+El `DELETE /v1/hotel/tipos/:id` existía, con su comprobación de habitaciones y su 409. El método `borrarTipo` existía en el cliente web. **Faltaba el botón**, y por eso la guarda lo marcaba: un método que no llama nadie.
+
+### Solo se ofrece cuando no hay nada que perder
+
+El botón aparece únicamente si el tipo **no tiene habitaciones**. Con ellas, la API contesta 409 —«muévelas o archiva el tipo»— y un botón que siempre falla enseña a desconfiar de la pantalla.
+
+Para dejar de ofrecer un tipo que sí se usa está **archivar**, que ya existía y no pierde nada. Los dos van juntos en el pie de la ficha, y se distinguen a la vista: archivar en gris, borrar con borde rojo. Borrar es irreversible y archivar no; que se parezcan es cómo alguien pulsa uno creyendo que pulsa el otro.
+
+Al borrarlo, la pantalla deja de enseñarlo: el tipo elegido vuelve a `null`. Sin eso se quedaría una ficha de algo que ya no existe.
+
+### Un arreglo del CI que no es de este módulo
+
+La ejecución de PR-97 salió roja en el paso de MinIO, que no toca nada de ese cambio. El log no se puede leer sin credenciales, así que en vez de adivinar se arregló lo que hacía imposible diagnosticarlo: el bucle de espera **se agotaba en silencio** y el error salía dos líneas más abajo, en `mc`, con un mensaje que no dice nada del contenedor. Ahora falla ahí mismo e imprime `docker logs minio`.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Hotel → elige un tipo **sin habitaciones**. En el pie sale **Borrar tipo** en rojo.
+2. Elige uno **con** habitaciones: ese botón no está, y sigue estando «Archivar tipo».
+3. Borra el primero: desaparece de la lista y la ficha se cierra.
+
+![Borrar tipo, solo sin habitaciones](../adjuntos/2026-09-25-borrar-tipo.png)
+
+6 tests nuevos de pantalla.

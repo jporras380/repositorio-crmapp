@@ -50,7 +50,9 @@ const PERMITIDOS = {
   reverted_at: 'Ídem.',
 
   // --- Métodos del cliente web --------------------------------------------
-  borrarTipo: 'DEUDA: se pueden crear tipos de habitación y no borrarlos.',
+  //
+  // Vacío desde PR-98, que cerró `borrarTipo` —la deuda con nombre más vieja
+  // de esta guarda—. Que no haya nada aquí es el estado bueno.
 
   // --- Rutas de la API sin pantalla ---------------------------------------
   //
