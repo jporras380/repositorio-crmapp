@@ -76,37 +76,47 @@ jobs:
       - name: Tipos
         run: pnpm typecheck
 
-      # Solo packages/storage habla con S3 de verdad. Va como paso y no como
-      # service container: los services de Actions no admiten `command` y la
-      # imagen oficial de MinIO lo necesita (`server /data`). La de Bitnami,
-      # que no lo necesitaba, dejo de publicarse en Docker Hub.
+      # Solo packages/storage habla con S3 de verdad, y necesita URL
+      # firmadas que funcionen: es justo lo que ese test demuestra.
       #
-      # Y desde el 16/09/2026, `minio/minio` de Docker Hub tampoco existe:
-      # MinIO retiro de ahi la edicion comunitaria y el pull devuelve
-      # «repository does not exist». Fueron 30 ejecuciones rojas seguidas por
-      # esto. La imagen vive en quay.io, que es donde MinIO publica desde
-      # siempre.
+      # ## Por que ya no es MinIO
       #
-      # Van PINCHADAS a una version y no en `latest`: una etiqueta movil es
-      # exactamente como se rompio esto. Actualizarla es una decision, no algo
-      # que pase solo un martes.
-      - name: MinIO (solo para packages/storage)
+      # Tercera vez que MinIO rompe este paso. Primero desaparecio la imagen
+      # de Bitnami; luego `minio/minio` de Docker Hub («repository does not
+      # exist», 30 ejecuciones rojas); y el 25/09/2026, la de quay.io a la
+      # que se habia repuntado empezo a contestar «unauthorized» hasta con la
+      # etiqueta fijada. MinIO ha ido cerrando el acceso publico a su edicion
+      # comunitaria, y fijar la version no protege de que cierren el grifo.
+      #
+      # `adobe/s3mock` es un S3 pensado para tests, Apache-2.0 y publico en
+      # Docker Hub. Los seis tests de almacenamiento pasan tal cual, URL
+      # firmadas de lectura y de subida incluidas, que es lo unico que se les
+      # pide. Arranca mas rapido y no necesita `mc` para crear el bucket:
+      # `initialBuckets` lo hace al levantar.
+      #
+      # Lo que se pierde es la consola web de MinIO, que en CI no la mira
+      # nadie. En local se pierde tambien, y por eso el compose de desarrollo
+      # cambia igual: dos backends distintos son una diferencia que solo se
+      # descubre cuando el CI se pone rojo y en la maquina funciona.
+      #
+      # Va PINCHADA a una version. Una etiqueta movil es exactamente como se
+      # rompio esto las tres veces.
+      - name: S3 para packages/storage
         run: |
-          docker run -d --name minio -p 9000:9000             -e MINIO_ROOT_USER=crmapp -e MINIO_ROOT_PASSWORD=crmapp_dev_secret             quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z.hotfix.7aa24e772 server /data
+          docker run -d --name s3 -p 9000:9090 -e initialBuckets=crmapp-media             adobe/s3mock:4.7.0
           # El bucle TIENE que fallar si no arranca. Antes se agotaba en
-          # silencio y el error salía dos líneas más abajo, en `mc`, con un
-          # mensaje que no dice nada del contenedor. Media hora de bosque.
+          # silencio y el error salia mas abajo, con un mensaje que no dice
+          # nada del contenedor.
           arrancado=no
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:9000/minio/health/live; then arrancado=si; break; fi
+            if curl -sf http://localhost:9000; then arrancado=si; break; fi
             sleep 1
           done
           if [ "$arrancado" != si ]; then
-            echo "MinIO no respondio al health check en 30 s. Sus logs:"
-            docker logs minio || true
+            echo "El S3 de pruebas no respondio en 30 s. Sus logs:"
+            docker logs s3 || true
             exit 1
           fi
-          docker run --rm --network host --entrypoint sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z -c             "mc alias set local http://localhost:9000 crmapp crmapp_dev_secret && mc mb --ignore-existing local/crmapp-media"
 
       - name: Tests
         run: pnpm test

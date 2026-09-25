@@ -45,42 +45,43 @@ services:
       timeout: 3s
       retries: 10
 
-  minio:
-    # S3 compatible en desarrollo. En producción, R2.
+  s3:
+    # S3 compatible en desarrollo. En produccion, R2.
     #
-    # Desde quay.io y con versión fija: `minio/minio:latest` de Docker Hub
-    # **dejó de existir** el 16/09/2026 (MinIO retiró de ahí la edición
-    # comunitaria). Aquí seguía funcionando solo porque la imagen estaba en
-    # la caché local de esta máquina; en una máquina nueva no arrancaba.
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z.hotfix.7aa24e772
-    command: ['server', '/data', '--console-address', ':9001']
+    # ## Por que ya no es MinIO
+    #
+    # Tercera vez que MinIO rompe esto. Primero desaparecio la imagen de
+    # Bitnami; luego `minio/minio` de Docker Hub dejo de existir el
+    # 16/09/2026; y el 25/09/2026, la de quay.io a la que se habia
+    # repuntado empezo a contestar «unauthorized» hasta con la etiqueta
+    # fijada. MinIO ha ido cerrando el acceso publico a su edicion
+    # comunitaria, y fijar la version no protege de que cierren el grifo.
+    #
+    # `adobe/s3mock` es un S3 para tests, Apache-2.0 y publico. Los seis
+    # tests de almacenamiento pasan con el, URL firmadas incluidas.
+    #
+    # Lo que se pierde es la consola web de MinIO en :9001, que servia para
+    # mirar los archivos subidos a ojo. A cambio, esto arranca en segundos,
+    # no necesita un contenedor aparte para crear el bucket, y **es la misma
+    # imagen que usa el CI**: dos backends distintos son una diferencia que
+    # solo se descubre cuando el CI se pone rojo y en la maquina funciona.
+    image: adobe/s3mock:4.7.0
     environment:
-      MINIO_ROOT_USER: crmapp
-      MINIO_ROOT_PASSWORD: crmapp_dev_secret
+      # Crea el bucket al levantar. Sin esto, el primer envio de media falla
+      # con un error de S3 que no dice que falta el bucket.
+      initialBuckets: crmapp-media
+      # Los objetos sobreviven a un reinicio del contenedor, como con MinIO.
+      root: /data
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      # 9000 fuera, como siempre: `.env` y los tests no cambian.
+      - '9000:9090'
     volumes:
-      - miniodata:/data
+      - s3data:/data
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD-SHELL', 'curl -sf http://localhost:9090 || exit 1']
       interval: 5s
       timeout: 3s
       retries: 10
-
-  minio-init:
-    # Crea el bucket al arrancar. Sin esto, el primer envío de media falla
-    # con un error de S3 que no dice que falta el bucket.
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 crmapp crmapp_dev_secret &&
-      mc mb --ignore-existing local/crmapp-media &&
-      echo 'bucket crmapp-media listo'
-      "
 
   mailpit:
     # Captura el correo saliente (invitaciones, avisos de plan) sin enviarlo.
@@ -94,4 +95,4 @@ services:
 volumes:
   pgdata:
   redisdata:
-  miniodata:
+  s3data:
