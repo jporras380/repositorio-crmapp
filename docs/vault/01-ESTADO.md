@@ -1,11 +1,11 @@
 ---
 estado: vivo
-fecha: 2026-09-25
+fecha: 2026-09-26
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 25 de septiembre de 2026
+# Estado — 26 de septiembre de 2026
 
 **El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
 
@@ -38,6 +38,7 @@ Lo que PR-97 deja al alcance sin ser deuda: `business_hours.team_id` —horario 
 
 ## Completado
 
+- **PR-101, el token de invitación estaba en claro en el outbox** ([[2026-09-26-credencial-en-el-outbox]]): **hallazgo de seguridad**. `invitacion.creada` guardaba el token de la invitación sin hashear en `outbox.payload`, esperando a un correo que PR-94 decidió **no construir**, en una tabla que **nadie purga** —el comentario del código decía que el relay la purgaba, y es falso: marca `published_at`—. Seis filas en la base de desarrollo, **una todavía usable**. RLS forzada lo acotaba al inquilino, y caduca a los 7 días, pero era una llave en texto plano al lado de la tabla que la guarda hasheada a propósito. Migración 0046 para limpiar las que había, y dos tests **contra la base** —no una guarda estática: los payloads se arman con variables y un escaneo se engaña solo—.
 - **PR-100, vistas de bandeja compartidas** ([[bandeja]] §Vistas compartidas): la migración 0020 dejó escrito cómo hacerlo —«se añade una columna, no se rehace esto»— y eso es la 0045. Un supervisor define «Sin responder hoy» una vez y el equipo la tiene, en vez de cinco versiones distintas de lo mismo. La ve todo el mundo; la cambia **solo su autor**, y eso vive en el servicio y no en una política —está dicho en la migración, con el motivo—. De paso se quitó de `PERMITIDOS` una excusa **obsoleta**: decía que `is_public` estaba pendiente cuando la columna que tapaba era la de `plans`, que ya se usa desde PR-89.
 - **PR-99, MinIO fuera del CI y del desarrollo** ([[2026-09-25-minio-cerro-el-grifo]]): **tercera vez** que MinIO rompe el mismo paso. Primero desapareció la imagen de Bitnami; luego `minio/minio` de Docker Hub; y ahora la de quay.io a la que se había repuntado contesta `unauthorized` **hasta con la etiqueta fijada**. Fijar la versión no protege de que cierren el grifo. Se cambia a `adobe/s3mock`, Apache-2.0 y pública, con la que los seis tests de almacenamiento pasan tal cual —URL firmadas incluidas—. **Local y CI usan ahora la misma imagen**: dos backends distintos son una diferencia que solo se descubre cuando el CI se pone rojo y en la máquina funciona. Se pierde la consola web de MinIO.
 - **PR-98, borrar un tipo de habitación** ([[hotel]] §Borrar un tipo): cierra **la última deuda con nombre** de la guarda. El endpoint y el método del cliente existían; faltaba el botón, y llevaba meses anotado. Solo se ofrece cuando el tipo **no tiene habitaciones**: con ellas la API contesta 409, y enseñar un botón que siempre falla es peor que no tenerlo. De paso, el paso de MinIO del CI ya falla diciendo por qué en vez de agotarse en silencio.

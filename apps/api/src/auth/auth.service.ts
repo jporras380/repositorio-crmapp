@@ -455,10 +455,24 @@ export class AuthService {
         aggregateType: 'invitation',
         aggregateId: id,
         eventType: 'invitacion.creada',
-        // El token va en el evento porque el correo lo necesita. Es la única
-        // copia en claro que sobrevive a esta función, y vive en una tabla que
-        // el relay purga al publicar.
-        payload: { para: datos.email, rol: datos.rol, token },
+        // **Sin el token.** Lo llevaba «porque el correo lo necesita», con un
+        // comentario que decía que el relay purgaba la tabla al publicar. Las
+        // dos cosas eran falsas:
+        //
+        // 1. Ese correo **no existe y se decidió no construirlo** (PR-94): la
+        //    invitación se pasa copiando el enlace, justo para no montar un
+        //    proveedor de envío. El token esperaba a un consumidor que no iba
+        //    a llegar nunca.
+        // 2. El relay **no purga**: marca `published_at` y la fila se queda.
+        //
+        // Resultado: una credencial en claro, indefinidamente, al lado de la
+        // tabla que la guarda hasheada a propósito. Se encontró con seis
+        // filas en la base de desarrollo, una de ellas todavía usable.
+        //
+        // El token no vuelve aquí el día que haya correo: lo que se manda por
+        // el outbox es el identificador, y quien envíe el correo pide el
+        // enlace por donde toque.
+        payload: { para: datos.email, rol: datos.rol },
       });
 
       return { id, token };

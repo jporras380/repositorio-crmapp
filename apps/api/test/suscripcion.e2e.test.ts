@@ -1111,3 +1111,70 @@ describe('detalle de una cuenta en la consola', () => {
     }
   });
 });
+
+/**
+ * Ninguna credencial en el outbox (0046).
+ *
+ * `invitacion.creada` guardaba el token de la invitación **en claro** en
+ * `outbox.payload`, esperando a un correo que se había decidido no construir,
+ * en una tabla que nadie purga. Seis filas en la base de desarrollo, una
+ * todavía usable.
+ *
+ * Esto no es una guarda estática a propósito: los payloads se arman con
+ * variables y un escaneo del código se engaña solo. Se mira **lo que acaba en
+ * la base**, que es lo que importó.
+ */
+describe('el outbox no guarda credenciales', () => {
+  /** Nombres con los que suele viajar un secreto. */
+  const SOSPECHOSAS = [
+    'token',
+    'secret',
+    'secreto',
+    'password',
+    'contrasena',
+    'apiKey',
+    'accessToken',
+    'refreshToken',
+    'clave',
+  ];
+
+  it('crear una invitación no deja el token en el evento', async () => {
+    // Los tests de asientos de arriba dejaron el plan lleno, y esto no va de
+    // asientos: se sube el tope para esta cuenta y se mira lo que importa.
+    await admin.query(
+      `UPDATE plans SET limits = jsonb_set(limits, '{agentes}', '50')
+        WHERE id = (SELECT plan_id FROM subscriptions WHERE tenant_id = $1)`,
+      [tenantId],
+    );
+
+    const antes = new Date();
+    await http
+      .post('/v1/invitaciones')
+      .set(auth())
+      .send({ email: 'sin-token@acme.test', rol: 'agent' })
+      .expect(201);
+
+    const { rows } = await admin.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM outbox
+        WHERE event_type = 'invitacion.creada' AND created_at >= $1`,
+      [antes],
+    );
+    expect(rows).toHaveLength(1);
+    // El correo y el rol sí: son lo que necesitaría quien lo consumiera.
+    expect(rows[0]!.payload['para']).toBe('sin-token@acme.test');
+    expect(rows[0]!.payload['rol']).toBe('agent');
+    expect(Object.keys(rows[0]!.payload)).not.toContain('token');
+  });
+
+  it('NINGUN evento del outbox lleva una clave que huela a credencial', async () => {
+    // La red ancha, no solo la invitación: el daño de este fallo no fue el
+    // token concreto sino que nadie estaba mirando esta tabla.
+    const { rows } = await admin.query<{ event_type: string; k: string }>(
+      `SELECT DISTINCT o.event_type, k
+         FROM outbox o, LATERAL jsonb_object_keys(o.payload) k
+        WHERE lower(k) = ANY($1::text[])`,
+      [SOSPECHOSAS.map((s) => s.toLowerCase())],
+    );
+    expect(rows.map((r) => `${r.event_type}.${r.k}`)).toEqual([]);
+  });
+});

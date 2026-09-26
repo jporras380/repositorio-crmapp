@@ -1,0 +1,14 @@
+-- Reversa de 0046.
+--
+-- **No devuelve los tokens, y no puede.** Se borraron porque eran una
+-- credencial en claro que no debía estar ahí, y no hay de dónde recuperarlos:
+-- en `invitations` solo está su `sha256`, que es justo el punto.
+--
+-- Revertir esta migración no rompe nada: el evento sigue teniendo el correo y
+-- el rol, que es lo que un consumidor necesitaría. Quien quiera reenviar una
+-- invitación la cancela y crea otra, que es el camino que existe en la
+-- pantalla de equipo.
+--
+-- Se deja vacía a propósito y con el motivo escrito, en vez de no existir: un
+-- archivo `.down` que falta hace dudar de si la migración es reversible.
+SELECT 1;
