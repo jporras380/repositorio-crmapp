@@ -177,4 +177,43 @@
     text-decoration: underline;
     cursor: pointer;
   }
+
+  /* --- Plazo de contratacion (0049) -------------------------------------- */
+
+  .plazos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+  .plazos legend {
+    margin-block-end: 0.35rem;
+  }
+
+  .plazo,
+  .plazoElegido {
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .plazo {
+    border: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--fg-muted);
+  }
+  .plazo:hover {
+    background: var(--hairline);
+    color: var(--fg);
+  }
+  /* El elegido se ve de un vistazo: son cuatro botones juntos y el borde
+     solo no basta para saber cual esta puesto. */
+  .plazoElegido {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-weight: 600;
+  }
 }

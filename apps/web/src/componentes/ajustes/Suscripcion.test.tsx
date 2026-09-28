@@ -34,6 +34,9 @@ const BASE: ResumenDeSuscripcion = {
     },
   ],
   avisos: [],
+  // Plazo (0049). Mes a mes por defecto, como una cuenta recién creada.
+  plazoEnMeses: 1,
+  precioDelPlazo: { meses: 1, mesesCobrados: 1, totalCentimos: 7500, ahorroCentimos: 0 },
   // A dónde pagar (0048). Vacío por defecto: una cuenta recién creada no
   // tiene los datos de la plataforma cargados todavía.
   comoPagar: {

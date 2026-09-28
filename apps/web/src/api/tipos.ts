@@ -45,6 +45,18 @@ export interface PlanPublico {
   mesesDePrueba: number;
   /** Topes del plan: `agentes`, `canales`, `conversaciones_mes`… */
   limites: Record<string, number>;
+  /**
+   * Lo que cuesta cada plazo, para un asiento (0049).
+   *
+   * Lo calcula la API: «un año se paga a once» es una regla de negocio y la
+   * web pinta lo que recibe.
+   */
+  preciosPorPlazo: {
+    meses: number;
+    mesesCobrados: number;
+    totalCentimos: number;
+    ahorroCentimos: number;
+  }[];
 }
 
 export interface Yo {
@@ -642,6 +654,14 @@ export interface ResumenDeSuscripcion {
   periodoHasta: string | null;
   graciaHasta: string | null;
   pagos: PagoDeSuscripcion[];
+  /** Meses que se contratan de una vez (0049). Un año se paga a once. */
+  plazoEnMeses: number;
+  precioDelPlazo: {
+    meses: number;
+    mesesCobrados: number;
+    totalCentimos: number;
+    ahorroCentimos: number;
+  };
   /** A dónde transferir (0048). Antes no se decía en ningún sitio. */
   comoPagar: ComoPagar;
   declaraciones: DeclaracionDePago[];

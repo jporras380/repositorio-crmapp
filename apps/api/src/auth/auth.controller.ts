@@ -36,6 +36,8 @@ const AltaDto = z.object({
   contrasena: z.string().min(10),
   nombreCompleto: z.string().min(2).max(120),
   planCode: z.string().optional(),
+  /** Meses que contrata de una vez (0049). Por defecto, mes a mes. */
+  plazoEnMeses: z.number().int().optional(),
 });
 
 const LoginDto = z.object({

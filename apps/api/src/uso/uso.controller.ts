@@ -85,6 +85,14 @@ export class UsoController {
     );
   }
 
+  /** Por cuántos meses se contrata (0049). Un año se paga a once. */
+  @Put('suscripcion/plazo')
+  plazo(@Req() req: Req, @Body() body: unknown) {
+    const r = z.object({ meses: z.number().int() }).safeParse(body);
+    if (!r.success) throw new ErrorDeNegocio('datos_invalidos', 'Falta el plazo.', 400);
+    return conContextoDePeticion(req, () => this.uso.cambiarPlazo(r.data.meses));
+  }
+
   /** El QR de Yape o Plin de la plataforma, firmado (0048). */
   @Get('suscripcion/qr')
   qr(@Req() req: Req) {

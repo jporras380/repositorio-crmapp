@@ -152,6 +152,9 @@ function Formulario({
   const [contrasena, setContrasena] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // El plazo se elige AQUÍ y no después: es donde se está mirando el precio, y
+  // ver el ahorro mientras se compara es lo que hace que se plantee.
+  const [plazo, setPlazo] = useState(1);
 
   // El identificador se deriva del nombre mientras nadie lo toque a mano.
   // Quien quiera otro lo escribe y deja de seguir al nombre.
@@ -186,6 +189,7 @@ function Formulario({
         contrasena,
         nombreCompleto: nombreCompleto.trim(),
         planCode: plan.codigo,
+        plazoEnMeses: plazo,
       });
       alEntrar({ token: s.token, tenantId: s.tenantId, userId: s.userId, rol: s.rol });
     } catch (err) {
@@ -266,6 +270,36 @@ function Formulario({
           Al menos 10 caracteres.
         </span>
       </label>
+
+      <fieldset className={estilos.plazos}>
+        <legend className={estilos.ayuda}>Cada cuánto quieres pagar</legend>
+        {plan.preciosPorPlazo.map((p) => (
+          <button
+            key={p.meses}
+            type="button"
+            className={p.meses === plazo ? estilos.plazoElegido : estilos.plazo}
+            aria-pressed={p.meses === plazo}
+            onClick={() => setPlazo(p.meses)}
+          >
+            {p.meses === 1 ? 'Cada mes' : p.meses === 12 ? 'Un año' : `${p.meses} meses`}
+          </button>
+        ))}
+      </fieldset>
+      <p className={estilos.ayuda}>
+        {(() => {
+          const p = plan.preciosPorPlazo.find((x) => x.meses === plazo);
+          if (!p || p.ahorroCentimos === 0) {
+            return 'Sin permanencia: puedes cambiarlo cuando quieras desde Ajustes.';
+          }
+          // El ahorro en dinero y no en porcentaje: «8 %» obliga a calcular.
+          return (
+            <>
+              Pagas {p.mesesCobrados} meses y usas {p.meses}:{' '}
+              <strong>te ahorras {importe(p.ahorroCentimos, plan.moneda)}</strong> por asiento.
+            </>
+          );
+        })()}
+      </p>
 
       {error && (
         <p className={estilos.error} role="alert">

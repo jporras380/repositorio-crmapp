@@ -18,6 +18,9 @@ import {
 import { aBase32, enlaceDeAutenticador, esCodigoValido } from '@crmapp/core';
 import {
   cabeUnoMas,
+  PLAZOS,
+  precioDelPlazo,
+  type PrecioDelPlazo,
   ErrorDeNegocio,
   finDePrueba,
   estadoEfectivo,
@@ -112,6 +115,8 @@ export class AuthService {
       nombreCompleto: string;
       // `| undefined` explicito por exactOptionalPropertyTypes.
       planCode?: string | undefined;
+      /** Meses que contrata de una vez (0049). Por defecto, mes a mes. */
+      plazoEnMeses?: number | undefined;
     },
     acceso: DatosDeAcceso = {},
   ): Promise<Sesion> {
@@ -175,9 +180,20 @@ export class AuthService {
       // Los días de gracia se COPIAN del plan, no se leen de él al evaluar:
       // cambiar el plan después no debe alterar el trato de quien ya firmó.
       await c.query(
-        `INSERT INTO subscriptions (tenant_id, plan_id, status, trial_ends_at, grace_days, cached_state, cached_state_at)
-         VALUES ($1, $2, 'trialing', $3, $4, 'prueba', now())`,
-        [tenantId, plan.id, finDePrueba(ahora, plan.trial_months), plan.grace_days],
+        `INSERT INTO subscriptions (tenant_id, plan_id, status, trial_ends_at, grace_days,
+                                    term_months, cached_state, cached_state_at)
+         VALUES ($1, $2, 'trialing', $3, $4, $5, 'prueba', now())`,
+        [
+          tenantId,
+          plan.id,
+          finDePrueba(ahora, plan.trial_months),
+          plan.grace_days,
+          // El plazo se guarda desde el alta, aunque la prueba aún no cobre:
+          // es lo que el cliente eligió y lo que se le cobrará al terminar.
+          (PLAZOS as readonly number[]).includes(datos.plazoEnMeses ?? 1)
+            ? (datos.plazoEnMeses ?? 1)
+            : 1,
+        ],
       );
 
       // El embudo por defecto entra con la cuenta: un tablero sin columnas no
@@ -220,6 +236,14 @@ export class AuthService {
       moneda: string;
       mesesDePrueba: number;
       limites: Record<string, number>;
+      /**
+       * Lo que cuesta cada plazo, para UN asiento (0049).
+       *
+       * Se calcula aquí y no en la web a propósito: «un año se paga a once» es
+       * una regla de negocio, y la web pinta lo que recibe. Si la calculara
+       * ella, el día que cambie el descuento habría dos verdades.
+       */
+      preciosPorPlazo: PrecioDelPlazo[];
     }[]
   > {
     return this.#db.deAutenticacion(async (c) => {
@@ -241,6 +265,7 @@ export class AuthService {
         moneda: p.currency,
         mesesDePrueba: p.trial_months,
         limites: p.limits,
+        preciosPorPlazo: PLAZOS.map((m) => precioDelPlazo(p.price_cents, 1, m)),
       }));
     });
   }

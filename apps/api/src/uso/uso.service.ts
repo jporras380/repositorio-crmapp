@@ -20,6 +20,9 @@ import {
   venceElComprobante,
   problemasDeFacturacion,
   type TipoDeComprobante,
+  precioDelPlazo,
+  PLAZOS,
+  type Plazo,
 } from '@crmapp/core';
 import {
   etiquetaDePeriodo,
@@ -117,6 +120,15 @@ export interface ResumenDeSuscripcion {
   avisos: AvisoDeLimite[];
   /** A nombre de quién y con qué documento se emiten los comprobantes (0039). */
   facturacion: DatosDeFacturacionDelHotel;
+  /** Meses que se contratan de una vez (0049). Un año se paga a once. */
+  plazoEnMeses: number;
+  /** Lo que cuesta el plazo elegido y lo que ahorra frente a mes a mes. */
+  precioDelPlazo: {
+    meses: number;
+    mesesCobrados: number;
+    totalCentimos: number;
+    ahorroCentimos: number;
+  };
   /** A dónde pagar (0048). Antes esto no se decía en ningún sitio. */
   comoPagar: ComoPagar;
   /** Lo que este cliente ya declaró haber pagado, y en qué quedó. */
@@ -274,15 +286,18 @@ export class UsoService {
         billing_tax_id: string | null;
         billing_name: string | null;
         billing_address: string | null;
+        term_months: number;
       }>(
         `SELECT p.code, p.name, p.price_cents, p.currency, p.limits,
                 s.status, s.trial_ends_at, s.current_period_ends_at, s.grace_days,
-                s.billing_doc_type, s.billing_tax_id, s.billing_name, s.billing_address
+                s.billing_doc_type, s.billing_tax_id, s.billing_name, s.billing_address,
+                s.term_months
            FROM subscriptions s JOIN plans p ON p.id = s.plan_id
           WHERE s.tenant_id = $1`,
         [ctx.tenantId],
       );
       const f = filas[0];
+      const plazo = (f?.term_months ?? 1) as Plazo;
       const suscripcion: Suscripcion = {
         estadoDeclarado: f?.status ?? 'trialing',
         pruebaHasta: f?.trial_ends_at ?? null,
@@ -416,6 +431,10 @@ export class UsoService {
           nombre: f?.billing_name ?? null,
           direccion: f?.billing_address ?? null,
         },
+        plazoEnMeses: plazo,
+        // El precio del plazo se calcula, no se guarda: los asientos cambian
+        // y un importe guardado envejece mal.
+        precioDelPlazo: precioDelPlazo(f?.price_cents ?? 0, ocupados, plazo as Plazo),
         comoPagar,
         declaraciones,
         pruebaHasta: suscripcion.pruebaHasta,
@@ -526,6 +545,40 @@ export class UsoService {
           rows[0]!.id,
           JSON.stringify({ importeCentimos: datos.importeCentimos, metodo: datos.metodo }),
         ],
+      );
+    });
+    return this.suscripcion();
+  }
+
+  /**
+   * Cambia por cuántos meses se contrata.
+   *
+   * NO toca `current_period_ends_at`: lo ya pagado sigue cubierto hasta donde
+   * estaba. El plazo dice cuánto se paga la PRÓXIMA vez, y eso lo decide el
+   * cliente antes de pagar, no nosotros al cobrarle.
+   */
+  async cambiarPlazo(meses: number): Promise<ResumenDeSuscripcion> {
+    const ctx = contextoActual();
+    if (!ctx) throw new ErrorDeNegocio('sin_sesion', 'Se requiere sesión.', 401);
+    if (ctx.rol !== 'owner' && ctx.rol !== 'admin') {
+      throw new ErrorDeNegocio('sin_permiso', 'Solo el dueño o un administrador.', 403);
+    }
+    if (!(PLAZOS as readonly number[]).includes(meses)) {
+      throw new ErrorDeNegocio(
+        'plazo_invalido',
+        `El plazo puede ser de ${PLAZOS.join(', ')} meses.`,
+        422,
+      );
+    }
+    await this.#db.enTransaccion(async (c) => {
+      await c.query(`UPDATE subscriptions SET term_months = $2 WHERE tenant_id = $1`, [
+        ctx.tenantId,
+        meses,
+      ]);
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'suscripcion.plazo', 'subscription', $1, $3)`,
+        [ctx.tenantId, ctx.userId, JSON.stringify({ meses })],
       );
     });
     return this.suscripcion();

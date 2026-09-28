@@ -12,6 +12,8 @@ import { describe, expect, it } from 'vitest';
 import {
   cabeUnoMas,
   importeMensualEnCentimos,
+  precioDelPlazo,
+  PLAZOS,
   nivelDeConsumo,
   DIAS_DE_GRACIA_POR_DEFECTO,
   accesoHasta,
@@ -403,5 +405,49 @@ describe('cobro por asiento (ADR-011)', () => {
     expect(nivelDeConsumo(80, 100)).toBe('cerca');
     expect(nivelDeConsumo(100, 100)).toBe('pasado');
     expect(nivelDeConsumo(5, null)).toBe('holgado');
+  });
+});
+
+/**
+ * El precio de un plazo (PR-105).
+ *
+ * La regla del negocio —un año se paga a once— vive en `core` y no en la
+ * pantalla: es lo que se cobra, y tiene que dar igual desde dónde se pregunte.
+ */
+describe('precioDelPlazo', () => {
+  // Starter: 25 USD por asiento, 3 asientos = 75 al mes.
+  const mensual = (asientos: number) => 2500 * asientos;
+
+  it('un mes es el importe mensual, sin más', () => {
+    const p = precioDelPlazo(2500, 3, 1);
+    expect(p.totalCentimos).toBe(mensual(3));
+    expect(p.ahorroCentimos).toBe(0);
+  });
+
+  it('tres y seis meses NO llevan descuento: lo que se premia es el año', () => {
+    // Repartir el descuento entre todos los plazos es regalarlo a quien iba a
+    // pagar igual.
+    expect(precioDelPlazo(2500, 3, 3)).toMatchObject({ mesesCobrados: 3, ahorroCentimos: 0 });
+    expect(precioDelPlazo(2500, 3, 6)).toMatchObject({ mesesCobrados: 6, ahorroCentimos: 0 });
+  });
+
+  it('un año se paga a once: un mes gratis', () => {
+    const p = precioDelPlazo(2500, 3, 12);
+    expect(p.mesesCobrados).toBe(11);
+    expect(p.totalCentimos).toBe(mensual(3) * 11);
+    // Lo que se ahorra es exactamente un mes, y es lo que se le enseña.
+    expect(p.ahorroCentimos).toBe(mensual(3));
+  });
+
+  it('sin asientos no cuesta nada, tampoco un año', () => {
+    expect(precioDelPlazo(2500, 0, 12).totalCentimos).toBe(0);
+    expect(precioDelPlazo(2500, 0, 12).ahorroCentimos).toBe(0);
+  });
+
+  it('el ahorro nunca es mayor que el total de pagar mes a mes', () => {
+    for (const plazo of PLAZOS) {
+      const p = precioDelPlazo(2500, 4, plazo);
+      expect(p.totalCentimos + p.ahorroCentimos).toBe(mensual(4) * plazo);
+    }
   });
 });

@@ -167,6 +167,8 @@ export function crearApi(token: string | null) {
       contrasena: string;
       nombreCompleto: string;
       planCode?: string;
+      /** Meses que contrata de una vez (0049). */
+      plazoEnMeses?: number;
     }) => peticion<Sesion & { expiraEn: number }>('/v1/cuentas', { metodo: 'POST', cuerpo: d }),
     /**
      * El invitado entra por su enlace. Va sin sesión a propósito: quien acepta
@@ -452,6 +454,13 @@ export function crearApi(token: string | null) {
         ...t,
         metodo: 'POST',
         cuerpo: d,
+      }),
+    /** Por cuántos meses se contrata. No toca lo ya pagado. */
+    cambiarPlazo: (meses: number) =>
+      peticion<ResumenDeSuscripcion>('/v1/cuenta/suscripcion/plazo', {
+        ...t,
+        metodo: 'PUT',
+        cuerpo: { meses },
       }),
 
     // --- Cobro de la plataforma, desde la consola (0048) --------------------

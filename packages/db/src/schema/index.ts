@@ -492,6 +492,13 @@ export const subscriptions = pgTable('subscriptions', {
   status: text('status').notNull().default('trialing'),
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
   currentPeriodEndsAt: timestamp('current_period_ends_at', { withTimezone: true }),
+  /**
+   * Meses que se contratan de una vez (0049): 1, 3, 6 o 12.
+   *
+   * Un año se paga a once. El descuento vive en `packages/core`, no aquí:
+   * esto solo guarda lo que el cliente eligió.
+   */
+  termMonths: integer('term_months').notNull().default(1),
   /** Copiado del plan al crear. No se lee del plan al evaluar. */
   graceDays: integer('grace_days').notNull().default(7),
   /** Cache para listados y deteccion de transiciones. Nadie decide con esto. */

@@ -1327,3 +1327,90 @@ describe('cómo te pagan', () => {
     await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
   });
 });
+
+/**
+ * Por cuántos meses se contrata (0049).
+ *
+ * Toca el modelo de cobro, que ADR-011 dejaba fijo, y se hizo porque lo pidió
+ * el dueño del producto. Lo que NO cambia: se sigue cobrando por asiento
+ * ocupado, contado al mirar, y el cobro sigue siendo manual.
+ */
+describe('plazo de contratación', () => {
+  it('una cuenta nueva contrata mes a mes', async () => {
+    const r = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    expect(r.body.plazoEnMeses).toBe(1);
+    expect(r.body.precioDelPlazo.ahorroCentimos).toBe(0);
+  });
+
+  it('un año se paga a once, y el ahorro es un mes exacto', async () => {
+    const r = await http
+      .put('/v1/cuenta/suscripcion/plazo')
+      .set(auth())
+      .send({ meses: 12 })
+      .expect(200);
+
+    expect(r.body.plazoEnMeses).toBe(12);
+    expect(r.body.precioDelPlazo.mesesCobrados).toBe(11);
+    // La regla vive en `core`; esto comprueba que llega entera hasta la API.
+    expect(r.body.precioDelPlazo.totalCentimos).toBe(r.body.importeMensualCentimos * 11);
+    expect(r.body.precioDelPlazo.ahorroCentimos).toBe(r.body.importeMensualCentimos);
+  });
+
+  it('seis meses NO llevan descuento: lo que se premia es el año', async () => {
+    const r = await http
+      .put('/v1/cuenta/suscripcion/plazo')
+      .set(auth())
+      .send({ meses: 6 })
+      .expect(200);
+    expect(r.body.precioDelPlazo.mesesCobrados).toBe(6);
+    expect(r.body.precioDelPlazo.ahorroCentimos).toBe(0);
+  });
+
+  it('cambiar el plazo NO toca lo que ya está cubierto', async () => {
+    const antes = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    await http.put('/v1/cuenta/suscripcion/plazo').set(auth()).send({ meses: 1 }).expect(200);
+    const despues = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    // El plazo dice cuánto se paga la PRÓXIMA vez. Lo pagado sigue pagado.
+    expect(despues.body.periodoHasta).toEqual(antes.body.periodoHasta);
+    expect(despues.body.pruebaHasta).toEqual(antes.body.pruebaHasta);
+  });
+
+  it('un plazo inventado no cuela', async () => {
+    const r = await http
+      .put('/v1/cuenta/suscripcion/plazo')
+      .set(auth())
+      .send({ meses: 7 })
+      .expect(422);
+    expect(r.body.codigo).toBe('plazo_invalido');
+  });
+
+  it('el catálogo público ya trae el precio de cada plazo', async () => {
+    // Se calcula en la API y no en la web: «un año se paga a once» es una
+    // regla de negocio, y si la calculara la pantalla habría dos verdades.
+    const r = await http.get('/v1/planes').expect(200);
+    const starter = r.body.find((p: { codigo: string }) => p.codigo === 'starter');
+    const anual = starter.preciosPorPlazo.find((p: { meses: number }) => p.meses === 12);
+    expect(anual.mesesCobrados).toBe(11);
+    expect(anual.ahorroCentimos).toBe(starter.precioPorAsientoCentimos);
+  });
+
+  it('el alta guarda el plazo elegido', async () => {
+    const r = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Anual',
+        slug: 'anual',
+        email: 'jefe@anual.test',
+        contrasena: 'contrasena-muy-larga',
+        nombreCompleto: 'Jefa',
+        plazoEnMeses: 12,
+      })
+      .expect(201);
+
+    const sus = await http
+      .get('/v1/cuenta/suscripcion')
+      .set({ Authorization: `Bearer ${r.body.token}` })
+      .expect(200);
+    expect(sus.body.plazoEnMeses).toBe(12);
+  });
+});

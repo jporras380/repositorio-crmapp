@@ -422,6 +422,63 @@ export function importeMensualEnCentimos(precioPorAsiento: number, asientos: num
   return Math.max(0, Math.round(precioPorAsiento)) * Math.max(0, Math.trunc(asientos));
 }
 
+/**
+ * Plazos que se pueden contratar, en meses.
+ *
+ * Cuatro y no «el que quieras»: un campo libre invita a escribir 7, y
+ * entonces hay que decidir qué descuento lleva un plazo que nadie pensó.
+ */
+export const PLAZOS = [1, 3, 6, 12] as const;
+export type Plazo = (typeof PLAZOS)[number];
+
+/**
+ * Cuántos meses se COBRAN por un plazo.
+ *
+ * Un año se paga a once: un mes gratis. Es la decisión del dueño del negocio
+ * y vive aquí, en una sola línea, para que cambiarla no sea buscarla por
+ * cuatro archivos.
+ *
+ * Los plazos cortos NO llevan descuento a propósito: lo que se premia es
+ * comprometerse un año, y repartir el descuento entre todos los plazos es
+ * regalarlo a quien iba a pagar igual.
+ */
+export function mesesQueSeCobran(plazo: Plazo): number {
+  return plazo === 12 ? 11 : plazo;
+}
+
+export interface PrecioDelPlazo {
+  /** Meses de servicio contratados. */
+  meses: number;
+  /** Meses que se pagan. Menos que `meses` cuando hay descuento. */
+  mesesCobrados: number;
+  totalCentimos: number;
+  /** Lo que se ahorra frente a pagar mes a mes. Cero si no hay descuento. */
+  ahorroCentimos: number;
+}
+
+/**
+ * Lo que cuesta contratar un plazo, y lo que se ahorra.
+ *
+ * Se calcula sobre los asientos de AHORA. Si el equipo crece a mitad del
+ * plazo, eso se cobra cuando toque renovar: prorratear altas y bajas dentro
+ * de un plazo ya pagado es un sistema de facturación entero, y ADR-011 eligió
+ * lo contrario a propósito.
+ */
+export function precioDelPlazo(
+  precioPorAsiento: number,
+  asientos: number,
+  plazo: Plazo,
+): PrecioDelPlazo {
+  const mensual = importeMensualEnCentimos(precioPorAsiento, asientos);
+  const mesesCobrados = mesesQueSeCobran(plazo);
+  return {
+    meses: plazo,
+    mesesCobrados,
+    totalCentimos: mensual * mesesCobrados,
+    ahorroCentimos: mensual * (plazo - mesesCobrados),
+  };
+}
+
 export type MotivoDeTope = 'asientos' | 'bots';
 
 /**

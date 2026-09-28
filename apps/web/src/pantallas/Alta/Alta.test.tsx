@@ -27,6 +27,12 @@ const PLANES = [
     moneda: 'USD',
     mesesDePrueba: 1,
     limites: { agentes: 3, conversaciones_mes: 1000 },
+    preciosPorPlazo: [
+      { meses: 1, mesesCobrados: 1, totalCentimos: 2500, ahorroCentimos: 0 },
+      { meses: 3, mesesCobrados: 3, totalCentimos: 7500, ahorroCentimos: 0 },
+      { meses: 6, mesesCobrados: 6, totalCentimos: 15000, ahorroCentimos: 0 },
+      { meses: 12, mesesCobrados: 11, totalCentimos: 27500, ahorroCentimos: 2500 },
+    ],
   },
   {
     codigo: 'growth',
@@ -35,6 +41,12 @@ const PLANES = [
     moneda: 'USD',
     mesesDePrueba: 1,
     limites: { agentes: 10, conversaciones_mes: 5000 },
+    preciosPorPlazo: [
+      { meses: 1, mesesCobrados: 1, totalCentimos: 5000, ahorroCentimos: 0 },
+      { meses: 3, mesesCobrados: 3, totalCentimos: 15000, ahorroCentimos: 0 },
+      { meses: 6, mesesCobrados: 6, totalCentimos: 30000, ahorroCentimos: 0 },
+      { meses: 12, mesesCobrados: 11, totalCentimos: 55000, ahorroCentimos: 5000 },
+    ],
   },
 ];
 
@@ -188,5 +200,57 @@ describe('Alta pública', () => {
     planes.mockRejectedValue(new Error('red'));
     pintar();
     expect((await screen.findByRole('alert')).textContent).toContain('No se pudieron cargar');
+  });
+});
+
+/**
+ * El plazo de contratación (PR-105).
+ *
+ * Se elige en el alta y no después porque es donde se está mirando el precio.
+ * Lo que se prueba es que el ahorro se vea ANTES de decidir, y que lo elegido
+ * viaje con el alta —si no, el cliente cree que contrató un año y no.
+ */
+describe('Alta · cada cuánto se paga', () => {
+  /** Llega hasta el formulario, que es donde vive el selector de plazo. */
+  async function abrirFormulario() {
+    pintar();
+    await userEvent.click(await screen.findByRole('button', { name: 'Elegir Starter' }));
+  }
+
+  async function rellenarYEnviar() {
+    await userEvent.type(screen.getByLabelText('Nombre del negocio'), 'Hostal Miraflores');
+    await userEvent.type(screen.getByLabelText('Tu nombre'), 'Rosa');
+    await userEvent.type(screen.getByLabelText('Correo'), 'rosa@miraflores.test');
+    await userEvent.type(screen.getByLabelText(/^Contraseña/), 'una-contrasena-larga');
+    await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+  }
+
+  it('arranca en mes a mes, sin permanencia y diciéndolo', async () => {
+    await abrirFormulario();
+    expect(screen.getByRole('button', { name: 'Cada mes', pressed: true })).toBeTruthy();
+    expect(screen.getByText(/Sin permanencia/)).toBeTruthy();
+  });
+
+  it('el ahorro del año se ve en DINERO antes de decidir', async () => {
+    await abrirFormulario();
+    await userEvent.click(screen.getByRole('button', { name: 'Un año' }));
+    // «8 %» obliga a calcular; «te ahorras 25» se entiende sin hacer nada.
+    expect(screen.getByText(/Pagas 11 meses y usas 12/)).toBeTruthy();
+    expect(screen.getByText(/te ahorras/)).toBeTruthy();
+  });
+
+  it('tres meses no promete un descuento que no hay', async () => {
+    await abrirFormulario();
+    await userEvent.click(screen.getByRole('button', { name: '3 meses' }));
+    expect(screen.queryByText(/te ahorras/)).toBeNull();
+  });
+
+  it('el plazo elegido viaja con el alta', async () => {
+    await abrirFormulario();
+    await userEvent.click(screen.getByRole('button', { name: 'Un año' }));
+    await rellenarYEnviar();
+    await waitFor(() =>
+      expect(crearCuenta).toHaveBeenCalledWith(expect.objectContaining({ plazoEnMeses: 12 })),
+    );
   });
 });

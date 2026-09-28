@@ -429,3 +429,57 @@ Ahora busca las rutas directamente: una cadena que empiece por `/v1/` en el clie
 ![Dónde se cargan los datos](../adjuntos/2026-09-28-datos-de-cobro.png)
 
 25 tests nuevos (9 de API —contra PostgreSQL— y 16 de pantalla).
+
+## El plazo: por cuántos meses se contrata (PR-105, 2026-09-28)
+
+La segunda mitad de la pregunta del usuario: *«¿en qué apartado está la opción de por cuántos meses lo está adquiriendo, 1, 3, 6 o 1 año, y si es un año darle alguna promoción?»*.
+
+Tampoco existía. `subscriptions` tenía `current_period_ends_at` y **ningún concepto de plazo**: el periodo era mensual porque sí.
+
+### Esto toca el modelo de cobro, que estaba en la lista de no tocar
+
+Queda escrito en la migración 0049 y aquí. Se hizo porque lo pidió el dueño del producto, no porque pareciera buena idea.
+
+Lo que **no** cambia: se sigue cobrando por asiento ocupado, los asientos se siguen contando al mirar en vez de guardarse, y el cobro sigue siendo manual. El plazo solo dice **cuántos meses se pagan de una vez**.
+
+### Un año se paga a once
+
+Lo eligió el dueño entre cuatro opciones. Los plazos cortos **no llevan descuento** a propósito: lo que se premia es comprometerse un año, y repartir el descuento entre todos los plazos es regalarlo a quien iba a pagar igual.
+
+La regla vive en una sola línea de `packages/core`:
+
+```ts
+export function mesesQueSeCobran(plazo: Plazo): number {
+  return plazo === 12 ? 11 : plazo;
+}
+```
+
+Cambiarla no es buscarla por cuatro archivos.
+
+### El error que estuve a punto de cometer
+
+Escribí el selector del alta importando `precioDelPlazo` desde `@crmapp/core` en `apps/web`. Compiló mal —`core` no es dependencia de la web— y al mirar por qué apareció algo mejor: **la web no ha importado `core` ni una sola vez** en todo el proyecto. No es casualidad; está escrito en la cabecera de `tipos.ts`:
+
+> Las formas que devuelve la API, tal cual. La web no las interpreta: las pinta. Si algo aquí necesitara una regla de negocio, esa regla va a la API.
+
+«Un año se paga a once» es una regla de negocio. Si la calculara la pantalla, el día que cambie el descuento habría **dos verdades**.
+
+Así que `GET /v1/planes` devuelve ahora el precio de cada plazo ya calculado, y la web solo lo pinta. El fallo de compilación fue el que hizo la pregunta correcta.
+
+### Decisiones pequeñas
+
+- **Cuatro valores, no un número libre.** Un campo libre invita a escribir 7, y entonces hay que decidir qué descuento lleva un plazo que nadie pensó. El CHECK obliga a que ampliar la lista sea una decisión.
+- **El ahorro se enseña en dinero, no en porcentaje.** «8 %» obliga a calcular; «te ahorras 25 USD» se entiende sin hacer nada.
+- **Cambiar el plazo no toca lo ya pagado.** Dice cuánto se paga la *próxima* vez, y eso se decide antes de pagar. Hay un test de que `periodoHasta` no se mueve.
+- **El plazo se guarda desde el alta**, aunque la prueba todavía no cobre: es lo que el cliente eligió y lo que se le cobrará al terminar.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. `#alta` → elige un plan. Debajo de la contraseña salen los cuatro plazos.
+2. Pulsa **Un año**: dice «Pagas 11 meses y usas 12: te ahorras 25 USD por asiento».
+3. Pulsa **3 meses**: ya no promete ahorro, porque no lo hay.
+4. Crea la cuenta y entra en Ajustes → Suscripción: el plazo elegido está puesto, y se puede cambiar sin tocar lo cubierto.
+
+![El plazo, en Suscripción](../adjuntos/2026-09-28-plazo.png)
+
+16 tests nuevos (7 de API —contra PostgreSQL—, 5 de dominio y 4 de pantalla).

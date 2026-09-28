@@ -6,6 +6,7 @@ import type {
   ResumenDeSuscripcion,
   TipoDeComprobante,
 } from '../../api/tipos.ts';
+import { importe } from '../../vista/dinero.ts';
 import { ComoPagar } from './ComoPagar.tsx';
 import estilos from './ajustes.module.css';
 
@@ -124,6 +125,8 @@ export function Suscripcion({ api, gestor = true }: Props) {
       </div>
 
       <Facturacion api={api} datos={d.facturacion} alGuardar={setD} />
+
+      {gestor && <Plazo api={api} d={d} alCambiar={setD} />}
 
       {/* A dónde pagar (0048). Va ANTES del historial: lo que hace falta es
           pagar, y el historial es la consecuencia. */}
@@ -327,5 +330,90 @@ function Comprobante({ api, pago }: { api: Api; pago: PagoDeSuscripcion }) {
     <span className={c.estado === 'retrasado' ? estilos.retrasado : estilos.descripcion}>
       {c.estado === 'retrasado' ? 'Nos hemos retrasado' : `Antes del ${fecha(c.venceEn)}`}
     </span>
+  );
+}
+
+/**
+ * Por cuántos meses se contrata (0049).
+ *
+ * El ahorro se enseña en dinero y no en porcentaje: «8 %» obliga a calcular,
+ * y «te ahorras 25 USD» se entiende sin hacer nada.
+ *
+ * Cambiarlo **no toca lo ya pagado**: dice cuánto se paga la próxima vez, y
+ * eso se decide antes de pagar.
+ */
+function Plazo({
+  api,
+  d,
+  alCambiar,
+}: {
+  api: Api;
+  d: ResumenDeSuscripcion;
+  alCambiar: (r: ResumenDeSuscripcion) => void;
+}) {
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function elegir(meses: number) {
+    setOcupado(true);
+    setError(null);
+    try {
+      alCambiar(await api.cambiarPlazo(meses));
+    } catch (e) {
+      setError(e instanceof ErrorDeApi ? e.message : 'No se pudo cambiar el plazo.');
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <>
+      <h3 className={estilos.tarjetaTitulo}>Cada cuánto pagas</h3>
+      <p className={estilos.descripcion}>
+        Contratando un año pagas once meses. Cambiarlo no afecta a lo que ya tienes cubierto.
+      </p>
+      {error && (
+        <p className={`${estilos.aviso} ${estilos.aviso_error}`} role="alert">
+          {error}
+        </p>
+      )}
+      <div className={estilos.formularioAcciones}>
+        {[1, 3, 6, 12].map((m) => (
+          <button
+            key={m}
+            className={m === d.plazoEnMeses ? estilos.primario : estilos.secundario}
+            disabled={ocupado}
+            aria-pressed={m === d.plazoEnMeses}
+            onClick={() => void elegir(m)}
+          >
+            {m === 1 ? 'Cada mes' : m === 12 ? 'Un año' : `${m} meses`}
+          </button>
+        ))}
+      </div>
+      <p className={estilos.descripcion}>
+        {d.precioDelPlazo.meses === 1 ? (
+          <>
+            Pagas{' '}
+            <strong>{importe(d.precioDelPlazo.totalCentimos, d.plan?.moneda ?? 'USD')}</strong> al
+            mes.
+          </>
+        ) : (
+          <>
+            Pagas{' '}
+            <strong>{importe(d.precioDelPlazo.totalCentimos, d.plan?.moneda ?? 'USD')}</strong> por{' '}
+            {d.precioDelPlazo.meses} meses
+            {/* El ahorro en dinero: un porcentaje obliga a calcular. */}
+            {d.precioDelPlazo.ahorroCentimos > 0 && (
+              <>
+                {' '}
+                y te ahorras{' '}
+                <strong>{importe(d.precioDelPlazo.ahorroCentimos, d.plan?.moneda ?? 'USD')}</strong>
+              </>
+            )}
+            .
+          </>
+        )}
+      </p>
+    </>
   );
 }
