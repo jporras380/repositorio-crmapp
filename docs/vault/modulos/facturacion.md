@@ -483,3 +483,44 @@ Así que `GET /v1/planes` devuelve ahora el precio de cada plazo ya calculado, y
 ![El plazo, en Suscripción](../adjuntos/2026-09-28-plazo.png)
 
 16 tests nuevos (7 de API —contra PostgreSQL—, 5 de dominio y 4 de pantalla).
+
+## La boleta estaba rota, y el test lo tapaba (2026-09-28)
+
+Lo encontró el usuario preguntando *«¿en qué apartado subimos la boleta del cliente, y puede él descargarla?»*.
+
+La respuesta corta: el apartado existía desde PR-95 y **daba 404**.
+
+### La cadena
+
+`CuentaDeLaPlataforma` subía el archivo con `api.prepararSubida(...)`. Esa ruta crea el `media_asset` en el inquilino de **quien llama** — el operador. Después, `adjuntarComprobante` lo busca con `paraInquilino(tenantId)`, bajo la RLS del **cliente**. No lo encuentra:
+
+```
+404 · "No se encontró ese pago en esa cuenta, o el archivo no está subido."
+```
+
+Y aunque se hubiera adjuntado, el cliente **no habría podido descargar su propia boleta**: la pide con `urlDeMedio`, que también corre bajo su RLS.
+
+El comentario que yo mismo escribí encima de esa llamada decía *«El medio se crea DENTRO de la cuenta del cliente»*. Era falso.
+
+### Por qué el test no lo vio, que es lo que más importa
+
+Dos capas de tapadera:
+
+1. **El test de API sembraba el `media_asset` con SQL directo** en la cuenta del cliente, probando un camino que la pantalla nunca seguía.
+2. Y más de fondo: en `suscripcion.e2e.test.ts` **el operador pertenece al mismo inquilino sobre el que actúa**. Con eso, ningún error entre cuentas puede detectarse: da igual dónde nazca el archivo, porque las dos cuentas son la misma.
+
+Lo comprobé: reintroduje el fallo y el primer test nuevo **seguía en verde**. Solo al darle al cliente su propio inquilino se puso rojo.
+
+Un test que no falla cuando rompes lo que dice probar no es un test; es una frase tranquilizadora.
+
+### El arreglo
+
+`POST /v1/operador/cuentas/:tenantId/subidas` prepara la subida **dentro de la cuenta del cliente**, y su gemelo confirma. La boleta es del cliente: tiene que nacer en su cuenta. Los bytes siguen sin pasar por la API.
+
+El recorrido entero está probado end-to-end contra PostgreSQL, con el operador en un inquilino y el cliente en otro, y termina donde importa: **el cliente descarga su boleta**.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Consola → pulsa una cuenta → **Comprobantes pendientes**.
+2. Escribe el número de la boleta y pulsa **Subir comprobante**.
+3. Entra como ese cliente → Ajustes → Suscripción → **Pagos registrados**: la columna Comprobante deja de decir «nos hemos retrasado» y se puede descargar.

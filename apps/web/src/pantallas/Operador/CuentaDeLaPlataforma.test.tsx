@@ -48,10 +48,13 @@ function pintar(datos = detalle(), extra: Record<string, unknown> = {}) {
     mensajesDeSoporte: vi.fn().mockResolvedValue([]),
     hiloDeSoporteDe: vi.fn().mockResolvedValue([]),
     responderASoporte: vi.fn().mockResolvedValue([]),
-    prepararSubida: vi
+    // La subida va en la cuenta del CLIENTE, no en la del operador: con
+    // `prepararSubida` el archivo nacía en la cuenta equivocada y ni se podía
+    // adjuntar ni el cliente podía descargarlo.
+    prepararSubidaEnCuenta: vi
       .fn()
       .mockResolvedValue({ mediaAssetId: 'md-1', urlDeSubida: 'https://s3/put' }),
-    confirmarSubida: vi.fn().mockResolvedValue({ mediaAssetId: 'md-1' }),
+    confirmarSubidaEnCuenta: vi.fn().mockResolvedValue(undefined),
     subirComprobante: vi.fn().mockResolvedValue({ adjuntado: true }),
     pedirAccesoDeSoporte: vi.fn().mockResolvedValue({ id: 'g1' }),
     conversacionesDeSoporte: vi.fn().mockResolvedValue([]),

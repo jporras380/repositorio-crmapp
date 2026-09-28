@@ -60,6 +60,12 @@ const Resolucion = z.object({
     .optional(),
 });
 
+const Subida = z.object({
+  mime: z.string().min(3).max(100),
+  bytes: z.number().int().positive(),
+  nombre: z.string().trim().max(120).optional(),
+});
+
 const Comprobante = z.object({
   tenantId: z.string().uuid(),
   mediaAssetId: z.string().uuid(),
@@ -207,6 +213,36 @@ export class OperadorController {
   @Get('soporte/:tenantId/conversaciones')
   conversacionesDeSoporte(@Req() req: Req, @Param('tenantId') tenantId: string) {
     return conContextoDePeticion(req, () => this.soporte.conversacionesDe(tenantId));
+  }
+
+  /**
+   * Prepara la subida de un comprobante DENTRO de la cuenta del cliente.
+   *
+   * No vale `/v1/medios/subidas`: esa lo crea en el inquilino de quien llama,
+   * y entonces ni se puede adjuntar ni el cliente puede descargarlo.
+   */
+  @Post('cuentas/:tenantId/subidas')
+  @HttpCode(201)
+  prepararSubida(@Req() req: Req, @Param('tenantId') tenantId: string, @Body() body: unknown) {
+    const r = Subida.safeParse(body);
+    if (!r.success) throw new ErrorDeNegocio('datos_invalidos', 'Faltan datos del archivo.', 400);
+    return conContextoDePeticion(req, () =>
+      this.operador.prepararSubidaEn(tenantId, {
+        mime: r.data.mime,
+        bytes: r.data.bytes,
+        ...(r.data.nombre !== undefined ? { nombre: r.data.nombre } : {}),
+      }),
+    );
+  }
+
+  @Post('cuentas/:tenantId/subidas/:mediaAssetId/confirmar')
+  @HttpCode(204)
+  async confirmarSubida(
+    @Req() req: Req,
+    @Param('tenantId') tenantId: string,
+    @Param('mediaAssetId') mediaAssetId: string,
+  ) {
+    await conContextoDePeticion(req, () => this.operador.confirmarSubidaEn(tenantId, mediaAssetId));
   }
 
   @Post('pagos/:id/comprobante')

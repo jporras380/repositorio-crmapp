@@ -27,6 +27,7 @@ const url = (db: string, u = SU, p = PASS) => `postgres://${u}:${p}@${HOST}:${PO
 let app: INestApplication;
 let admin: Pool;
 let http: ReturnType<typeof request>;
+const almacen = new AlmacenEnMemoria();
 let token: string;
 let tenantId: string;
 
@@ -71,7 +72,7 @@ beforeAll(async () => {
       masterKey: 'Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyMDA=',
       // 0044: el chat de soporte firma capturas. Sin almacen, esas rutas
       // responden 503 y no se probaria lo que se quiere probar.
-      almacen: new AlmacenEnMemoria(),
+      almacen,
       modoSandbox: true,
     }),
     { logger: false, rawBody: true },
@@ -106,6 +107,22 @@ afterAll(async () => {
 });
 
 const auth = () => ({ Authorization: `Bearer ${token}` });
+
+/**
+ * El almacén de las pruebas, accesible desde los tests.
+ *
+ * Hace falta para simular la subida del navegador: `AlmacenEnMemoria` firma
+ * una URL `memoria://…` que no se puede pedir por HTTP, así que los bytes se
+ * ponen llamando a `guardar` con la misma clave. Es lo que hace el PUT del
+ * navegador, sin fingir que el archivo ya estaba.
+ */
+async function subirComoElNavegador(mediaAssetId: string): Promise<void> {
+  const { rows } = await admin.query<{ storage_key: string; mime: string }>(
+    `SELECT storage_key, mime FROM media_assets WHERE id = $1`,
+    [mediaAssetId],
+  );
+  await almacen.guardar(rows[0]!.storage_key, Buffer.from('%PDF-1.4 boleta'), rows[0]!.mime);
+}
 
 describe('GET /v1/cuenta/suscripcion', () => {
   it('cobra por asiento ocupado, contando los miembros', async () => {
@@ -1412,5 +1429,122 @@ describe('plazo de contratación', () => {
       .set({ Authorization: `Bearer ${r.body.token}` })
       .expect(200);
     expect(sus.body.plazoEnMeses).toBe(12);
+  });
+});
+
+/**
+ * La boleta que sube el operador, por el camino de la PANTALLA.
+ *
+ * ## Por qué este describe se crea su propio inquilino
+ *
+ * En el resto del archivo, el operador (`jefe@acme.test`) pertenece **al mismo
+ * inquilino** sobre el que actúa. Con eso, un fallo que cruce cuentas es
+ * invisible: da igual dónde nazca el archivo, porque las dos cuentas son la
+ * misma.
+ *
+ * Eso es exactamente lo que dejó pasar el fallo de PR-95. La pantalla subía el
+ * comprobante con `/v1/medios/subidas`, que lo crea en el inquilino de QUIEN
+ * LLAMA —el operador—, y `adjuntarComprobante` lo busca bajo la RLS del
+ * cliente: 404. El test de entonces sembraba el medio con SQL directo en la
+ * cuenta buena y pasaba en verde mientras la consola estaba rota.
+ *
+ * Aquí el cliente es OTRA cuenta, que es la forma que tiene esto en la vida
+ * real, y no se siembra nada: se recorre lo mismo que la pantalla.
+ */
+describe('la boleta, por el camino de la pantalla', () => {
+  let clienteId: string;
+  let clienteToken: string;
+  let pagoId: string;
+
+  const auhCliente = () => ({ Authorization: `Bearer ${clienteToken}` });
+
+  beforeAll(async () => {
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+
+    const r = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Hostal de la Boleta',
+        slug: 'hostal-boleta',
+        email: 'gerencia@boleta.test',
+        contrasena: 'contrasena-muy-larga',
+        nombreCompleto: 'Carmen',
+      })
+      .expect(201);
+    clienteId = r.body.tenantId;
+    clienteToken = r.body.token;
+
+    const { rows } = await admin.query<{ id: string }>(
+      `INSERT INTO subscription_payments
+         (tenant_id, amount_cents, currency, covers_from, covers_to, method)
+       VALUES ($1, 2500, 'USD', now() - interval '1 day', now() + interval '1 month', 'transferencia')
+       RETURNING id`,
+      [clienteId],
+    );
+    pagoId = rows[0]!.id;
+  });
+
+  it('la subida del operador nace en la cuenta del CLIENTE, no en la suya', async () => {
+    const prep = await http
+      .post(`/v1/operador/cuentas/${clienteId}/subidas`)
+      .set(auth())
+      .send({ mime: 'application/pdf', bytes: 2048, nombre: 'boleta.pdf' })
+      .expect(201);
+
+    const { rows } = await admin.query<{ tenant_id: string }>(
+      `SELECT tenant_id FROM media_assets WHERE id = $1`,
+      [prep.body.mediaAssetId],
+    );
+    // Si naciera en la del operador, ni se podría adjuntar ni el cliente
+    // podría descargarla. Y `tenantId` es justo la del operador.
+    expect(rows[0]!.tenant_id).toBe(clienteId);
+    expect(rows[0]!.tenant_id).not.toBe(tenantId);
+  });
+
+  it('el recorrido entero: subir, adjuntar, y que el CLIENTE la descargue', async () => {
+    const prep = await http
+      .post(`/v1/operador/cuentas/${clienteId}/subidas`)
+      .set(auth())
+      .send({ mime: 'application/pdf', bytes: 2048, nombre: 'boleta.pdf' })
+      .expect(201);
+
+    await subirComoElNavegador(prep.body.mediaAssetId);
+    await http
+      .post(`/v1/operador/cuentas/${clienteId}/subidas/${prep.body.mediaAssetId}/confirmar`)
+      .set(auth())
+      .expect(204);
+
+    await http
+      .post(`/v1/operador/pagos/${pagoId}/comprobante`)
+      .set(auth())
+      .send({ tenantId: clienteId, mediaAssetId: prep.body.mediaAssetId, numero: 'B001-00000042' })
+      .expect(201);
+
+    const r = await http.get('/v1/cuenta/suscripcion').set(auhCliente()).expect(200);
+    const pago = r.body.pagos.find((p: { id: string }) => p.id === pagoId);
+    expect(pago.comprobante.estado).toBe('disponible');
+    expect(pago.comprobante.numero).toBe('B001-00000042');
+
+    // Lo único que le importa al cliente: poder descargarla.
+    await http.get(`/v1/medios/${pago.comprobante.medioId}/url`).set(auhCliente()).expect(200);
+  });
+
+  it('un tipo que no es comprobante se rechaza antes de subir nada', async () => {
+    const r = await http
+      .post(`/v1/operador/cuentas/${clienteId}/subidas`)
+      .set(auth())
+      .send({ mime: 'application/zip', bytes: 100 })
+      .expect(415);
+    expect(r.body.codigo).toBe('tipo_no_permitido');
+  });
+
+  it('quien no es operador no sube nada a la cuenta de otro', async () => {
+    await admin.query(`UPDATE users SET is_operator = false WHERE email = 'jefe@acme.test'`);
+    await http
+      .post(`/v1/operador/cuentas/${clienteId}/subidas`)
+      .set(auth())
+      .send({ mime: 'application/pdf', bytes: 100 })
+      .expect(404);
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
   });
 });

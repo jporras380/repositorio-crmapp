@@ -408,7 +408,13 @@ export class AppModule {
           provide: TOKEN_OPERADOR,
           inject: [TOKEN_DB],
           useFactory: (db: BaseDeDatos) =>
-            new OperadorService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
+            new OperadorService({
+              db,
+              // Sube el comprobante DENTRO de la cuenta del cliente (0039),
+              // que es la única forma de que él pueda descargarlo después.
+              almacen: opciones.almacen ?? (opciones.s3 ? new AlmacenS3(opciones.s3) : null),
+              ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
+            }),
         },
         {
           provide: TOKEN_SOPORTE,

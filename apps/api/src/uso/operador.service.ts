@@ -30,6 +30,11 @@
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import { inicioDePeriodo } from '@crmapp/db';
 import { venceElComprobante } from '@crmapp/core';
+import { claveDeMedio, tipoDeMedio, type Almacen } from '@crmapp/storage';
+
+/** Un comprobante es un PDF o una foto de uno. Nada más. */
+const MIMES_DE_COMPROBANTE = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+const TAMANO_MAXIMO_COMPROBANTE = 20 * 1024 * 1024;
 import { contextoActual, type BaseDeDatos } from '../db.js';
 
 /** Una cuenta vista desde fuera: lo justo para cobrar y para saber si va bien. */
@@ -104,9 +109,87 @@ export class OperadorService {
   readonly #db: BaseDeDatos;
   readonly #ahora: () => Date;
 
-  constructor(o: { db: BaseDeDatos; ahora?: () => Date }) {
+  /** `null` si el almacenamiento no está configurado: subir responde 503. */
+  readonly #almacen: Almacen | null;
+
+  constructor(o: { db: BaseDeDatos; almacen?: Almacen | null; ahora?: () => Date }) {
     this.#db = o.db;
+    this.#almacen = o.almacen ?? null;
     this.#ahora = o.ahora ?? (() => new Date());
+  }
+
+  /**
+   * Prepara una subida DENTRO de la cuenta del cliente.
+   *
+   * ## Por qué hace falta esto y no vale `/v1/medios/subidas`
+   *
+   * Esa ruta crea el archivo en el inquilino de QUIEN LLAMA. Cuando el que
+   * llama es el operador, el archivo acaba en su cuenta — y entonces pasan
+   * dos cosas, las dos malas:
+   *
+   * 1. `adjuntarComprobante` busca el medio bajo la RLS del CLIENTE y no lo
+   *    encuentra: 404. La pantalla de la consola estuvo rota así desde PR-95.
+   * 2. Aunque se adjuntara, el cliente no podría **descargar su propia
+   *    boleta**: la pide con `urlDeMedio`, que también corre bajo su RLS.
+   *
+   * La boleta es del cliente. Tiene que nacer en su cuenta.
+   */
+  async prepararSubidaEn(
+    tenantId: string,
+    datos: { mime: string; bytes: number; nombre?: string | undefined },
+  ): Promise<{ mediaAssetId: string; urlDeSubida: string }> {
+    await this.#exigirOperador();
+    const almacen = this.#exigirAlmacen();
+    const mime = datos.mime.toLowerCase();
+    if (!MIMES_DE_COMPROBANTE.has(mime)) {
+      throw new ErrorDeNegocio('tipo_no_permitido', `Un comprobante no es un ${mime}.`, 415);
+    }
+    if (datos.bytes <= 0 || datos.bytes > TAMANO_MAXIMO_COMPROBANTE) {
+      throw new ErrorDeNegocio('tamano_no_permitido', 'El archivo supera los 20 MB.', 413);
+    }
+
+    return this.#db.paraInquilino(tenantId, async (c) => {
+      const id = await this.#db.nuevoId(c);
+      const clave = claveDeMedio(tenantId, id, mime);
+      await c.query(
+        `INSERT INTO media_assets (id, tenant_id, kind, storage_key, mime, bytes, filename, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
+        [id, tenantId, tipoDeMedio(mime), clave, mime, datos.bytes, datos.nombre ?? null],
+      );
+      return { mediaAssetId: id, urlDeSubida: await almacen.urlDeSubida(clave, mime) };
+    });
+  }
+
+  /** Confirma que el archivo llegó al almacén, dentro de la cuenta del cliente. */
+  async confirmarSubidaEn(tenantId: string, mediaAssetId: string): Promise<void> {
+    await this.#exigirOperador();
+    const almacen = this.#exigirAlmacen();
+    await this.#db.paraInquilino(tenantId, async (c) => {
+      const { rows } = await c.query<{ storage_key: string; status: string }>(
+        `SELECT storage_key, status FROM media_assets WHERE id = $1 FOR UPDATE`,
+        [mediaAssetId],
+      );
+      const m = rows[0];
+      if (!m) throw new ErrorDeNegocio('medio_no_encontrado', 'El medio no existe.', 404);
+      if (m.status === 'stored') return;
+      if (!(await almacen.existe(m.storage_key))) {
+        throw new ErrorDeNegocio('subida_incompleta', 'El archivo no llegó al almacén.', 409);
+      }
+      await c.query(`UPDATE media_assets SET status = 'stored', updated_at = now() WHERE id = $1`, [
+        mediaAssetId,
+      ]);
+    });
+  }
+
+  #exigirAlmacen(): Almacen {
+    if (!this.#almacen) {
+      throw new ErrorDeNegocio(
+        'almacenamiento_no_configurado',
+        'El almacenamiento no está configurado.',
+        503,
+      );
+    }
+    return this.#almacen;
   }
 
   /**

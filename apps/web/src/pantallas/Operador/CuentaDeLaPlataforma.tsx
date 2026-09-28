@@ -128,16 +128,29 @@ function Comprobantes({
     setSubiendo(pagoId);
     setError(null);
     try {
-      const { mediaAssetId, urlDeSubida } = await api.prepararSubida(f.type, f.size, f.name);
+      // La subida va en la cuenta del CLIENTE, no en la del operador.
+      //
+      // Con `prepararSubida` —que usa la sesión de quien llama— el archivo
+      // nacía en la cuenta del operador, y entonces `adjuntarComprobante` no
+      // lo encontraba bajo la RLS del cliente: 404. Estuvo roto desde PR-95
+      // porque el test de API sembraba el medio con SQL directo en la cuenta
+      // buena, probando un camino que la pantalla nunca seguía.
+      //
+      // Y aunque se hubiera adjuntado, el cliente no podría descargarlo: lo
+      // pide con `urlDeMedio`, que también corre bajo su RLS.
+      const { mediaAssetId, urlDeSubida } = await api.prepararSubidaEnCuenta(
+        tenantId,
+        f.type,
+        f.size,
+        f.name,
+      );
       const r = await fetch(urlDeSubida, {
         method: 'PUT',
         body: f,
         headers: { 'content-type': f.type },
       });
       if (!r.ok) throw new Error('subida');
-      await api.confirmarSubida(mediaAssetId);
-      // El medio se crea DENTRO de la cuenta del cliente y el pago se busca
-      // bajo su RLS: un archivo de otro inquilino no se encuentra desde aquí.
+      await api.confirmarSubidaEnCuenta(tenantId, mediaAssetId);
       await api.subirComprobante({
         tenantId,
         pagoId,

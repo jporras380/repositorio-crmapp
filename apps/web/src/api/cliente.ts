@@ -185,6 +185,23 @@ export function crearApi(token: string | null) {
     /** De UNA cuenta: sus pagos sin comprobante y el acceso de soporte. */
     detalleDeCuenta: (tenantId: string) =>
       peticion<DetalleDeCuenta>(`/v1/operador/cuentas/${tenantId}`, t),
+    /**
+     * Prepara la subida de un comprobante DENTRO de la cuenta del cliente.
+     *
+     * No vale `prepararSubida`: esa lo crea en el inquilino de quien llama, y
+     * un archivo del operador ni se puede adjuntar ni lo puede descargar el
+     * cliente. La boleta es suya y tiene que nacer en su cuenta.
+     */
+    prepararSubidaEnCuenta: (tenantId: string, mime: string, bytes: number, nombre?: string) =>
+      peticion<{ mediaAssetId: string; urlDeSubida: string }>(
+        `/v1/operador/cuentas/${tenantId}/subidas`,
+        { ...t, metodo: 'POST', cuerpo: { mime, bytes, nombre } },
+      ),
+    confirmarSubidaEnCuenta: (tenantId: string, mediaAssetId: string) =>
+      peticion<void>(`/v1/operador/cuentas/${tenantId}/subidas/${mediaAssetId}/confirmar`, {
+        ...t,
+        metodo: 'POST',
+      }),
     /** Sube el comprobante de un pago de la cuenta que se diga. */
     subirComprobante: (d: {
       tenantId: string;
