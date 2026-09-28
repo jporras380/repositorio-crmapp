@@ -6,6 +6,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -23,6 +24,41 @@ const Soporte = z.object({
 });
 
 const Mensaje = z.object({ cuerpo: z.string().trim().min(1).max(4000) });
+
+/** Los datos de cobro de la plataforma (0048). Todo opcional: se guarda lo que llega. */
+const DatosDeCobro = z
+  .object({
+    banco: z.string().trim().max(80).nullable(),
+    tipo_de_cuenta: z.string().trim().max(40).nullable(),
+    numero_de_cuenta: z.string().trim().max(40).nullable(),
+    cci: z.string().trim().max(40).nullable(),
+    titular: z.string().trim().max(120).nullable(),
+    documento_titular: z.string().trim().max(20).nullable(),
+    numero_billetera: z.string().trim().max(20).nullable(),
+    titular_billetera: z.string().trim().max(120).nullable(),
+    nota: z.string().trim().max(500).nullable(),
+  })
+  .partial();
+
+const SolesDePlan = z.object({
+  codigoDePlan: z.string().trim().min(1).max(40),
+  /** `null` quita el importe: el plan vuelve a no tener precio en soles. */
+  centimos: z.number().int().positive().nullable(),
+});
+
+const Resolucion = z.object({
+  tenantId: z.string().uuid(),
+  confirmar: z.boolean(),
+  nota: z.string().trim().max(500).optional(),
+  cubreDesde: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  cubreHasta: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+});
 
 const Comprobante = z.object({
   tenantId: z.string().uuid(),
@@ -48,6 +84,66 @@ export class OperadorController {
     @Inject(TOKEN_OPERADOR) private readonly operador: OperadorService,
     @Inject(TOKEN_SOPORTE) private readonly soporte: SoporteService,
   ) {}
+
+  /** A dónde te pagan: lo que verá el cliente en su Suscripción (0048). */
+  @Get('cobro')
+  datosDeCobro(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.operador.datosDeCobro());
+  }
+
+  @Put('cobro')
+  @HttpCode(204)
+  async guardarCobro(@Req() req: Req, @Body() body: unknown) {
+    const r = DatosDeCobro.safeParse(body);
+    if (!r.success) throw new ErrorDeNegocio('datos_invalidos', 'Datos de cobro inválidos.', 400);
+    await conContextoDePeticion(req, () =>
+      this.operador.guardarDatosDeCobro(r.data as Record<string, string | null>),
+    );
+  }
+
+  /** Publica el QR de Yape o Plin. El archivo se sube antes por la vía normal. */
+  @Put('cobro/qr')
+  @HttpCode(204)
+  async publicarQr(@Req() req: Req, @Body() body: unknown) {
+    const r = z.object({ mediaAssetId: z.string().uuid() }).safeParse(body);
+    if (!r.success) throw new ErrorDeNegocio('datos_invalidos', 'Falta el archivo.', 400);
+    await conContextoDePeticion(req, () => this.operador.publicarQr(r.data.mediaAssetId));
+  }
+
+  /** El importe en soles de un plan: los planes están en USD y Yape cobra en soles. */
+  @Put('cobro/soles')
+  @HttpCode(204)
+  async guardarSoles(@Req() req: Req, @Body() body: unknown) {
+    const r = SolesDePlan.safeParse(body);
+    if (!r.success) throw new ErrorDeNegocio('datos_invalidos', 'Falta el plan o el importe.', 400);
+    await conContextoDePeticion(req, () =>
+      this.operador.guardarSolesDePlan(r.data.codigoDePlan, r.data.centimos),
+    );
+  }
+
+  /** Quién dice haber pagado y nadie ha mirado. */
+  @Get('pagos-declarados')
+  declaraciones(@Req() req: Req) {
+    return conContextoDePeticion(req, () => this.operador.declaracionesPendientes());
+  }
+
+  /** Confirmarla crea el pago de verdad; rechazarla exige decir por qué. */
+  @Post('pagos-declarados/:id')
+  @HttpCode(200)
+  resolver(@Req() req: Req, @Param('id') id: string, @Body() body: unknown) {
+    const r = Resolucion.safeParse(body);
+    if (!r.success) throw new ErrorDeNegocio('datos_invalidos', 'Faltan datos.', 400);
+    return conContextoDePeticion(req, () =>
+      this.operador.resolverDeclaracion({
+        id,
+        tenantId: r.data.tenantId,
+        confirmar: r.data.confirmar,
+        ...(r.data.nota !== undefined ? { nota: r.data.nota } : {}),
+        ...(r.data.cubreDesde !== undefined ? { cubreDesde: r.data.cubreDesde } : {}),
+        ...(r.data.cubreHasta !== undefined ? { cubreHasta: r.data.cubreHasta } : {}),
+      }),
+    );
+  }
 
   /** Todas las cuentas: qué se les debe cobrar y si van bien. */
   @Get('cuentas')

@@ -47,6 +47,10 @@ const PERMITIDOS = {
   source_contact_id: 'Ídem.',
   target_contact_id: 'Ídem.',
   reverted_at: 'Ídem.',
+  payment_id:
+    'La escribe `app.confirmar_pago_declarado` (0048), que es una funcion de ' +
+    'la base: el rol de la aplicacion no puede insertar en el libro del ' +
+    'dinero y no debe. Esta guarda solo mira TypeScript.',
 
   // --- Métodos del cliente web --------------------------------------------
   //
@@ -287,10 +291,22 @@ const fuentesWeb = [];
 
   // Todo lo que el cliente web pide, venga de comillas o de plantilla.
   const pedidas = new Set();
-  // `[^(]*` y no `<[^>]*>`: el genérico puede ir anidado —`peticion<Pagina<
-  // ResumenDeConversacion>>`— y una clase que excluya `>` se para en el de
-  // dentro. Otra forma de que la guarda calle sin avisar.
-  const enCliente = new RegExp('peticion[^(]*[(]\\s*[`\'"]([^`\'"]+)', 'g');
+  // Se buscan las RUTAS, no las llamadas a `peticion`.
+  //
+  // Anclarse en `peticion<...>(` falló dos veces por lo mismo: el genérico
+  // crece y el patrón se rompe. Primero con `peticion<Pagina<X>>`, por una
+  // clase que excluía `>`; luego con `peticion<(A & B)[]>`, cuyo paréntesis
+  // se adelanta al que abre la llamada. Las dos veces la guarda se equivocó
+  // sobre una ruta que SÍ se pedía, que es como se enseña a ignorarla.
+  //
+  // Una cadena que empieza por `/v1/` en el cliente web es una ruta y punto.
+  // No hay genérico que rompa eso.
+  //
+  // Lo que cuesta: una ruta escrita en un comentario contaría como usada. Es
+  // un falso negativo posible, y se prefiere a un falso positivo, que enseña
+  // a desconfiar de la guarda entera.
+  const COMILLA = '[`\'"]';
+  const enCliente = new RegExp(COMILLA + '(/v1/[^`\'"]*)', 'g');
   const clienteWeb = readFileSync('apps/web/src/api/cliente.ts', 'utf8');
   for (const m of clienteWeb.matchAll(enCliente)) pedidas.add(comodines(m[1]));
 

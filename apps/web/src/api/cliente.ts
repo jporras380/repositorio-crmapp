@@ -17,6 +17,7 @@ import type {
   AjustesDeIa,
   EtiquetaConUso,
   ConfiguracionDeReparto,
+  DeclaracionDePago,
   EquipoDeLaCuenta,
   HorarioDeAtencion,
   BorradorDePlantilla,
@@ -433,6 +434,58 @@ export function crearApi(token: string | null) {
       peticion<ResumenDeSuscripcion>('/v1/cuenta/suscripcion/facturacion', {
         ...t,
         metodo: 'PUT',
+        cuerpo: d,
+      }),
+    /**
+     * «Ya pagué, aquí está el voucher». No registra un pago: lo declara, y el
+     * operador lo confirma.
+     */
+    declararPago: (d: {
+      importeCentimos: number;
+      moneda: string;
+      metodo: 'transferencia' | 'yape' | 'plin' | 'otro';
+      referencia?: string;
+      pagadoEl: string;
+      mediaAssetId?: string;
+    }) =>
+      peticion<ResumenDeSuscripcion>('/v1/cuenta/suscripcion/pagos-declarados', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: d,
+      }),
+
+    // --- Cobro de la plataforma, desde la consola (0048) --------------------
+    /** A dónde te pagan: lo que verá el cliente en su Suscripción. */
+    /** El QR de Yape o Plin de la plataforma, firmado. Caduca. */
+    qrDeCobro: () =>
+      peticion<{ url: string; expiraEnSegundos: number }>('/v1/cuenta/suscripcion/qr', t),
+    /** Publica el QR. El archivo se sube antes con `prepararSubida`. */
+    publicarQrDeCobro: (mediaAssetId: string) =>
+      peticion<void>('/v1/operador/cobro/qr', { ...t, metodo: 'PUT', cuerpo: { mediaAssetId } }),
+    datosDeCobro: () => peticion<Record<string, string | null>>('/v1/operador/cobro', t),
+    guardarDatosDeCobro: (d: Record<string, string | null>) =>
+      peticion<void>('/v1/operador/cobro', { ...t, metodo: 'PUT', cuerpo: d }),
+    /** El importe en soles de un plan: los planes van en USD y Yape cobra en soles. */
+    guardarSolesDePlan: (codigoDePlan: string, centimos: number | null) =>
+      peticion<void>('/v1/operador/cobro/soles', {
+        ...t,
+        metodo: 'PUT',
+        cuerpo: { codigoDePlan, centimos },
+      }),
+    /** Quién dice haber pagado y nadie ha mirado. */
+    pagosDeclarados: () =>
+      peticion<(DeclaracionDePago & { tenantId: string; cuenta: string })[]>(
+        '/v1/operador/pagos-declarados',
+        t,
+      ),
+    /** Confirmarla crea el pago de verdad; rechazarla exige decir por qué. */
+    resolverPagoDeclarado: (
+      id: string,
+      d: { tenantId: string; confirmar: boolean; nota?: string },
+    ) =>
+      peticion<{ resuelta: true }>(`/v1/operador/pagos-declarados/${id}`, {
+        ...t,
+        metodo: 'POST',
         cuerpo: d,
       }),
     usuarios: () => peticion<Miembro[]>('/v1/usuarios', t),

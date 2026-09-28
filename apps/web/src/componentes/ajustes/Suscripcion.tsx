@@ -6,10 +6,13 @@ import type {
   ResumenDeSuscripcion,
   TipoDeComprobante,
 } from '../../api/tipos.ts';
+import { ComoPagar } from './ComoPagar.tsx';
 import estilos from './ajustes.module.css';
 
 interface Props {
   api: Api;
+  /** Solo dueño o administrador declara un pago. */
+  gestor?: boolean;
 }
 
 const ESTADOS: Record<string, { texto: string; detalle: string }> = {
@@ -49,7 +52,7 @@ function fecha(iso: string | null): string {
  * Aquí se ve el importe, la cobertura y el historial; el pago se registra por
  * fuera. Poner un botón que no cobra sería peor que no ponerlo.
  */
-export function Suscripcion({ api }: Props) {
+export function Suscripcion({ api, gestor = true }: Props) {
   const [d, setD] = useState<ResumenDeSuscripcion | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,11 +125,22 @@ export function Suscripcion({ api }: Props) {
 
       <Facturacion api={api} datos={d.facturacion} alGuardar={setD} />
 
+      {/* A dónde pagar (0048). Va ANTES del historial: lo que hace falta es
+          pagar, y el historial es la consecuencia. */}
+      <ComoPagar
+        api={api}
+        datos={d.comoPagar}
+        declaraciones={d.declaraciones}
+        importeSugeridoCentimos={d.importeMensualCentimos}
+        monedaDelPlan={d.plan?.moneda ?? 'USD'}
+        gestor={gestor}
+        alCambiar={async () => setD(await api.suscripcion())}
+      />
+
       <h3 className={estilos.tarjetaTitulo}>Pagos registrados</h3>
       {d.pagos.length === 0 ? (
         <p className={estilos.descripcion}>
-          Todavía no hay ninguno. Los pagos se hacen por transferencia y los registramos nosotros al
-          recibirlos.
+          Todavía no hay ninguno. Aparecerán aquí en cuanto confirmemos tu primer pago.
         </p>
       ) : (
         <table className={estilos.tabla}>

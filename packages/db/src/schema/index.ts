@@ -974,3 +974,60 @@ export const tenantSecrets = pgTable('tenant_secrets', {
   rotatedAt: timestamp('rotated_at', { withTimezone: true }),
   createdAt: creado,
 });
+
+// ---------------------------------------------------------------------------
+// Cómo se le paga a la plataforma (0048)
+// ---------------------------------------------------------------------------
+
+/**
+ * Los datos de cobro de la PLATAFORMA. Una sola fila, global.
+ *
+ * La pantalla de Suscripción decía «los pagos se hacen por transferencia» y
+ * no decía a dónde. ADR-011 eligió cobro manual; lo que faltaba no era una
+ * pasarela, era decir los datos.
+ */
+export const platformPaymentSettings = pgTable('platform_payment_settings', {
+  id: integer('id').primaryKey(),
+  banco: text('banco'),
+  tipoDeCuenta: text('tipo_de_cuenta'),
+  numeroDeCuenta: text('numero_de_cuenta'),
+  cci: text('cci'),
+  titular: text('titular'),
+  documentoTitular: text('documento_titular'),
+  numeroBilletera: text('numero_billetera'),
+  titularBilletera: text('titular_billetera'),
+  /** El QR va como clave del almacén: no es de ningún inquilino. */
+  qrStorageKey: text('qr_storage_key'),
+  qrMime: text('qr_mime'),
+  /** Céntimos de sol por código de plan. Los planes están en USD y Yape cobra en soles. */
+  solesPorPlan: jsonb('soles_por_plan').notNull().default({}),
+  nota: text('nota'),
+  updatedAt: actualizado,
+  updatedBy: uuid('updated_by'),
+});
+
+/**
+ * «He pagado, aquí está el voucher», que dice el cliente.
+ *
+ * Aparte de `subscriptionPayments` a propósito: esa es el libro del dinero
+ * cobrado y decide si la cuenta sigue viva. El cliente declara; el operador
+ * confirma. Mezclarlas dejaría que cualquiera se diera por pagado.
+ */
+export const paymentClaims = pgTable('payment_claims', {
+  id: uuid('id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  declaredBy: uuid('declared_by').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  currency: char('currency', { length: 3 }).notNull().default('USD'),
+  method: text('method').notNull(),
+  /** Número de operación del banco o de la app: sirve para cuadrar sin llamar. */
+  reference: text('reference'),
+  paidAt: date('paid_at').notNull(),
+  mediaAssetId: uuid('media_asset_id'),
+  status: text('status').notNull().default('pendiente'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewedBy: uuid('reviewed_by'),
+  reviewNote: text('review_note'),
+  paymentId: uuid('payment_id'),
+  createdAt: creado,
+});

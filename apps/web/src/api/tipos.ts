@@ -601,6 +601,37 @@ export interface Equipo {
   asientos: { ocupados: number; tope: number | null };
 }
 
+/** A dónde pagar (0048). Todo opcional hasta que el operador lo rellene. */
+export interface ComoPagar {
+  banco: string | null;
+  tipoDeCuenta: string | null;
+  numeroDeCuenta: string | null;
+  cci: string | null;
+  titular: string | null;
+  documentoTitular: string | null;
+  numeroBilletera: string | null;
+  titularBilletera: string | null;
+  hayQr: boolean;
+  /** Lo que toca pagar en soles, si el operador lo fijó para este plan. */
+  solesCentimos: number | null;
+  nota: string | null;
+}
+
+/** «Ya pagué»: lo declara el cliente y lo confirma el operador. */
+export interface DeclaracionDePago {
+  id: string;
+  importeCentimos: number;
+  moneda: string;
+  metodo: string;
+  referencia: string | null;
+  pagadoEl: string;
+  medioId: string | null;
+  estado: 'pendiente' | 'confirmado' | 'rechazado';
+  revisadoEn: string | null;
+  notaDeRevision: string | null;
+  creadoEn: string;
+}
+
 export interface ResumenDeSuscripcion {
   plan: { codigo: string; nombre: string; precioPorAsientoCentimos: number; moneda: string } | null;
   estado: 'prueba' | 'activa' | 'gracia' | 'suspendida' | string;
@@ -611,6 +642,9 @@ export interface ResumenDeSuscripcion {
   periodoHasta: string | null;
   graciaHasta: string | null;
   pagos: PagoDeSuscripcion[];
+  /** A dónde transferir (0048). Antes no se decía en ningún sitio. */
+  comoPagar: ComoPagar;
+  declaraciones: DeclaracionDePago[];
   avisos: { limite: string; nivel: 'holgado' | 'cerca' | 'pasado'; usado: number; tope: number }[];
   facturacion: DatosDeFacturacion;
 }

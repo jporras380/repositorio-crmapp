@@ -14,14 +14,22 @@ import { Operador } from './Operador.tsx';
 
 const cuentasDeLaPlataforma = vi.fn();
 const yo = vi.fn();
+/** Desde 0048 la consola pide también lo que dicen haber pagado. */
+const pagosDeclarados = vi.fn().mockResolvedValue([]);
 vi.mock('../../api/cliente.ts', async () => {
   const real = await vi.importActual<typeof import('../../api/cliente.ts')>('../../api/cliente.ts');
-  return { ...real, crearApi: () => ({ cuentasDeLaPlataforma, yo, urlDeMedio: vi.fn() }) };
+  return {
+    ...real,
+    crearApi: () => ({ cuentasDeLaPlataforma, yo, pagosDeclarados, urlDeMedio: vi.fn() }),
+  };
 });
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  // `clearAllMocks` borra también lo que devuelven: sin esto, el segundo test
+  // ve `undefined` y falla por algo que no está probando.
+  pagosDeclarados.mockResolvedValue([]);
 });
 
 const SESION = { token: 't', tenantId: 'te1', userId: 'u1', rol: 'owner' as const };
@@ -147,6 +155,9 @@ describe('Consola del operador', () => {
     });
     cuentasDeLaPlataforma.mockRejectedValue(new ErrorDeApi(404, 'no_encontrado', 'No existe.'));
     render(<Operador sesion={SESION} alSalir={vi.fn()} />);
-    expect((await screen.findByRole('alert')).textContent).toContain('personal de la plataforma');
+    // `findAllByRole`: desde 0048 esta pantalla tiene un segundo hueco de
+    // error —los pagos declarados— y el suyo taparía al que se prueba.
+    const alertas = await screen.findAllByRole('alert');
+    expect(alertas.map((a) => a.textContent).join(' ')).toContain('personal de la plataforma');
   });
 });

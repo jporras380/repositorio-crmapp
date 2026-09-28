@@ -34,6 +34,22 @@ const BASE: ResumenDeSuscripcion = {
     },
   ],
   avisos: [],
+  // A dónde pagar (0048). Vacío por defecto: una cuenta recién creada no
+  // tiene los datos de la plataforma cargados todavía.
+  comoPagar: {
+    banco: null,
+    tipoDeCuenta: null,
+    numeroDeCuenta: null,
+    cci: null,
+    titular: null,
+    documentoTitular: null,
+    numeroBilletera: null,
+    titularBilletera: null,
+    hayQr: false,
+    solesCentimos: null,
+    nota: null,
+  },
+  declaraciones: [],
   facturacion: { tipo: 'boleta', documento: null, nombre: null, direccion: null },
 };
 

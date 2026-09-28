@@ -396,7 +396,13 @@ export class AppModule {
           provide: TOKEN_USO,
           inject: [TOKEN_DB],
           useFactory: (db: BaseDeDatos) =>
-            new UsoService({ db, ...(opciones.ahora ? { ahora: opciones.ahora } : {}) }),
+            new UsoService({
+              db,
+              // El mismo almacén que todo lo demás: el QR de cobro (0048) se
+              // firma como cualquier otro archivo.
+              almacen: opciones.almacen ?? (opciones.s3 ? new AlmacenS3(opciones.s3) : null),
+              ...(opciones.ahora ? { ahora: opciones.ahora } : {}),
+            }),
         },
         {
           provide: TOKEN_OPERADOR,

@@ -1,0 +1,56 @@
+/* A dónde transferir, dentro de Ajustes → Suscripción. */
+@layer components {
+  .metodos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .metodo {
+    display: grid;
+    gap: 0.35rem;
+    padding: var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .metodoTitulo {
+    margin: 0 0 0.2rem;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .dato {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+  }
+
+  .datoEtiqueta {
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+
+  /* Estos números se COPIAN, no se leen: un doble clic los selecciona
+     enteros. Sin esto hay que arrastrar sobre veinte dígitos sin fallar. */
+  .datoValor {
+    font-family: var(--font-mono);
+    text-align: end;
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+
+  /* Lo bastante grande para escanearlo desde el móvil apuntando a la
+     pantalla, que es como se usa de verdad. */
+  .qr {
+    justify-self: center;
+    inline-size: min(100%, 13rem);
+    margin-block-start: 0.4rem;
+    border-radius: var(--radius-sm);
+    background: #fff;
+    padding: 0.4rem;
+  }
+}

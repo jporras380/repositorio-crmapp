@@ -27,6 +27,7 @@ import {
   leerUsoDelPeriodo,
   type MetricaDeUso,
 } from '@crmapp/db';
+import type { Almacen } from '@crmapp/storage';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 
@@ -116,6 +117,46 @@ export interface ResumenDeSuscripcion {
   avisos: AvisoDeLimite[];
   /** A nombre de quién y con qué documento se emiten los comprobantes (0039). */
   facturacion: DatosDeFacturacionDelHotel;
+  /** A dónde pagar (0048). Antes esto no se decía en ningún sitio. */
+  comoPagar: ComoPagar;
+  /** Lo que este cliente ya declaró haber pagado, y en qué quedó. */
+  declaraciones: DeclaracionDePago[];
+}
+
+/**
+ * A dónde transferir, con las palabras del operador.
+ *
+ * Todo opcional: mientras no lo rellene, la pantalla del cliente no promete un
+ * método que no existe en vez de enseñar campos vacíos.
+ */
+export interface ComoPagar {
+  banco: string | null;
+  tipoDeCuenta: string | null;
+  numeroDeCuenta: string | null;
+  cci: string | null;
+  titular: string | null;
+  documentoTitular: string | null;
+  numeroBilletera: string | null;
+  titularBilletera: string | null;
+  /** `true` si hay QR subido. La URL se firma aparte y caduca. */
+  hayQr: boolean;
+  /** Lo que toca pagar en soles, si el operador lo fijó para este plan. */
+  solesCentimos: number | null;
+  nota: string | null;
+}
+
+export interface DeclaracionDePago {
+  id: string;
+  importeCentimos: number;
+  moneda: string;
+  metodo: string;
+  referencia: string | null;
+  pagadoEl: Date;
+  medioId: string | null;
+  estado: 'pendiente' | 'confirmado' | 'rechazado';
+  revisadoEn: Date | null;
+  notaDeRevision: string | null;
+  creadoEn: Date;
 }
 
 export interface DatosDeFacturacionDelHotel {
@@ -130,9 +171,40 @@ export class UsoService {
   readonly #db: BaseDeDatos;
   readonly #ahora: () => Date;
 
-  constructor(o: { db: BaseDeDatos; ahora?: () => Date }) {
+  /** `null` si el almacenamiento no está configurado: el QR responde 503. */
+  readonly #almacen: Almacen | null;
+
+  constructor(o: { db: BaseDeDatos; almacen?: Almacen | null; ahora?: () => Date }) {
     this.#db = o.db;
+    this.#almacen = o.almacen ?? null;
     this.#ahora = o.ahora ?? (() => new Date());
+  }
+
+  /**
+   * El QR de Yape o Plin de la plataforma, firmado.
+   *
+   * Lo pide cualquier usuario con sesión, de cualquier cuenta: es justo el
+   * dato que hay que enseñar para cobrar. La clave sale de la fila global de
+   * ajustes, no de `media_assets`, así que la RLS de esa tabla no estorba.
+   */
+  async qrDeCobro(): Promise<{ url: string; expiraEnSegundos: number }> {
+    if (!contextoActual()) throw new ErrorDeNegocio('sin_sesion', 'Se requiere sesión.', 401);
+    if (!this.#almacen) {
+      throw new ErrorDeNegocio(
+        'almacenamiento_no_configurado',
+        'El almacenamiento no está configurado.',
+        503,
+      );
+    }
+    const almacen = this.#almacen;
+    return this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{ qr_storage_key: string | null }>(
+        `SELECT qr_storage_key FROM platform_payment_settings WHERE id = 1`,
+      );
+      const clave = rows[0]?.qr_storage_key;
+      if (!clave) throw new ErrorDeNegocio('sin_qr', 'No hay ningún QR publicado.', 404);
+      return { url: await almacen.urlDeLectura(clave, 300), expiraEnSegundos: 300 };
+    });
   }
 
   async resumen(): Promise<ResumenDeUso> {
@@ -259,6 +331,73 @@ export class UsoService {
       anotar('conversaciones_mes', uso['conversations.opened']);
       anotar('bot_runs_mes', uso['bot.runs']);
 
+      // A dónde pagar (0048). Una sola fila global; la lee cualquiera porque es
+      // justo lo que hay que enseñar para cobrar.
+      const { rows: cobro } = await c.query<{
+        banco: string | null;
+        tipo_de_cuenta: string | null;
+        numero_de_cuenta: string | null;
+        cci: string | null;
+        titular: string | null;
+        documento_titular: string | null;
+        numero_billetera: string | null;
+        titular_billetera: string | null;
+        qr_storage_key: string | null;
+        soles_por_plan: Record<string, number>;
+        nota: string | null;
+      }>(`SELECT * FROM platform_payment_settings WHERE id = 1`);
+      const p = cobro[0];
+      const comoPagar: ComoPagar = {
+        banco: p?.banco ?? null,
+        tipoDeCuenta: p?.tipo_de_cuenta ?? null,
+        numeroDeCuenta: p?.numero_de_cuenta ?? null,
+        cci: p?.cci ?? null,
+        titular: p?.titular ?? null,
+        documentoTitular: p?.documento_titular ?? null,
+        numeroBilletera: p?.numero_billetera ?? null,
+        titularBilletera: p?.titular_billetera ?? null,
+        hayQr: Boolean(p?.qr_storage_key),
+        // El importe en soles es POR PLAN: si el operador no lo fijó para el
+        // de este cliente, no se inventa una conversión.
+        solesCentimos: f?.code ? (p?.soles_por_plan?.[f.code] ?? null) : null,
+        nota: p?.nota ?? null,
+      };
+
+      const { rows: decl } = await c.query<{
+        id: string;
+        amount_cents: number;
+        currency: string;
+        method: string;
+        reference: string | null;
+        paid_at: Date;
+        media_asset_id: string | null;
+        status: DeclaracionDePago['estado'];
+        reviewed_at: Date | null;
+        review_note: string | null;
+        created_at: Date;
+      }>(
+        `SELECT id, amount_cents, currency, method, reference, paid_at, media_asset_id,
+                status, reviewed_at, review_note, created_at
+           FROM payment_claims
+          WHERE tenant_id = $1
+          ORDER BY created_at DESC
+          LIMIT 20`,
+        [ctx.tenantId],
+      );
+      const declaraciones: DeclaracionDePago[] = decl.map((d) => ({
+        id: d.id,
+        importeCentimos: d.amount_cents,
+        moneda: d.currency,
+        metodo: d.method,
+        referencia: d.reference,
+        pagadoEl: d.paid_at,
+        medioId: d.media_asset_id,
+        estado: d.status,
+        revisadoEn: d.reviewed_at,
+        notaDeRevision: d.review_note,
+        creadoEn: d.created_at,
+      }));
+
       return {
         plan: f
           ? {
@@ -277,6 +416,8 @@ export class UsoService {
           nombre: f?.billing_name ?? null,
           direccion: f?.billing_address ?? null,
         },
+        comoPagar,
+        declaraciones,
         pruebaHasta: suscripcion.pruebaHasta,
         periodoHasta: suscripcion.periodoHasta,
         graciaHasta: graciaHasta(suscripcion),
@@ -319,6 +460,77 @@ export class UsoService {
    *
    * Solo owner o admin: es un dato fiscal de la empresa, no una preferencia.
    */
+  /**
+   * El cliente declara que ya pagó, y adjunta su voucher.
+   *
+   * **No es un pago.** Es una declaración: entra en `payment_claims` y no en
+   * `subscription_payments`, que es el libro que decide si la cuenta sigue
+   * viva. Escribir ahí dejaría que cualquiera se diera por pagado; aquí
+   * declara, y el operador confirma.
+   *
+   * El comprobante se valida en el mismo INSERT, como los adjuntos del chat
+   * de soporte (0044): si el archivo no es de esta cuenta o no está subido, la
+   * fila no entra.
+   */
+  async declararPago(datos: {
+    importeCentimos: number;
+    moneda: string;
+    metodo: 'transferencia' | 'yape' | 'plin' | 'otro';
+    referencia?: string | undefined;
+    pagadoEl: string;
+    mediaAssetId?: string | undefined;
+  }): Promise<ResumenDeSuscripcion> {
+    const ctx = contextoActual();
+    if (!ctx) throw new ErrorDeNegocio('sin_sesion', 'Se requiere sesión.', 401);
+    if (ctx.rol !== 'owner' && ctx.rol !== 'admin') {
+      throw new ErrorDeNegocio(
+        'sin_permiso',
+        'Solo el dueño o un administrador declara un pago.',
+        403,
+      );
+    }
+
+    await this.#db.enTransaccion(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO payment_claims (tenant_id, declared_by, amount_cents, currency,
+                                     method, reference, paid_at, media_asset_id)
+         SELECT $1, $2, $3, $4, $5, $6, $7::date, $8::uuid
+          WHERE $8::uuid IS NULL
+             OR EXISTS (SELECT 1 FROM media_assets a
+                         WHERE a.id = $8::uuid AND a.tenant_id = $1 AND a.status = 'stored')
+        RETURNING id`,
+        [
+          ctx.tenantId,
+          ctx.userId,
+          datos.importeCentimos,
+          datos.moneda,
+          datos.metodo,
+          datos.referencia ?? null,
+          datos.pagadoEl,
+          datos.mediaAssetId ?? null,
+        ],
+      );
+      if (rows.length === 0) {
+        throw new ErrorDeNegocio(
+          'comprobante_no_valido',
+          'Ese archivo no está subido o no es de esta cuenta.',
+          409,
+        );
+      }
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, 'suscripcion.pago_declarado', 'payment_claim', $3, $4)`,
+        [
+          ctx.tenantId,
+          ctx.userId,
+          rows[0]!.id,
+          JSON.stringify({ importeCentimos: datos.importeCentimos, metodo: datos.metodo }),
+        ],
+      );
+    });
+    return this.suscripcion();
+  }
+
   async guardarFacturacion(datos: DatosDeFacturacionDelHotel): Promise<ResumenDeSuscripcion> {
     const ctx = contextoActual();
     if (!ctx) throw new ErrorDeNegocio('sin_sesion', 'Se requiere sesión.', 401);

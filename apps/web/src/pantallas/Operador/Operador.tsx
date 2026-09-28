@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { crearApi, ErrorDeApi } from '../../api/cliente.ts';
 import { irA } from '../../estado/ruta.ts';
-import type { CuentaEnLaConsola, Sesion, Yo } from '../../api/tipos.ts';
+import type { CuentaEnLaConsola, PlanPublico, Sesion, Yo } from '../../api/tipos.ts';
 import { Barra } from '../../componentes/Barra/Barra.tsx';
 import { useListaFiltrable, type ListaFiltrada } from '../../vista/listaFiltrable.ts';
 import { BarraDeFiltro, ContadorYPaginas } from '../../componentes/ajustes/FiltroDeLista.tsx';
 import { CuentaDeLaPlataforma } from './CuentaDeLaPlataforma.tsx';
+import { DatosDeCobro } from './DatosDeCobro.tsx';
+import { PagosDeclarados } from './PagosDeclarados.tsx';
 import { importe } from '../../vista/dinero.ts';
 import { faltan, hace } from '../../vista/tiempo.ts';
 import estilos from './Operador.module.css';
@@ -83,6 +85,17 @@ export function Operador({ sesion, cuentaInicial = null, alSalir }: Props) {
   const debiendo = (cuentas ?? []).filter((c) => c.comprobantesPendientes > 0).length;
   const escribiendo = (cuentas ?? []).filter((c) => c.soporteSinLeer > 0).length;
   const [chat, setChat] = useState<CuentaEnLaConsola | null>(null);
+  // El apartado de cobro se abre a peticion: es algo que se toca una vez y
+  // luego casi nunca, y tenerlo siempre desplegado tapa la tabla.
+  const [cobroAbierto, setCobroAbierto] = useState(false);
+  const [planes, setPlanes] = useState<PlanPublico[]>([]);
+  useEffect(() => {
+    if (!cobroAbierto || planes.length > 0) return;
+    api
+      .planes()
+      .then(setPlanes)
+      .catch(() => undefined);
+  }, [api, cobroAbierto, planes.length]);
 
   // La cuenta de la URL se abre cuando llega la lista, no antes: la ficha
   // necesita el nombre y el plan, y eso viene de la tabla.
@@ -172,6 +185,16 @@ export function Operador({ sesion, cuentaInicial = null, alSalir }: Props) {
         {/* La cuenta se abre debajo de la tabla y no en una ventana: al
             trabajar sobre ella hace falta seguir viendo el plan y el estado
             de los canales, que es la mitad del diagnóstico. */}
+        {/* Lo que alguien dice haber pagado y nadie ha mirado. Va arriba:
+            es dinero esperando, y es lo único de esta pantalla que otra
+            persona está esperando a que mires. */}
+        <PagosDeclarados api={api} alResolver={() => void recargar()} />
+
+        <button className={estilos.abrirChat} onClick={() => setCobroAbierto(!cobroAbierto)}>
+          {cobroAbierto ? 'Cerrar datos de cobro' : 'A dónde te pagan'}
+        </button>
+        {cobroAbierto && <DatosDeCobro api={api} planes={planes} />}
+
         {chat && (
           <CuentaDeLaPlataforma
             api={api}

@@ -156,6 +156,254 @@ export class OperadorService {
   }
 
   /**
+   * Los datos de cobro de la plataforma: leerlos y cambiarlos (0048).
+   *
+   * Es lo que le dice al cliente a dónde transferir. Vive en una sola fila
+   * global y la escribe el operador con SU rol, no con el de ningún
+   * inquilino: no es dato de nadie más que de la plataforma.
+   */
+  async datosDeCobro(): Promise<Record<string, unknown>> {
+    await this.#exigirOperador();
+    return this.#db.comoOperadorDeLaPlataforma(async (c) => {
+      const { rows } = await c.query(`SELECT * FROM platform_payment_settings WHERE id = 1`);
+      return (rows[0] ?? {}) as Record<string, unknown>;
+    });
+  }
+
+  /**
+   * Guarda los datos de cobro.
+   *
+   * Solo los campos que llegan: mandar la pantalla entera cada vez borraría
+   * lo que otro acabara de poner desde otra sesión.
+   */
+  async guardarDatosDeCobro(datos: Record<string, string | null>): Promise<void> {
+    const operador = await this.#exigirOperador();
+    const PERMITIDOS = [
+      'banco',
+      'tipo_de_cuenta',
+      'numero_de_cuenta',
+      'cci',
+      'titular',
+      'documento_titular',
+      'numero_billetera',
+      'titular_billetera',
+      'nota',
+    ];
+    const campos = Object.keys(datos).filter((k) => PERMITIDOS.includes(k));
+    if (campos.length === 0) return;
+
+    await this.#db.comoOperadorDeLaPlataforma(async (c) => {
+      const asignaciones = campos.map((k, i) => `${k} = $${i + 2}`).join(', ');
+      await c.query(
+        `UPDATE platform_payment_settings
+            SET ${asignaciones}, updated_at = now(), updated_by = $1
+          WHERE id = 1`,
+        [operador, ...campos.map((k) => datos[k] ?? null)],
+      );
+    });
+  }
+
+  /**
+   * Publica el QR de Yape o Plin.
+   *
+   * El archivo se sube con la tubería de siempre —URL firmada, sin que los
+   * bytes pasen por la API— dentro de la cuenta del propio operador, y aquí
+   * solo se copia su CLAVE a la fila global. El objeto acaba bajo el prefijo
+   * de ese inquilino en el almacén, que es inocuo: quien lo sirve es un
+   * endpoint que firma esa clave, no la RLS de `media_assets`.
+   *
+   * Así no hace falta un segundo camino de subida para un solo archivo.
+   */
+  async publicarQr(mediaAssetId: string): Promise<void> {
+    const operador = await this.#exigirOperador();
+    const ctx = contextoActual()!;
+
+    const medio = await this.#db.paraInquilino(ctx.tenantId, async (c) => {
+      const { rows } = await c.query<{ storage_key: string | null; mime: string | null }>(
+        `SELECT storage_key, mime FROM media_assets WHERE id = $1 AND status = 'stored'`,
+        [mediaAssetId],
+      );
+      return rows[0];
+    });
+    if (!medio?.storage_key) {
+      throw new ErrorDeNegocio('medio_no_valido', 'Ese archivo no está subido.', 409);
+    }
+
+    await this.#db.comoOperadorDeLaPlataforma(async (c) => {
+      await c.query(
+        `UPDATE platform_payment_settings
+            SET qr_storage_key = $2, qr_mime = $3, updated_at = now(), updated_by = $1
+          WHERE id = 1`,
+        [operador, medio.storage_key, medio.mime],
+      );
+    });
+  }
+
+  /** El importe en soles de un plan. Los planes están en USD y Yape cobra en soles. */
+  async guardarSolesDePlan(codigoDePlan: string, centimos: number | null): Promise<void> {
+    const operador = await this.#exigirOperador();
+    await this.#db.comoOperadorDeLaPlataforma(async (c) => {
+      await c.query(
+        centimos === null
+          ? `UPDATE platform_payment_settings
+                SET soles_por_plan = soles_por_plan - $2,
+                    updated_at = now(), updated_by = $1
+              WHERE id = 1`
+          : `UPDATE platform_payment_settings
+                SET soles_por_plan = jsonb_set(soles_por_plan, ARRAY[$2], to_jsonb($3::int)),
+                    updated_at = now(), updated_by = $1
+              WHERE id = 1`,
+        centimos === null ? [operador, codigoDePlan] : [operador, codigoDePlan, centimos],
+      );
+    });
+  }
+
+  /**
+   * Lo que alguien dice haber pagado y nadie ha mirado.
+   *
+   * Es la otra mitad de la consola: hasta ahora salía «comprobantes sin
+   * subir» —lo que le debemos al cliente— y no lo que el cliente dice
+   * habernos pagado.
+   */
+  async declaracionesPendientes(): Promise<
+    {
+      id: string;
+      tenantId: string;
+      cuenta: string;
+      importeCentimos: number;
+      moneda: string;
+      metodo: string;
+      referencia: string | null;
+      pagadoEl: Date;
+      medioId: string | null;
+      creadoEn: Date;
+    }[]
+  > {
+    await this.#exigirOperador();
+    return this.#db.comoOperadorDeLaPlataforma(async (c) => {
+      const { rows } = await c.query<{
+        id: string;
+        tenant_id: string;
+        cuenta: string;
+        amount_cents: number;
+        currency: string;
+        method: string;
+        reference: string | null;
+        paid_at: Date;
+        media_asset_id: string | null;
+        created_at: Date;
+      }>(
+        `SELECT pc.id, pc.tenant_id, t.name AS cuenta, pc.amount_cents, pc.currency,
+                pc.method, pc.reference, pc.paid_at, pc.media_asset_id, pc.created_at
+           FROM payment_claims pc
+           JOIN tenants t ON t.id = pc.tenant_id
+          WHERE pc.status = 'pendiente'
+          ORDER BY pc.created_at`,
+      );
+      return rows.map((r) => ({
+        id: r.id,
+        tenantId: r.tenant_id,
+        cuenta: r.cuenta,
+        importeCentimos: r.amount_cents,
+        moneda: r.currency,
+        metodo: r.method,
+        referencia: r.reference,
+        pagadoEl: r.paid_at,
+        medioId: r.media_asset_id,
+        creadoEn: r.created_at,
+      }));
+    });
+  }
+
+  /**
+   * El operador resuelve una declaración: la confirma o la rechaza.
+   *
+   * Confirmar **crea la fila en `subscription_payments`**, que es el libro del
+   * dinero, y apunta cuál es. Esa escritura cruza al inquilino con el rol de
+   * la aplicación —como el comprobante (0039)— porque el pago tiene que
+   * quedar DENTRO de la cuenta del cliente, que es donde él lo va a ver.
+   *
+   * Rechazar exige un motivo: un rechazo sin palabras obliga a escribir para
+   * preguntar, que es lo que esto viene a evitar.
+   */
+  async resolverDeclaracion(datos: {
+    id: string;
+    tenantId: string;
+    confirmar: boolean;
+    nota?: string | undefined;
+    cubreDesde?: string | undefined;
+    cubreHasta?: string | undefined;
+  }): Promise<{ resuelta: true }> {
+    const operador = await this.#exigirOperador();
+    if (!datos.confirmar && !datos.nota?.trim()) {
+      throw new ErrorDeNegocio(
+        'falta_el_motivo',
+        'Di por qué lo rechazas: el cliente lo va a leer.',
+        422,
+      );
+    }
+
+    return this.#db.paraInquilino(datos.tenantId, async (c) => {
+      // Se lee y se bloquea dentro del inquilino: así una declaración de otra
+      // cuenta no se encuentra desde aquí, sin comprobarlo a mano.
+      const { rows } = await c.query<{
+        amount_cents: number;
+        currency: string;
+        method: string;
+        reference: string | null;
+        paid_at: Date;
+        status: string;
+      }>(
+        `SELECT amount_cents, currency, method, reference, paid_at, status
+           FROM payment_claims WHERE id = $1 FOR UPDATE`,
+        [datos.id],
+      );
+      const d = rows[0];
+      if (!d) {
+        throw new ErrorDeNegocio('declaracion_no_encontrada', 'Esa declaración no existe.', 404);
+      }
+      if (d.status !== 'pendiente') {
+        throw new ErrorDeNegocio('ya_resuelta', 'Esa declaración ya se resolvió.', 409);
+      }
+
+      let pagoId: string | null = null;
+      if (datos.confirmar) {
+        // La función de 0048 hace el INSERT en el libro Y marca la
+        // declaración, en una sola pieza. No es un rodeo: el rol de la
+        // aplicación NO puede escribir pagos —y no debe—, y el importe sale
+        // de lo que declaró el cliente, no de un parámetro, así que nadie
+        // confirma por un sol un pago de mil.
+        const { rows: r } = await c.query<{ confirmar_pago_declarado: string }>(
+          `SELECT app.confirmar_pago_declarado($1, $2, $3::date, $4::date)`,
+          [datos.id, operador, datos.cubreDesde ?? null, datos.cubreHasta ?? null],
+        );
+        pagoId = r[0]!.confirmar_pago_declarado;
+      } else {
+        await c.query(
+          `UPDATE payment_claims
+              SET status = 'rechazado', reviewed_at = now(), reviewed_by = $2,
+                  review_note = $3
+            WHERE id = $1`,
+          [datos.id, operador, datos.nota ?? null],
+        );
+      }
+
+      await c.query(
+        `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1, $2, $3, 'payment_claim', $4, $5)`,
+        [
+          datos.tenantId,
+          operador,
+          datos.confirmar ? 'suscripcion.pago_confirmado' : 'suscripcion.pago_rechazado',
+          datos.id,
+          JSON.stringify({ pagoId, nota: datos.nota ?? null }),
+        ],
+      );
+      return { resuelta: true as const };
+    });
+  }
+
+  /**
    * Lo que hace falta para ACTUAR sobre una cuenta concreta.
    *
    * La tabla dice «3 sin subir» y con eso no se puede subir nada: hace falta

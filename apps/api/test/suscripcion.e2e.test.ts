@@ -1178,3 +1178,152 @@ describe('el outbox no guarda credenciales', () => {
     expect(rows.map((r) => `${r.event_type}.${r.k}`)).toEqual([]);
   });
 });
+
+/**
+ * Cómo te pagan (0048).
+ *
+ * La pantalla de Suscripción decía «los pagos se hacen por transferencia» y
+ * **no decía a dónde**. ADR-011 eligió cobro manual; lo que faltaba no era una
+ * pasarela, era decir los datos.
+ *
+ * El test que sostiene el resto es el de que declarar NO es pagar: si una
+ * declaración entrara en `subscription_payments`, cualquiera se daría por
+ * pagado y la cuenta quedaría cubierta sin que hubiera llegado el dinero.
+ */
+describe('cómo te pagan', () => {
+  let declaracion: string;
+
+  beforeAll(async () => {
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+  });
+
+  it('sin datos cargados, la pantalla no promete ningún método', async () => {
+    const r = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    expect(r.body.comoPagar.numeroDeCuenta).toBeNull();
+    expect(r.body.comoPagar.numeroBilletera).toBeNull();
+    expect(r.body.comoPagar.hayQr).toBe(false);
+  });
+
+  it('el operador los carga y TODOS los clientes los ven', async () => {
+    await http
+      .put('/v1/operador/cobro')
+      .set(auth())
+      .send({
+        banco: 'BCP',
+        numero_de_cuenta: '191-1234567-0-11',
+        cci: '00219100123456701159',
+        titular: 'Jose Porras',
+        numero_billetera: '999888777',
+        nota: 'Pon el nombre de tu hotel en el detalle.',
+      })
+      .expect(204);
+
+    const r = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    expect(r.body.comoPagar.banco).toBe('BCP');
+    expect(r.body.comoPagar.cci).toBe('00219100123456701159');
+    expect(r.body.comoPagar.numeroBilletera).toBe('999888777');
+    expect(r.body.comoPagar.nota).toContain('nombre de tu hotel');
+  });
+
+  it('el importe en soles es POR PLAN, y no se inventa una conversión', async () => {
+    const sinFijar = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    expect(sinFijar.body.comoPagar.solesCentimos).toBeNull();
+
+    await http
+      .put('/v1/operador/cobro/soles')
+      .set(auth())
+      .send({ codigoDePlan: 'starter', centimos: 9500 })
+      .expect(204);
+
+    const r = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    expect(r.body.comoPagar.solesCentimos).toBe(9500);
+  });
+
+  it('declarar un pago NO lo registra: solo lo declara', async () => {
+    const antes = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    const pagosAntes = antes.body.pagos.length;
+
+    const r = await http
+      .post('/v1/cuenta/suscripcion/pagos-declarados')
+      .set(auth())
+      .send({
+        importeCentimos: 7500,
+        moneda: 'USD',
+        metodo: 'yape',
+        referencia: 'OP-123456',
+        pagadoEl: '2026-09-20',
+      })
+      .expect(201);
+
+    // Aparece como declarada...
+    expect(r.body.declaraciones[0].estado).toBe('pendiente');
+    expect(r.body.declaraciones[0].referencia).toBe('OP-123456');
+    // ...y el libro del dinero NO se ha tocado.
+    expect(r.body.pagos).toHaveLength(pagosAntes);
+    declaracion = r.body.declaraciones[0].id;
+  });
+
+  it('un voucher de otra cuenta no cuela', async () => {
+    const r = await http
+      .post('/v1/cuenta/suscripcion/pagos-declarados')
+      .set(auth())
+      .send({
+        importeCentimos: 100,
+        moneda: 'USD',
+        metodo: 'transferencia',
+        pagadoEl: '2026-09-20',
+        mediaAssetId: '01a00000-0000-7000-8000-00000000dead',
+      })
+      .expect(409);
+    expect(r.body.codigo).toBe('comprobante_no_valido');
+  });
+
+  it('el operador la ve entre las pendientes, con la cuenta que la envió', async () => {
+    const r = await http.get('/v1/operador/pagos-declarados').set(auth()).expect(200);
+    const d = r.body.find((x: { id: string }) => x.id === declaracion);
+    expect(d).toBeTruthy();
+    expect(d.cuenta).toBe('Acme');
+    expect(d.importeCentimos).toBe(7500);
+  });
+
+  it('rechazarla EXIGE decir por qué: el cliente lo va a leer', async () => {
+    const r = await http
+      .post(`/v1/operador/pagos-declarados/${declaracion}`)
+      .set(auth())
+      .send({ tenantId, confirmar: false })
+      .expect(422);
+    expect(r.body.codigo).toBe('falta_el_motivo');
+  });
+
+  it('confirmarla SÍ crea el pago, dentro de la cuenta del cliente', async () => {
+    const antes = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+
+    await http
+      .post(`/v1/operador/pagos-declarados/${declaracion}`)
+      .set(auth())
+      .send({ tenantId, confirmar: true })
+      .expect(200);
+
+    const r = await http.get('/v1/cuenta/suscripcion').set(auth()).expect(200);
+    expect(r.body.pagos).toHaveLength(antes.body.pagos.length + 1);
+    expect(r.body.declaraciones.find((d: { id: string }) => d.id === declaracion).estado).toBe(
+      'confirmado',
+    );
+  });
+
+  it('no se puede resolver dos veces', async () => {
+    const r = await http
+      .post(`/v1/operador/pagos-declarados/${declaracion}`)
+      .set(auth())
+      .send({ tenantId, confirmar: true })
+      .expect(409);
+    expect(r.body.codigo).toBe('ya_resuelta');
+  });
+
+  it('quien no es operador no toca los datos de cobro', async () => {
+    await admin.query(`UPDATE users SET is_operator = false WHERE email = 'jefe@acme.test'`);
+    await http.get('/v1/operador/cobro').set(auth()).expect(404);
+    await http.put('/v1/operador/cobro').set(auth()).send({ banco: 'Falso' }).expect(404);
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+  });
+});

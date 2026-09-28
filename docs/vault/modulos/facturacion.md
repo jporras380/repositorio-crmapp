@@ -360,3 +360,72 @@ Ni con el permiso concedido se ve una conversación. Lo que devuelve «qué est�
 ![La consola con una cuenta abierta](../adjuntos/2026-09-23-consola-cuenta.png)
 
 18 tests nuevos (8 de API —contra PostgreSQL— y 10 de pantalla).
+
+## Cómo te pagan (PR-104, 2026-09-28)
+
+Lo preguntó el usuario con una frase que no dejaba escapatoria: *«cuando el usuario quiera continuar usando el CRM, ¿en qué apartado está la opción de que me paguen? Ni número de cuenta ni QR ni Yape te he pasado»*.
+
+La respuesta era que **ese apartado no existía**.
+
+### Lo que decía la pantalla
+
+> Los pagos se hacen por transferencia y los registramos nosotros al recibirlos.
+
+Y en ningún sitio decía **a dónde**. El cliente leía eso y tenía que escribir para preguntar.
+
+Yape y Plin sí estaban en el código —para que el hotel cobre a sus huéspedes en una reserva— que es justo lo secundario.
+
+### La mitad manual del cobro manual
+
+ADR-011 decidió cobro manual, sin pasarela. Eso sigue en pie y no se toca. Lo que faltaba **no era una pasarela**: era decir los datos. Se construyó la mitad que registra el dinero y no la que lo pide.
+
+Es la misma familia que lleva toda la semana apareciendo —lo que existe y nadie puede usar— pero por el lado del negocio en vez del código.
+
+### Declarar no es pagar
+
+`payment_claims` es una tabla aparte de `subscription_payments` a propósito.
+
+`subscription_payments` es el libro del dinero cobrado: lo lee el estado de la suscripción y decide si la cuenta sigue viva. **El cliente no escribe en el libro.** Declara —«ya pagué, aquí está el voucher»— y el operador confirma.
+
+Si se mezclaran, cualquiera se daría por pagado.
+
+Al confirmar hace falta escribir en el libro, y ahí apareció un límite del diseño que estaba bien puesto: el rol de la aplicación **no tiene INSERT** sobre `subscription_payments`, desde 0007. La salida no fue un `GRANT`:
+
+- Un `GRANT INSERT` daría permiso para escribir **cualquier** pago, de cualquier importe, a cualquier cuenta.
+- `app.confirmar_pago_declarado` es `SECURITY DEFINER`: el operador no gana el permiso, gana poder llamarla. El importe, la moneda y el método salen de **lo que declaró el cliente**, no de parámetros, así que nadie confirma por un sol un pago de mil. Y solo actúa sobre una declaración `pendiente`, así que confirmar dos veces no duplica el cobro.
+
+Mismo patrón y mismo motivo que la purga de retención (0047).
+
+### Lo que encontró un test, no un cliente
+
+`subscription_payments.method` admitía transferencia, efectivo, tarjeta y otro. **No conocía Yape ni Plin**, porque en 0007 los pagos los tecleaba el operador y nadie echó en falta las dos formas con las que de verdad se paga en Perú. Confirmar una declaración hecha por Yape reventaba contra el CHECK.
+
+La reversa de 0048 pasa esos pagos a `otro` antes de devolver el CHECK a como estaba: si no, la propia reversa fallaría contra las filas que ella permitió crear.
+
+### Decisiones
+
+- **Los datos se escriben en la consola del operador**, no en el `.env`. Cambiar un número de Yape no debería exigir tocar el servidor y reiniciarlo, y así queda quién lo cambió.
+- **El importe en soles se fija a mano, por plan.** Los planes están en dólares y Yape cobra en soles. Un tipo de cambio automático es un servicio externo de coste recurrente y un número que se mueve solo el día que a alguien le cobran de más.
+- **Lo que no se carga, no se enseña.** Sin datos, la pantalla dice que faltan en vez de pintar una tarjeta con campos vacíos: no promete un método que no existe.
+- **El botón dice «Avisar de que ya pagué», no «Pagar».** Aquí no se cobra nada, y prometer un cobro que no ocurre es peor que no ofrecerlo.
+- **Rechazar exige un motivo.** El cliente lo va a leer, y un rechazo mudo le obliga a escribir para preguntar — que es lo que esto viene a evitar.
+- **El QR se firma y caduca.** Un `<img>` no manda la cabecera de sesión, así que la URL se pide antes, igual que las capturas del chat de soporte (0044).
+
+### La guarda volvió a fallar por lo mismo
+
+`peticion<(A & B)[]>` rompió el patrón de la guarda de rutas: su paréntesis se adelanta al que abre la llamada. Es la **segunda vez** que ese anclaje falla al crecer un genérico —la primera fue `peticion<Pagina<X>>`—, y las dos veces se equivocó sobre una ruta que sí se pedía, que es como se enseña a ignorar una guarda.
+
+Ahora busca las rutas directamente: una cadena que empiece por `/v1/` en el cliente web es una ruta y punto. Comprobado al revés: renombrando una, se pone roja.
+
+### Cómo comprobarlo en menos de 5 minutos
+
+1. Consola del operador → **A dónde te pagan**. Escribe tu banco, cuenta, CCI y Yape. Sube el QR. Pon el importe en soles de cada plan.
+2. Entra como cliente → Ajustes → Suscripción. Ahí están los datos, con el QR y el importe en soles al lado del de dólares.
+3. **Avisar de que ya pagué** → método, fecha, número de operación y el voucher adjunto.
+4. Vuelve a la consola: sale arriba, en verde. **Confirmar** crea el pago y aparece en el historial del cliente. **Rechazar** te pide el motivo, y el cliente lo lee.
+
+![Cómo pagar, visto por el cliente](../adjuntos/2026-09-28-como-pagar.png)
+
+![Dónde se cargan los datos](../adjuntos/2026-09-28-datos-de-cobro.png)
+
+25 tests nuevos (9 de API —contra PostgreSQL— y 16 de pantalla).
