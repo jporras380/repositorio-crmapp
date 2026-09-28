@@ -48,3 +48,37 @@ export async function esperasVencidas(
   );
   return rows.map((r) => ({ id: r.id, tenantId: r.tenant_id }));
 }
+
+/**
+ * Purga del outbox: solo lo publicado y viejo (0047).
+ *
+ * Devuelve cuántas borró. Si devuelve el lote entero es que quedan más, y las
+ * termina la pasada de mañana: una tabla con meses de retraso no se vacía de
+ * golpe bloqueando la ingesta.
+ *
+ * Lo que NO borra —pendientes y cartas muertas— lo decide la función de la
+ * base, no esto. Aquí no hay forma de pedirle que borre otra cosa.
+ */
+export async function purgarOutbox(poolRelay: Pool, dias = 30): Promise<number> {
+  const { rows } = await withSystemTransaction(poolRelay, (c) =>
+    c.query<{ purgar_outbox: string }>('SELECT app.purgar_outbox($1)', [dias]),
+  );
+  return Number(rows[0]?.purgar_outbox ?? 0);
+}
+
+/**
+ * Purga de las claves de idempotencia (0047).
+ *
+ * La política —90 días— la escribió la migración 0004, que además creó el
+ * índice para aplicarla. Lo único que faltaba era esto.
+ *
+ * El suelo de 90 días vive en la función: bajarlo convertiría un reenvío
+ * tardío de Meta en un mensaje duplicado para un huésped, y esa no es una
+ * decisión que deba poder tomarse cambiando un número aquí.
+ */
+export async function purgarMessageKeys(poolRelay: Pool, dias = 90): Promise<number> {
+  const { rows } = await withSystemTransaction(poolRelay, (c) =>
+    c.query<{ purgar_message_keys: string }>('SELECT app.purgar_message_keys($1)', [dias]),
+  );
+  return Number(rows[0]?.purgar_message_keys ?? 0);
+}

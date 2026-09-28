@@ -41,7 +41,13 @@ import { AlmacenS3, type Almacen } from '@crmapp/storage';
 import { marcarFallo, procesarEventoEntrante } from './procesar-entrante.js';
 import { enviarMensajeSaliente, type CargaDeEnvio } from './enviar-saliente.js';
 import { descargarMedia, type CargaDeMedia } from './descargar-media.js';
-import { esperasVencidas, INQUILINO_SISTEMA, precrearParticiones } from './mantenimiento.js';
+import {
+  esperasVencidas,
+  INQUILINO_SISTEMA,
+  precrearParticiones,
+  purgarMessageKeys,
+  purgarOutbox,
+} from './mantenimiento.js';
 import { manejarTrabajoDeFlujo } from './flujos.js';
 
 const config = cargarConfig();
@@ -196,6 +202,31 @@ await colaMantenimiento.upsertJobScheduler(
     } satisfies TrabajoDeMantenimiento,
   },
 );
+// Retención (0047). A las 04:00 UTC, después de las particiones: si esas
+// fallan es una caída de ingesta en diferido y se quiere ver sola en el log,
+// no mezclada con un borrado.
+//
+// Una vez al día y no más: la función borra por lotes, y lo que no quepa hoy
+// lo termina mañana. Tener la tabla al día no es urgente; bloquear la ingesta
+// por vaciarla de golpe, sí sería un problema.
+for (const [nombre, tarea] of [
+  ['outbox-diaria', 'purgar_outbox'],
+  ['claves-diaria', 'purgar_message_keys'],
+] as const) {
+  await colaMantenimiento.upsertJobScheduler(
+    nombre,
+    { pattern: '0 4 * * *' },
+    {
+      name: tarea,
+      data: {
+        tenantId: INQUILINO_SISTEMA,
+        correlationId: 'mantenimiento',
+        tarea,
+      } satisfies TrabajoDeMantenimiento,
+    },
+  );
+}
+
 await colaMantenimiento.add('precrear_particiones', trabajoDeParticiones, {
   jobId: `arranque-${Date.now()}`,
 });
@@ -213,6 +244,18 @@ const workerMantenimiento = new Worker<TrabajoDeMantenimiento>(
         await programarDespertar({ tenantId: p.tenantId, flowRunId: p.id, enMs: 0 });
       }
       if (pendientes.length > 0) log.info('esperas rescatadas', { total: pendientes.length });
+      return;
+    }
+    if (job.data.tarea === 'purgar_outbox') {
+      const borradas = await purgarOutbox(poolMantenimiento, 30);
+      // Solo se apunta si borró algo: un log diario diciendo «0» enseña a no
+      // mirar el log.
+      if (borradas > 0) log.info('outbox purgado', { borradas });
+      return;
+    }
+    if (job.data.tarea === 'purgar_message_keys') {
+      const borradas = await purgarMessageKeys(poolMantenimiento, 90);
+      if (borradas > 0) log.info('claves de idempotencia purgadas', { borradas });
       return;
     }
     log.warn('tarea de mantenimiento sin implementar', { tarea: job.data.tarea });

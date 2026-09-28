@@ -85,8 +85,10 @@ export interface TrabajoDeFlujo extends TrabajoBase {
 export interface TrabajoDeMantenimiento extends TrabajoBase {
   tarea:
     | 'precrear_particiones'
+    /** Claves de idempotencia de más de 90 días (0004, implementada en 0047). */
     | 'purgar_message_keys'
-    | 'refrescar_vistas'
+    /** Eventos del outbox ya publicados y viejos (0047). */
+    | 'purgar_outbox'
     /** Red de seguridad de ADR-002: esperas de Salesbot que nadie despertó. */
     | 'despertar_flujos';
 }
