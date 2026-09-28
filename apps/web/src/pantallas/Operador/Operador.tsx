@@ -136,6 +136,12 @@ export function Operador({ sesion, cuentaInicial = null, alSalir }: Props) {
           )}
         </header>
 
+        {/* Lo que alguien dice haber pagado y nadie ha mirado. Va lo primero:
+            es dinero esperando, y es lo único de esta pantalla que otra
+            persona está aguardando a que mires. Debajo de una tabla de veinte
+            filas es lo mismo que no estar. */}
+        <PagosDeclarados api={api} alResolver={() => void recargar()} />
+
         {error && (
           <p className={estilos.error} role="alert">
             {error}
@@ -185,11 +191,6 @@ export function Operador({ sesion, cuentaInicial = null, alSalir }: Props) {
         {/* La cuenta se abre debajo de la tabla y no en una ventana: al
             trabajar sobre ella hace falta seguir viendo el plan y el estado
             de los canales, que es la mitad del diagnóstico. */}
-        {/* Lo que alguien dice haber pagado y nadie ha mirado. Va arriba:
-            es dinero esperando, y es lo único de esta pantalla que otra
-            persona está esperando a que mires. */}
-        <PagosDeclarados api={api} alResolver={() => void recargar()} />
-
         <button className={estilos.abrirChat} onClick={() => setCobroAbierto(!cobroAbierto)}>
           {cobroAbierto ? 'Cerrar datos de cobro' : 'A dónde te pagan'}
         </button>
