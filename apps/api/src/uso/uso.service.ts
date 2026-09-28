@@ -34,6 +34,32 @@ import { ErrorDeNegocio } from '../auth/auth.service.js';
 const LIMITE_POR_METRICA: Partial<Record<MetricaDeUso, string>> = {
   'conversations.opened': 'conversaciones_mes',
   'bot.runs': 'bot_runs_mes',
+  // Los créditos de IA son las sugerencias: el plan los llama de una forma y
+  // la métrica de otra, y por eso la pantalla decía «sin medir» sobre un
+  // número que se estaba contando desde 0038.
+  'ai.suggestions': 'creditos_ia_mes',
+};
+
+/**
+ * Topes que no son un contador del mes sino un estado de ahora mismo.
+ *
+ * `agentes` y `canales` no se acumulan: son cuántos hay **hoy**. No podían
+ * salir de `usage_events`, y por eso la pantalla de lo que se paga decía «sin
+ * medir» justo en la línea por la que se cobra (ADR-011, cobro por asiento).
+ *
+ * El de agentes se cuenta igual que al invitar —miembros más invitaciones
+ * vivas— y con la misma consulta, para que la pantalla no diga 2 mientras el
+ * tope rechaza al tercero.
+ */
+const CUENTAS_DEL_MOMENTO: Record<string, string> = {
+  // El alias importa: sin él, una suma de subconsultas sale como `?column?`,
+  // leerla por nombre da `undefined` y la pantalla enseña un 0 tranquilizador.
+  // Es peor que «sin medir», porque parece un dato.
+  agentes: `SELECT (SELECT count(*) FROM memberships WHERE tenant_id = $1)
+                 + (SELECT count(*) FROM invitations
+                     WHERE tenant_id = $1 AND accepted_at IS NULL AND expires_at > now())
+                 AS cuenta`,
+  canales: `SELECT count(*) AS cuenta FROM channel_accounts WHERE tenant_id = $1`,
 };
 
 export interface ResumenDeUso {
@@ -128,10 +154,15 @@ export class UsoService {
         const metrica = (Object.keys(LIMITE_POR_METRICA) as MetricaDeUso[]).find(
           (m) => LIMITE_POR_METRICA[m] === clave,
         );
-        limites[clave] = {
-          limite: typeof valor === 'number' ? valor : null,
-          usado: metrica ? uso[metrica] : null,
-        };
+        let usado: number | null = metrica ? uso[metrica] : null;
+        // Lo que no es un contador del mes se cuenta ahora. «Sin medir» solo
+        // debe quedar para lo que de verdad no se sabe.
+        const consulta = CUENTAS_DEL_MOMENTO[clave];
+        if (usado === null && consulta) {
+          const { rows } = await c.query<{ cuenta: string }>(consulta, [ctx.tenantId]);
+          usado = Number(rows[0]?.cuenta ?? 0);
+        }
+        limites[clave] = { limite: typeof valor === 'number' ? valor : null, usado };
       }
       return {
         periodo: etiquetaDePeriodo(ahora),

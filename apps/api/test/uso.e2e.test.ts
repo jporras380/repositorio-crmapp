@@ -102,8 +102,18 @@ describe('GET /v1/cuenta/uso', () => {
     });
     expect(r.body.limites.conversaciones_mes).toEqual({ limite: 1000, usado: 0 });
     expect(r.body.limites.bot_runs_mes).toEqual({ limite: 500, usado: 0 });
-    // Límites sin métrica todavía (asientos, IA): límite visible, uso desconocido.
-    expect(r.body.limites.agentes).toEqual({ limite: 3, usado: null });
+    // Esto decía `usado: null` y fijaba el fallo: la pantalla de lo que se
+    // paga salía con «sin medir» justo en la línea por la que se cobra
+    // (ADR-011), sobre un número que el propio sistema cuenta para aplicar el
+    // tope al invitar.
+    //
+    // Agentes y canales no son un contador del mes sino cuántos hay AHORA, y
+    // por eso no salían de `usage_events`.
+    expect(r.body.limites.agentes).toEqual({ limite: 3, usado: 1 });
+    expect(r.body.limites.canales).toEqual({ limite: 1, usado: 0 });
+    // Los créditos de IA sí se contaban desde 0038; el plan los llamaba de
+    // otra forma que la métrica y nadie los había emparejado.
+    expect(r.body.limites.creditos_ia_mes).toEqual({ limite: 750, usado: 0 });
     expect(r.body.periodo).toMatch(/^\d{4}-\d{2}$/);
   });
 
@@ -125,5 +135,44 @@ describe('GET /v1/cuenta/uso', () => {
 
   it('sin sesión → 401', async () => {
     await http.get('/v1/cuenta/uso').expect(401);
+  });
+});
+
+/**
+ * Lo que se cobra se mide (PR-103).
+ *
+ * La pantalla «Uso del plan» decía «sin medir» en tres de sus cinco líneas,
+ * una de ellas la unidad de cobro. Se vio abriendo el producto como un cliente
+ * nuevo, no lo encontró ninguna guarda: el número existía, solo que nadie lo
+ * llevaba a la pantalla.
+ */
+describe('los topes que no son contadores del mes', () => {
+  it('los agentes se cuentan como al invitar: miembros MAS invitaciones vivas', async () => {
+    // Si la pantalla contara solo miembros, diría 1 mientras el tope rechaza
+    // al tercero, y el cliente no entendería por qué.
+    await http
+      .post('/v1/invitaciones')
+      .set(auth())
+      .send({ email: 'pendiente@uso.test', rol: 'agent' })
+      .expect(201);
+
+    const r = await http.get('/v1/cuenta/uso').set(auth()).expect(200);
+    expect(r.body.limites.agentes).toEqual({ limite: 3, usado: 2 });
+  });
+
+  it('los canales se cuentan de verdad', async () => {
+    await admin.query(
+      `INSERT INTO channel_accounts (tenant_id, channel, external_id, display_name)
+       VALUES ($1, 'whatsapp', 'pn-uso', 'WA')`,
+      [tenantId],
+    );
+    const r = await http.get('/v1/cuenta/uso').set(auth()).expect(200);
+    expect(r.body.limites.canales).toEqual({ limite: 1, usado: 1 });
+  });
+
+  it('y no se cuentan los de otro inquilino', async () => {
+    // El aislamiento vale para las cifras igual que para las conversaciones.
+    const ajeno = await http.get('/v1/cuenta/uso').set(auth(tokenAjeno)).expect(200);
+    expect(ajeno.body.limites.canales.usado).toBe(0);
   });
 });

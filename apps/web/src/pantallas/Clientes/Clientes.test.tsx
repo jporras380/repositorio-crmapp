@@ -101,3 +101,31 @@ describe('Clientes', () => {
     );
   });
 });
+
+/**
+ * El hueco de la lista (PR-103).
+ *
+ * Una cuenta recién abierta veía «No hay clientes CON ESOS FILTROS» sin haber
+ * puesto ninguno, y eso la manda a revisar unos desplegables vacíos. Salió
+ * abriendo el producto como un cliente nuevo, no de una lista de tareas.
+ */
+describe('Clientes · cuando no hay nada', () => {
+  it('sin filtros dice que no hay clientes TODAVÍA, y cómo entran', async () => {
+    api.clientes.mockResolvedValueOnce({ items: [], siguienteCursor: null });
+    render(<Clientes sesion={SESION} clienteId={null} alSalir={vi.fn()} />);
+
+    expect(await screen.findByText(/Todavía no hay clientes/)).toBeTruthy();
+    // Culpar a unos filtros que no existen manda a mirar donde no hay nada.
+    expect(screen.queryByText(/esos filtros/)).toBeNull();
+  });
+
+  it('CON filtros puestos sí dice que el problema son los filtros', async () => {
+    api.clientes.mockResolvedValue({ items: [], siguienteCursor: null });
+    render(<Clientes sesion={SESION} clienteId={null} alSalir={vi.fn()} />);
+    await screen.findByText(/Todavía no hay clientes/);
+
+    await userEvent.type(screen.getByPlaceholderText(/Buscar por nombre/), 'nadie');
+    // Ahora sí hay algo que quitar, y se dice.
+    expect(await screen.findByText(/quitar algún filtro/)).toBeTruthy();
+  });
+});

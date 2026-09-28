@@ -193,9 +193,14 @@ export function Clientes({ sesion, clienteId, alSalir }: Props) {
         <div className={estilos.cuerpo}>
           <div className={`glass ${estilos.tabla}`}>
             {cargando && <p className={estilos.vacio}>Cargando…</p>}
+            {/* Una cuenta recién abierta no tiene filtros puestos, y decírselo
+                la manda a revisar unos desplegables que están vacíos. Son dos
+                situaciones distintas y se dicen distinto. */}
             {!cargando && items.length === 0 && (
               <p className={estilos.vacio}>
-                No hay clientes con esos filtros. Los que escriben por WhatsApp entran solos.
+                {busqueda || origen || etiqueta
+                  ? 'Ningún cliente coincide con lo que buscas. Prueba a quitar algún filtro.'
+                  : 'Todavía no hay clientes. Los que escriban por WhatsApp entran solos, y también puedes crearlos o importarlos aquí arriba.'}
               </p>
             )}
             {items.length > 0 && (
