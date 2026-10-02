@@ -194,7 +194,7 @@ Nada.
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
 3. Botones desde el **compositor** del agente, y respuestas rápidas de Instagram y Messenger: el contrato ya lo permite (ADR-014), falta construirlo si se pide.
 
-Equipos ya tienen pantalla (PR-97) y horario propio (PR-110). TikTok sigue bloqueado por falta de API pública de mensajería.
+Equipos ya tienen pantalla (PR-97) y horario propio (PR-110). **TikTok ya no está bloqueado (corregido el 2026-10-02):** existe la *TikTok Business Messaging API*, en beta abierta en LATAM, y es la que usa Kommo («Conectar con TikTok» por inicio de sesión). Pide una app de TikTok for Developers aprobada y una revisión de seguridad y privacidad de los datos, como el App Review de Meta. Entraría como un adaptador más del contrato. No se ha empezado: falta que el dueño lo pida y cree la cuenta de desarrollador.
 
 ## Cambio propuesto al plan de fases
 
