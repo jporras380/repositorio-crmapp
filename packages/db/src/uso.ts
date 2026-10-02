@@ -100,3 +100,25 @@ export async function leerUsoDelPeriodo(
   for (const r of rows) uso[r.metric] = Number(r.quantity);
   return uso;
 }
+
+/**
+ * El tope que el plan del inquilino pone a una clave de `plans.limits`.
+ *
+ * `null` es «sin tope»: un plan que no declara la clave no la restringe, la
+ * misma regla que `cabeUnoMas` en `@crmapp/core`. Sin suscripción también es
+ * `null`, porque cortar por un dato que falta pararía a la cuenta por un
+ * descuido nuestro.
+ */
+export async function topeDelPlan(
+  c: PoolClient,
+  tenantId: string,
+  clave: string,
+): Promise<number | null> {
+  const { rows } = await c.query<{ tope: number | null }>(
+    `SELECT (p.limits ->> $2)::int AS tope
+       FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+      WHERE s.tenant_id = $1`,
+    [tenantId, clave],
+  );
+  return rows[0]?.tope ?? null;
+}

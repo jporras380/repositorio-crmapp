@@ -63,7 +63,11 @@ const CUENTAS_DEL_MOMENTO: Record<string, string> = {
                  + (SELECT count(*) FROM invitations
                      WHERE tenant_id = $1 AND accepted_at IS NULL AND expires_at > now())
                  AS cuenta`,
-  canales: `SELECT count(*) AS cuenta FROM channel_accounts WHERE tenant_id = $1`,
+  // Los desconectados no cuentan: desconectar deja la fila para conservar
+  // sus conversaciones, y tiene que liberar la plaza. El mismo criterio que
+  // aplica el tope al conectar.
+  canales: `SELECT count(*) AS cuenta FROM channel_accounts
+             WHERE tenant_id = $1 AND status <> 'disconnected'`,
 };
 
 export interface ResumenDeUso {

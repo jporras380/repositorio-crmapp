@@ -16,7 +16,9 @@ import {
   crearResolverDeCredencialesWhatsapp,
   crearResolverDeCuenta,
   guardarSecretoDeCanal,
+  topeDelPlan,
 } from '@crmapp/db';
+import { cabeUnoMas } from '@crmapp/core';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import {
@@ -302,9 +304,14 @@ export class CanalesService {
    */
   async conectarFacebook(cred: CredencialesDeAltaFacebook): Promise<CuentaDeCanal> {
     const ctx = this.#exigirAdmin();
+    // Antes de hablar con Meta: si no cabe, no tiene sentido verificar nada.
+    await this.#db.enTransaccion((c) => this.#exigirCupoDeCanal(c, ctx.tenantId));
     const r = await this.#resolverFacebook(cred.paginaId, cred.accessToken);
 
     return this.#db.enTransaccion(async (c) => {
+      // Otra vez dentro: entre la comprobación de arriba y esta, otra
+      // pestaña ha podido conectar el canal que llenaba el cupo.
+      await this.#exigirCupoDeCanal(c, ctx.tenantId);
       const id = await this.#db.nuevoId(c);
       try {
         await c.query(
@@ -360,9 +367,14 @@ export class CanalesService {
    */
   async conectarInstagram(cred: CredencialesDeAltaInstagram): Promise<CuentaDeCanal> {
     const ctx = this.#exigirAdmin();
+    // Antes de hablar con Meta: si no cabe, no tiene sentido verificar nada.
+    await this.#db.enTransaccion((c) => this.#exigirCupoDeCanal(c, ctx.tenantId));
     const r = await this.#resolverInstagram(cred.igUserId, cred.accessToken);
 
     return this.#db.enTransaccion(async (c) => {
+      // Otra vez dentro: entre la comprobación de arriba y esta, otra
+      // pestaña ha podido conectar el canal que llenaba el cupo.
+      await this.#exigirCupoDeCanal(c, ctx.tenantId);
       const id = await this.#db.nuevoId(c);
       try {
         await c.query(
@@ -415,6 +427,8 @@ export class CanalesService {
 
   async conectarWhatsapp(cred: CredencialesDeAlta): Promise<CuentaDeCanal> {
     const ctx = this.#exigirAdmin();
+    // Antes de verificar y de suscribir la WABA: si no cabe, no se toca Meta.
+    await this.#db.enTransaccion((c) => this.#exigirCupoDeCanal(c, ctx.tenantId));
 
     // Verificar ANTES de abrir la transacción: es una llamada de red y no debe
     // retener conexión ni bloqueos mientras Meta responde.
@@ -428,6 +442,9 @@ export class CanalesService {
     });
 
     return this.#db.enTransaccion(async (c) => {
+      // Otra vez dentro: entre la comprobación de arriba y esta, otra
+      // pestaña ha podido conectar el canal que llenaba el cupo.
+      await this.#exigirCupoDeCanal(c, ctx.tenantId);
       const id = await this.#db.nuevoId(c);
       try {
         await c.query(
@@ -561,6 +578,10 @@ export class CanalesService {
     }
 
     return this.#db.enTransaccion(async (c) => {
+      // Renovar una cuenta desconectada la vuelve a conectar, y entonces
+      // ocupa plaza. Sin esto el tope se salta: conectar uno, desconectarlo,
+      // conectar otro y renovar el primero.
+      if (cuenta.status === 'disconnected') await this.#exigirCupoDeCanal(c, ctx.tenantId);
       await guardarSecretoDeCanal(c, this.#cifrador, {
         tenantId: ctx.tenantId,
         channelAccountId: id,
@@ -623,6 +644,36 @@ export class CanalesService {
   readonly resolverCredencialesWhatsapp: ReturnType<typeof crearResolverDeCredencialesWhatsapp>;
   readonly resolverCredencialesInstagram: ReturnType<typeof crearResolverDeCredencialesInstagram>;
   readonly resolverCredencialesFacebook: ReturnType<typeof crearResolverDeCredencialesFacebook>;
+
+  /**
+   * ¿Cabe un canal conectado más en el plan?
+   *
+   * Cuentan solo los que no están desconectados: desconectar deja la fila
+   * —para no perder sus conversaciones— y tiene que liberar la plaza.
+   *
+   * El cerrojo de asesoría serializa a dos conexiones simultáneas de la misma
+   * cuenta; sin él las dos ven «cabe uno» y entran las dos. Se usa uno de
+   * asesoría y no `FOR UPDATE` porque el rol de la aplicación no puede
+   * actualizar `subscriptions`, y no debe poder.
+   */
+  async #exigirCupoDeCanal(c: PoolClient, tenantId: string): Promise<void> {
+    await c.query(`SELECT pg_advisory_xact_lock(hashtext('cupo-de-canales:' || $1))`, [tenantId]);
+    const tope = await topeDelPlan(c, tenantId, 'canales');
+    const { rows } = await c.query<{ n: string }>(
+      `SELECT count(*) AS n FROM channel_accounts
+        WHERE tenant_id = $1 AND status <> 'disconnected'`,
+      [tenantId],
+    );
+    const conectados = Number(rows[0]?.n ?? 0);
+    if (!cabeUnoMas(conectados, tope)) {
+      throw new ErrorDeNegocio(
+        'limite_de_canales',
+        `Tu plan incluye ${tope} ${tope === 1 ? 'canal' : 'canales'} y ya ${tope === 1 ? 'está conectado' : 'están conectados'}. Desconecta uno o sube de plan.`,
+        402,
+        { tope, conectados },
+      );
+    }
+  }
 
   // -------------------------------------------------------------------------
 

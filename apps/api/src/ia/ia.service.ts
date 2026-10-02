@@ -21,7 +21,9 @@ import {
   borrarSecretoDeInquilino,
   guardarSecretoDeInquilino,
   leerSecretoDeInquilino,
+  leerUsoDelPeriodo,
   registrarUso,
+  topeDelPlan,
 } from '@crmapp/db';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
@@ -248,6 +250,24 @@ export class IaService {
         409,
       );
     }
+
+    // Los créditos del plan (`creditos_ia_mes`). Cortar aquí no deja a ningún
+    // huésped sin respuesta —ADR-011 prohíbe eso—: el agente sigue pudiendo
+    // escribir a mano. Va antes de llamar al proveedor para no gastar la
+    // clave del hotel en un borrador que no se va a entregar.
+    await this.#db.enTransaccion(async (c) => {
+      const tope = await topeDelPlan(c, ctx.tenantId, 'creditos_ia_mes');
+      if (tope === null) return;
+      const usado = (await leerUsoDelPeriodo(c, ctx.tenantId, new Date()))['ai.suggestions'];
+      if (usado >= tope) {
+        throw new ErrorDeNegocio(
+          'limite_de_ia',
+          `Este mes ya se han usado los ${tope} borradores de IA de tu plan. Se renuevan el día 1; mientras, se puede escribir a mano.`,
+          402,
+          { tope, usado },
+        );
+      }
+    });
 
     // Visibilidad (ADR-008): lanza 404 si este agente no puede ver la conversación.
     const { items } = await this.#bandeja.mensajes(conversationId, {

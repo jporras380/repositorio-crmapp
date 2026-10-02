@@ -42,3 +42,25 @@ pnpm --filter @crmapp/db test       # uso.test: idempotencia, agregado, RLS, SEC
 pnpm --filter @crmapp/worker test   # entrante/saliente/medios suman; mantenimiento.test precrea 4 tablas
 pnpm --filter @crmapp/api test      # uso.e2e: GET /v1/cuenta/uso
 ```
+
+## Topes de canales y de IA (PR-108, 2026-10-02)
+
+Hasta aquí solo se aplicaba el tope de `agentes`. Lo pidió el dueño: aplicar también `canales` y `creditos_ia_mes`.
+
+| Tope | Dónde corta | Qué NO corta |
+|---|---|---|
+| `canales` | Al **conectar** un canal nuevo, y al **renovar** uno desconectado | Los canales ya conectados siguen recibiendo y enviando |
+| `creditos_ia_mes` | Al pedir un borrador de IA, **antes** de llamar al proveedor | Escribir a mano; ningún huésped se queda sin respuesta |
+
+Los dos cumplen ADR-011: pasarse avisa o frena una acción del equipo, nunca corta lo que le llega al cliente.
+
+**Lo que no era obvio:**
+
+- **Desconectar no borra la fila** (conserva las conversaciones), así que el conteo excluye `status = 'disconnected'`. «Uso del plan» contaba todas las filas y lo mismo hacía el primer borrador del tope: desconectar no habría liberado plaza.
+- **La puerta de atrás**: renovar el token de un canal desconectado lo reconecta. Sin comprobarlo ahí, se podía conectar uno, desconectarlo, conectar otro y renovar el primero. Hay test, visto fallar sin la comprobación.
+- **Cerrojo de asesoría** (`pg_advisory_xact_lock`) y no `FOR UPDATE`: el rol de la aplicación no puede actualizar `subscriptions`, y no debe.
+- El tope de canales se comprueba **antes** de hablar con Meta (no se verifica ni se suscribe la WABA si no cabe) y otra vez dentro de la transacción.
+- `topeDelPlan` en `@crmapp/db`: sin suscripción o sin clave en el plan es «sin tope», la misma regla que `cabeUnoMas`.
+
+La cuenta de desarrollo pasó a **Scale** en la base local, a pedido del dueño, para que los topes no le frenen las pruebas.
+

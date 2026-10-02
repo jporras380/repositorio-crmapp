@@ -13,7 +13,7 @@ import { Client, Pool } from 'pg';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { migrar, reintentandoSiChocaElCatalogo } from '@crmapp/db';
+import { migrar, reintentandoSiChocaElCatalogo, inicioDePeriodo } from '@crmapp/db';
 import { AppModule } from '../src/app.module.js';
 import { FiltroDeErrores } from '../src/errores.js';
 import { ErrorDeNegocio } from '../src/auth/auth.service.js';
@@ -282,6 +282,47 @@ describe('sugerir respuesta', () => {
       [tenantId],
     );
     expect(rows[0].n).toBeGreaterThanOrEqual(1);
+  });
+
+  it('agotados los créditos del mes, se dice y NO se gasta la clave del hotel', async () => {
+    // Starter trae 750. Se llena el contador del mes en vez de pedir 750
+    // borradores: lo que se prueba es la comprobación, no el contador.
+    // El periodo, calculado igual que al registrar el uso.
+    const periodo = inicioDePeriodo(new Date());
+    const { rows: antes } = await admin.query<{ quantity: string }>(
+      `SELECT quantity FROM usage_rollups
+        WHERE tenant_id = $1 AND metric = 'ai.suggestions' AND period = $2`,
+      [tenantId, periodo],
+    );
+    await admin.query(
+      `UPDATE usage_rollups SET quantity = 750
+        WHERE tenant_id = $1 AND metric = 'ai.suggestions' AND period = $2`,
+      [tenantId, periodo],
+    );
+    try {
+      const llamadas = pedidas.length;
+      const r = await http
+        .post(`/v1/conversaciones/${conversacionId}/sugerencia`)
+        .set(auth(tokenAgente))
+        .expect(402);
+      expect(r.body.codigo).toBe('limite_de_ia');
+      expect(r.body.tope).toBe(750);
+      // Se corta antes del proveedor: la clave es del hotel y la paga él.
+      expect(pedidas.length).toBe(llamadas);
+
+      // Y escribir a mano sigue funcionando: el huésped no se queda sin respuesta.
+      await http
+        .post(`/v1/conversaciones/${conversacionId}/mensajes`)
+        .set(auth(tokenAgente))
+        .send({ tipo: 'text', texto: 'Le escribo a mano.' })
+        .expect(202);
+    } finally {
+      await admin.query(
+        `UPDATE usage_rollups SET quantity = $3
+          WHERE tenant_id = $1 AND metric = 'ai.suggestions' AND period = $2`,
+        [tenantId, periodo, antes[0]!.quantity],
+      );
+    }
   });
 
   it('lo enviado a partir del borrador queda como IA, pero lo envió una persona', async () => {

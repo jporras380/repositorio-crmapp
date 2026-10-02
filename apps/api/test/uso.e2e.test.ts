@@ -162,11 +162,14 @@ describe('los topes que no son contadores del mes', () => {
 
   it('los canales se cuentan de verdad', async () => {
     await admin.query(
-      `INSERT INTO channel_accounts (tenant_id, channel, external_id, display_name)
-       VALUES ($1, 'whatsapp', 'pn-uso', 'WA')`,
+      `INSERT INTO channel_accounts (tenant_id, channel, external_id, display_name, status)
+       VALUES ($1, 'whatsapp', 'pn-uso', 'WA', 'connected'),
+              ($1, 'instagram', 'ig-uso-desconectado', 'IG', 'disconnected')`,
       [tenantId],
     );
     const r = await http.get('/v1/cuenta/uso').set(auth()).expect(200);
+    // El desconectado no cuenta: desconectar deja la fila para conservar sus
+    // conversaciones, y tiene que liberar la plaza. El tope usa lo mismo.
     expect(r.body.limites.canales).toEqual({ limite: 1, usado: 1 });
   });
 

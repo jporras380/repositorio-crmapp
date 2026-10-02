@@ -195,6 +195,14 @@ beforeAll(async () => {
     .expect(201);
   tokenOwner = alta.body.token;
   tenantId = alta.body.tenantId;
+  // Estos tests prueban CÓMO se conecta, y conectan WhatsApp, Instagram y
+  // Facebook en la misma cuenta: con Starter (un canal) el segundo daría 402.
+  // El tope tiene su propio bloque al final.
+  await admin.query(
+    `UPDATE subscriptions SET plan_id = (SELECT id FROM plans WHERE code = 'scale')
+      WHERE tenant_id = $1`,
+    [tenantId],
+  );
 
   const inv = await http
     .post('/v1/invitaciones')
@@ -875,5 +883,74 @@ describe('conectar Facebook (Messenger y comentarios de página)', () => {
       `SELECT tenant_id, channel FROM inbound_events ORDER BY created_at DESC LIMIT 1`,
     );
     expect(rows[0]).toEqual({ tenant_id: tenantId, channel: 'facebook' });
+  });
+});
+
+/**
+ * El tope de canales del plan (`canales`).
+ *
+ * Bloquear una conexión NUEVA no corta nada de lo que ya llega, que es lo que
+ * ADR-011 prohíbe: los canales conectados siguen recibiendo y enviando.
+ */
+describe('el tope de canales del plan', () => {
+  let tokenChico: string;
+  const PN = (n: number) => `55500000000000${n}`;
+  const conectar = (n: number) =>
+    http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenChico))
+      .send({ ...CRED, phoneNumberId: PN(n), wabaId: `77700000000000${n}` });
+
+  beforeAll(async () => {
+    // Cuenta nueva, en Starter: un canal.
+    const r = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Hostal Chico',
+        slug: 'hostal-chico',
+        email: 'owner@chico.test',
+        contrasena: 'contrasena-muy-larga',
+        nombreCompleto: 'Dueña',
+      })
+      .expect(201);
+    tokenChico = r.body.token;
+  });
+
+  it('el primero entra; el segundo se rechaza con el tope y lo que hay', async () => {
+    await conectar(1).expect(201);
+    verificaciones = [];
+    suscripciones = [];
+    const r = await conectar(2).expect(402);
+    expect(r.body.codigo).toBe('limite_de_canales');
+    expect(r.body.tope).toBe(1);
+    expect(r.body.conectados).toBe(1);
+    // Se rechaza ANTES de hablar con Meta: ni se verifica ni se suscribe la WABA.
+    expect(verificaciones).toEqual([]);
+    expect(suscripciones).toEqual([]);
+  });
+
+  it('desconectar libera la plaza', async () => {
+    const lista = await http.get('/v1/canales').set(auth(tokenChico)).expect(200);
+    await http.delete(`/v1/canales/${lista.body[0].id}`).set(auth(tokenChico)).expect(204);
+    await conectar(2).expect(201);
+  });
+
+  it('renovar el desconectado NO cuela un segundo canal por la puerta de atrás', async () => {
+    const lista = await http.get('/v1/canales').set(auth(tokenChico)).expect(200);
+    const desconectado = lista.body.find((c: { status: string }) => c.status === 'disconnected');
+    const r = await http
+      .patch(`/v1/canales/${desconectado.id}/credenciales`)
+      .set(auth(tokenChico))
+      .send({ accessToken: CRED.accessToken })
+      .expect(402);
+    expect(r.body.codigo).toBe('limite_de_canales');
+  });
+
+  it('subir de plan abre el cupo, sin tocar nada más', async () => {
+    await admin.query(
+      `UPDATE subscriptions SET plan_id = (SELECT id FROM plans WHERE code = 'growth')
+        WHERE tenant_id = (SELECT id FROM tenants WHERE slug = 'hostal-chico')`,
+    );
+    await conectar(3).expect(201);
   });
 });
