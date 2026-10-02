@@ -114,6 +114,9 @@ describe('horario de atención', () => {
       avisoActivo: false,
       avisoTexto: '',
       configurado: false,
+      equipoId: null,
+      propio: false,
+      equiposConHorario: [],
     });
   });
 
@@ -203,5 +206,86 @@ describe('horario de atención', () => {
       .set(auth(tokenOwner))
       .send({ horario: { '1': [['09:00', '25:00']] } })
       .expect(400);
+  });
+});
+
+/**
+ * Horario por equipo (PR-110).
+ *
+ * Lo que importa: un equipo sin horario propio enseña el GENERAL —es el que
+ * le aplica—, darle uno no toca el general, y quitarlo lo devuelve al general.
+ */
+describe('horario por equipo', () => {
+  let equipoId: string;
+  const GENERAL = { '1': [['09:00', '18:00']] };
+  const RESERVAS = { '1': [['10:00', '14:00']], '6': [['10:00', '13:00']] };
+
+  beforeAll(async () => {
+    await http
+      .put('/v1/cuenta/horario')
+      .set(auth(tokenOwner))
+      .send({ horario: GENERAL, avisoActivo: true, avisoTexto: 'Aviso general.' })
+      .expect(200);
+    const r = await http
+      .post('/v1/equipos')
+      .set(auth(tokenOwner))
+      .send({ nombre: 'Reservas' })
+      .expect(201);
+    equipoId = r.body.find((e: { nombre: string }) => e.nombre === 'Reservas').id;
+  });
+
+  it('sin horario propio, el equipo enseña el general: es el que le aplica', async () => {
+    const r = await http
+      .get(`/v1/cuenta/horario?equipo=${equipoId}`)
+      .set(auth(tokenAgente))
+      .expect(200);
+    expect(r.body.propio).toBe(false);
+    expect(r.body.equipoId).toBe(equipoId);
+    expect(r.body.horario).toEqual(GENERAL);
+    expect(r.body.avisoTexto).toBe('Aviso general.');
+  });
+
+  it('un agente no le pone horario a un equipo', async () => {
+    await http
+      .put(`/v1/cuenta/horario?equipo=${equipoId}`)
+      .set(auth(tokenAgente))
+      .send({ horario: RESERVAS })
+      .expect(403);
+  });
+
+  it('darle horario propio NO toca el general', async () => {
+    const r = await http
+      .put(`/v1/cuenta/horario?equipo=${equipoId}`)
+      .set(auth(tokenOwner))
+      .send({ horario: RESERVAS, avisoTexto: 'Reservas abre a las 10.' })
+      .expect(200);
+    expect(r.body.propio).toBe(true);
+    expect(r.body.horario).toEqual(RESERVAS);
+    // Parte del general: el aviso encendido se hereda al darle horario propio.
+    expect(r.body.avisoActivo).toBe(true);
+
+    const general = await http.get('/v1/cuenta/horario').set(auth(tokenOwner)).expect(200);
+    expect(general.body.horario).toEqual(GENERAL);
+    expect(general.body.avisoTexto).toBe('Aviso general.');
+    expect(general.body.equiposConHorario).toEqual([equipoId]);
+  });
+
+  it('volver al general borra el suyo y enseña otra vez el general', async () => {
+    const r = await http
+      .delete(`/v1/cuenta/horario/equipos/${equipoId}`)
+      .set(auth(tokenOwner))
+      .expect(200);
+    expect(r.body.propio).toBe(false);
+    expect(r.body.horario).toEqual(GENERAL);
+    expect(r.body.equiposConHorario).toEqual([]);
+  });
+
+  it('un equipo que no existe en esta cuenta da 404, y un id roto 400', async () => {
+    const r = await http
+      .get('/v1/cuenta/horario?equipo=01900000-0000-7000-8000-000000000000')
+      .set(auth(tokenOwner))
+      .expect(404);
+    expect(r.body.codigo).toBe('equipo_no_encontrado');
+    await http.get('/v1/cuenta/horario?equipo=no-es-un-id').set(auth(tokenOwner)).expect(400);
   });
 });

@@ -928,3 +928,105 @@ describe('señal de vida del canal', () => {
     expect(await ultimoEvento()).toEqual(ahora);
   });
 });
+
+/**
+ * Horario por equipo (PR-110): una conversación de un equipo con horario
+ * propio sigue el de su equipo, aviso incluido.
+ */
+describe('aviso fuera de horario, por equipo', () => {
+  /** Martes 11:00 en Lima: el general está abierto, «Reservas» todavía no. */
+  const martes11 = new Date('2026-09-15T16:00:00Z');
+  let equipoId: string;
+
+  const conversacionDe = async (externalUserId: string) =>
+    (
+      await admin.query<{ id: string }>(
+        `SELECT cv.id FROM conversations cv
+           JOIN contact_identities ci ON ci.contact_id = cv.contact_id
+          WHERE ci.external_user_id = $1
+          ORDER BY cv.created_at DESC LIMIT 1`,
+        [externalUserId],
+      )
+    ).rows[0]!.id;
+
+  beforeAll(async () => {
+    await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+    const { rows } = await admin.query<{ id: string }>(
+      `INSERT INTO teams (tenant_id, name) VALUES ($1, 'Reservas') RETURNING id`,
+      [tenantId],
+    );
+    equipoId = rows[0]!.id;
+    await admin.query(
+      `INSERT INTO business_hours
+         (tenant_id, team_id, timezone, schedule, auto_reply_enabled, auto_reply_text)
+       VALUES ($1, NULL, 'America/Lima', $2, true, 'Aviso general.'),
+              ($1, $3, 'America/Lima', $4, true, 'Reservas abre a las 14:00.')`,
+      [
+        tenantId,
+        JSON.stringify({ '2': [['09:00', '18:00']] }),
+        equipoId,
+        JSON.stringify({ '2': [['14:00', '18:00']] }),
+      ],
+    );
+  });
+
+  afterAll(async () => {
+    await admin.query(`DELETE FROM business_hours WHERE tenant_id = $1`, [tenantId]);
+  });
+
+  it('sin equipo rige el general (abierto), con equipo rige el suyo (cerrado)', async () => {
+    ahora = martes11;
+    const sinEquipo = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.eq1', { externalUserId: 'huesped-reservas' })]),
+    );
+    expect(sinEquipo.avisosFueraDeHorario).toBe(0);
+
+    // La pasan a «Reservas», que a las 11 aún no atiende.
+    await admin.query(`UPDATE conversations SET team_id = $2 WHERE id = $1`, [
+      await conversacionDe('huesped-reservas'),
+      equipoId,
+    ]);
+    ahora = new Date(martes11.getTime() + 60_000);
+    const conEquipo = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.eq2', { externalUserId: 'huesped-reservas' })]),
+    );
+    expect(conEquipo.avisosFueraDeHorario).toBe(1);
+    const { rows } = await admin.query<{ body: string }>(
+      `SELECT body FROM messages WHERE direction = 'outbound' AND conversation_id = $1`,
+      [await conversacionDe('huesped-reservas')],
+    );
+    // El texto del EQUIPO, no el general.
+    expect(rows.map((r) => r.body)).toEqual(['Reservas abre a las 14:00.']);
+  });
+
+  it('el horario del equipo sustituye al general entero: su aviso apagado no avisa', async () => {
+    await admin.query(`UPDATE business_hours SET auto_reply_enabled = false WHERE team_id = $1`, [
+      equipoId,
+    ]);
+    // Martes 23:00: cerrado para los dos. El general avisaría; el equipo no.
+    const martes23 = new Date('2026-09-16T04:00:00Z');
+    ahora = martes23;
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.eq3', { externalUserId: 'otro-de-reservas' })]),
+    );
+    await admin.query(`UPDATE conversations SET team_id = $2 WHERE id = $1`, [
+      await conversacionDe('otro-de-reservas'),
+      equipoId,
+    ]);
+    ahora = new Date(martes23.getTime() + 7 * 3_600_000);
+    const r = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.eq4', { externalUserId: 'otro-de-reservas' })]),
+    );
+    // Cerrado para el equipo y el general con aviso encendido: mezclar las
+    // dos filas daría un aviso que nadie escribió para ese horario.
+    expect(r.avisosFueraDeHorario).toBe(0);
+  });
+});

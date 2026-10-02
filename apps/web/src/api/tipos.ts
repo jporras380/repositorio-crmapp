@@ -182,6 +182,12 @@ export interface HorarioDeAtencion {
   avisoActivo: boolean;
   avisoTexto: string;
   configurado: boolean;
+  /** De qué equipo es; `null` es el general. */
+  equipoId: string | null;
+  /** Si el equipo tiene horario propio. Sin él, lo que llega es el general. */
+  propio: boolean;
+  /** Equipos con horario propio. */
+  equiposConHorario: string[];
 }
 
 /** Lo que uno puede ver y cambiar de sí mismo. */

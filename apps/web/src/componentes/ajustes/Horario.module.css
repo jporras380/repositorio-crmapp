@@ -1,4 +1,15 @@
 @layer components {
+  .para {
+    display: grid;
+    gap: var(--space-2);
+    margin-block-end: var(--space-3);
+  }
+  .estadoEquipo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
   .dias {
     list-style: none;
     margin: 0;

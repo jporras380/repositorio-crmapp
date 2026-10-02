@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
-import type { HorarioDeAtencion, TramoDeHorario } from '../../api/tipos.ts';
+import type { EquipoDeLaCuenta, HorarioDeAtencion, TramoDeHorario } from '../../api/tipos.ts';
 import compartidos from './ajustes.module.css';
 import estilos from './Horario.module.css';
 
@@ -34,21 +34,49 @@ const TRAMO_POR_DEFECTO: TramoDeHorario = ['09:00', '18:00'];
  * solo fuera de ese horario para que nadie se quede esperando de madrugada.
  * Es lo ÚNICO que el CRM envía por su cuenta sin bot ni agente, así que viene
  * apagado y con el texto en manos del hotel.
+ *
+ * Con equipos, cada uno puede tener el suyo (PR-110). El selector solo sale
+ * si hay equipos: a un hotel sin ellos no se le enseña una opción vacía.
  */
 export function Horario({ api, administra }: Props) {
   const [datos, setDatos] = useState<HorarioDeAtencion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [equipos, setEquipos] = useState<EquipoDeLaCuenta[]>([]);
+  const [equipoId, setEquipoId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Sin equipos no hay selector; si fallan, se sigue con el general.
     api
-      .horario()
+      .equipos()
+      .then(setEquipos)
+      .catch(() => setEquipos([]));
+  }, [api]);
+
+  useEffect(() => {
+    setAviso(null);
+    api
+      .horario(equipoId)
       .then(setDatos)
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : 'No se pudo cargar el horario.'),
       );
-  }, [api]);
+  }, [api, equipoId]);
+
+  async function volverAlGeneral() {
+    if (!equipoId) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      setDatos(await api.quitarHorarioDeEquipo(equipoId));
+      setAviso('El equipo usa otra vez el horario general.');
+    } catch (e) {
+      setError(e instanceof ErrorDeApi ? e.message : 'No se pudo quitar.');
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   async function guardar(
     cambios: Parameters<Api['guardarHorario']>[0],
@@ -58,7 +86,7 @@ export function Horario({ api, administra }: Props) {
     setError(null);
     setAviso(null);
     try {
-      setDatos(await api.guardarHorario(cambios));
+      setDatos(await api.guardarHorario(cambios, equipoId));
       setAviso(hecho);
     } catch (e) {
       setError(e instanceof ErrorDeApi ? e.message : 'No se pudo guardar.');
@@ -114,6 +142,49 @@ export function Horario({ api, administra }: Props) {
         </p>
       )}
       {aviso && <p className={`${compartidos.aviso} ${compartidos.aviso_ok}`}>{aviso}</p>}
+
+      {equipos.length > 0 && (
+        <div className={estilos.para}>
+          <label className={compartidos.campo}>
+            <span>Horario de</span>
+            <select value={equipoId ?? ''} onChange={(e) => setEquipoId(e.target.value || null)}>
+              <option value="">Toda la cuenta</option>
+              {equipos.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nombre}
+                  {datos.equiposConHorario.includes(e.id) ? ' · horario propio' : ''}
+                </option>
+              ))}
+            </select>
+            <span className={compartidos.ayuda}>
+              El de un equipo rige las conversaciones que ya son de ese equipo. El primer mensaje de
+              alguien nuevo aún no tiene equipo, y le aplica el de toda la cuenta.
+            </span>
+          </label>
+          {equipoId &&
+            (datos.propio ? (
+              <div className={estilos.estadoEquipo}>
+                <p className={`${compartidos.aviso} ${compartidos.aviso_info}`}>
+                  Este equipo tiene horario propio.
+                </p>
+                {administra && (
+                  <button
+                    className={compartidos.secundario}
+                    disabled={guardando}
+                    onClick={() => void volverAlGeneral()}
+                  >
+                    Volver al horario general
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className={`${compartidos.aviso} ${compartidos.aviso_info}`} role="status">
+                Usa el horario de toda la cuenta, que es el que ves. Si lo cambias y guardas, el
+                equipo pasa a tener el suyo.
+              </p>
+            ))}
+        </div>
+      )}
 
       <label className={compartidos.campo}>
         <span>Zona horaria del hotel</span>

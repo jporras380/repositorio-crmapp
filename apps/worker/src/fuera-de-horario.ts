@@ -7,6 +7,7 @@
  *
  * - Apagado salvo que el hotel lo encienda y escriba el texto.
  * - Solo si está cerrado según SU horario y SU zona horaria (`core/horario`).
+ *   El de su equipo, si lo tiene: `horarioDeLaConversacion`.
  * - **Una vez cada seis horas por conversación**: sin eso, diez mensajes de
  *   madrugada son diez avisos.
  * - Sale por la MISMA puerta que todo (`@crmapp/envio`), con `origen: 'bot'`:
@@ -14,12 +15,13 @@
  *   fuerza nada. Un fallo aquí no puede tumbar la ingesta del mensaje.
  */
 import type { PoolClient } from 'pg';
-import { estaAbierto, type Horario } from '@crmapp/core';
+import { estaAbierto } from '@crmapp/core';
 import {
   cargarConversacionParaEnvio,
   enviarPorConversacion,
   type DependenciasDeEnvio,
 } from '@crmapp/envio';
+import { horarioDeLaConversacion } from './horario-de-la-conversacion.js';
 
 /** Cada cuánto se repite el aviso en la misma conversación. */
 const HORAS_ENTRE_AVISOS = 6;
@@ -29,29 +31,19 @@ export async function avisarSiEstaCerrado(
   deps: DependenciasDeEnvio,
   p: { tenantId: string; conversationId: string; ahora: Date },
 ): Promise<boolean> {
-  const { rows } = await c.query<{
-    timezone: string;
-    schedule: Horario;
-    auto_reply_text: string;
-    ultimo_aviso: Date | null;
-  }>(
-    `SELECT h.timezone, h.schedule, h.auto_reply_text, cv.out_of_hours_reply_at AS ultimo_aviso
-       FROM business_hours h
-       JOIN conversations cv ON cv.id = $1
-      WHERE h.team_id IS NULL AND h.auto_reply_enabled AND h.auto_reply_text <> ''`,
+  const config = await horarioDeLaConversacion(c, p.conversationId);
+  if (!config || !config.auto_reply_enabled || !config.auto_reply_text) return false;
+  const { rows } = await c.query<{ ultimo_aviso: Date | null }>(
+    `SELECT out_of_hours_reply_at AS ultimo_aviso FROM conversations WHERE id = $1`,
     [p.conversationId],
   );
-  const config = rows[0];
-  if (!config) return false;
+  const ultimoAviso = rows[0]?.ultimo_aviso ?? null;
 
   // `null` = zona horaria que no se entiende: no se avisa. Suponer que está
   // cerrado escribiría a deshora a todo el mundo.
   if (estaAbierto(p.ahora, config.schedule ?? {}, config.timezone) !== false) return false;
 
-  if (
-    config.ultimo_aviso &&
-    p.ahora.getTime() - config.ultimo_aviso.getTime() < HORAS_ENTRE_AVISOS * 3_600_000
-  ) {
+  if (ultimoAviso && p.ahora.getTime() - ultimoAviso.getTime() < HORAS_ENTRE_AVISOS * 3_600_000) {
     return false;
   }
 

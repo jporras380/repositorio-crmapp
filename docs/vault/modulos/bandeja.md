@@ -582,3 +582,18 @@ resuelve*. Quitada, y la guarda sigue verde.
 4. Vuelve al primero y pulsa **↩**: el otro deja de verla y tú la conservas.
 
 9 tests nuevos (5 de API —con dos usuarios de verdad— y 4 de pantalla).
+
+## Horario por equipo (PR-110, 2026-10-02)
+
+Un equipo puede tener horario propio: «Reservas» de 9 a 18 mientras «Recepción» atiende siempre. Ajustes → Horario → «Horario de»; el selector solo sale si la cuenta tiene equipos.
+
+**Qué horario rige una conversación:** el de su equipo si lo tiene, y si no, el general. Lo decide una sola consulta, `horarioDeLaConversacion` (worker), que usan **los dos** que dependen del horario: el aviso fuera de horario y los bots con horario. Si cada uno eligiera por su cuenta, una conversación podría recibir «estamos cerrados» mientras el bot la atiende como abierta.
+
+**Decisiones:**
+
+- **El del equipo sustituye al general entero**, aviso incluido. Si el equipo tiene el aviso apagado, no se avisa aunque el general lo tenga encendido: mezclar dos filas daría un aviso que nadie escribió para ese horario. Hay test, a las 23:00, cuando los dos están cerrados (a las 11 el test pasaba aunque el código estuviera roto: se corrigió).
+- **Un equipo sin horario propio enseña el general**, porque es el que le aplica. Guardar desde ahí le crea el suyo, partiendo de lo que se estaba viendo. «Volver al horario general» lo borra.
+- **Límite:** el primer mensaje de alguien nuevo aún no tiene equipo (el reparto automático asigna persona, no equipo), así que le aplica el general. El del equipo rige las conversaciones ya transferidas. La pantalla lo dice.
+
+API: `GET/PUT /v1/cuenta/horario?equipo=<id>`, `DELETE /v1/cuenta/horario/equipos/:id`. Sin migración: `business_hours.team_id` y su índice único existen desde 0002/0027.
+

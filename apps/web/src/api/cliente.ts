@@ -302,13 +302,31 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: { nombre, color },
       }),
-    horario: () => peticion<HorarioDeAtencion>('/v1/cuenta/horario', t),
-    guardarHorario: (d: {
-      zonaHoraria?: string;
-      horario?: Record<string, [string, string][]>;
-      avisoActivo?: boolean;
-      avisoTexto?: string;
-    }) => peticion<HorarioDeAtencion>('/v1/cuenta/horario', { ...t, metodo: 'PUT', cuerpo: d }),
+    /** Sin equipo, el general. Con equipo, el suyo o, si no tiene, el general. */
+    horario: (equipoId: string | null = null) =>
+      peticion<HorarioDeAtencion>(
+        equipoId ? `/v1/cuenta/horario?equipo=${equipoId}` : '/v1/cuenta/horario',
+        t,
+      ),
+    guardarHorario: (
+      d: {
+        zonaHoraria?: string;
+        horario?: Record<string, [string, string][]>;
+        avisoActivo?: boolean;
+        avisoTexto?: string;
+      },
+      equipoId: string | null = null,
+    ) =>
+      peticion<HorarioDeAtencion>(
+        equipoId ? `/v1/cuenta/horario?equipo=${equipoId}` : '/v1/cuenta/horario',
+        { ...t, metodo: 'PUT', cuerpo: d },
+      ),
+    /** El equipo vuelve a usar el horario general. */
+    quitarHorarioDeEquipo: (equipoId: string) =>
+      peticion<HorarioDeAtencion>(`/v1/cuenta/horario/equipos/${equipoId}`, {
+        ...t,
+        metodo: 'DELETE',
+      }),
     reparto: () => peticion<ConfiguracionDeReparto>('/v1/cuenta/reparto', t),
     guardarReparto: (d: {
       modo?: 'off' | 'least_busy';

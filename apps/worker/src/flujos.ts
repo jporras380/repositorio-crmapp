@@ -37,10 +37,10 @@ import {
   type EntradaDelFlujo,
   type Efecto,
   type Grafo,
-  type Horario,
   type HorasActivas,
   type Nodo,
 } from '@crmapp/core';
+import { horarioDeLaConversacion } from './horario-de-la-conversacion.js';
 import type { ChannelAdapter } from '@crmapp/channels';
 import {
   elBotDebeCallarse,
@@ -501,7 +501,7 @@ async function buscarDisparo(
   let abierto: boolean | null | undefined;
   const dentroDeSuHorario = async (horas: HorasActivas): Promise<boolean> => {
     if (horas === 'siempre') return true;
-    if (abierto === undefined) abierto = await estaAbiertoElNegocio(c, ahora);
+    if (abierto === undefined) abierto = await estaAbiertoParaEsta(c, conversationId, ahora);
     return puedeHablarElBot(horas, abierto);
   };
 
@@ -537,15 +537,18 @@ async function buscarDisparo(
 }
 
 /**
- * ¿Está abierto el hotel ahora? `null` si no se sabe —no hay horario puesto o
- * la zona horaria no se entiende—, y entonces el bot habla igual: ver
- * `puedeHablarElBot`.
+ * ¿Está abierto ahora, para ESTA conversación? Con el horario de su equipo si
+ * lo tiene (PR-110), el mismo que usa el aviso fuera de horario.
+ *
+ * `null` si no se sabe —no hay horario puesto o la zona horaria no se
+ * entiende—, y entonces el bot habla igual: ver `puedeHablarElBot`.
  */
-async function estaAbiertoElNegocio(c: PoolClient, ahora: Date): Promise<boolean | null> {
-  const { rows } = await c.query<{ timezone: string; schedule: Horario }>(
-    `SELECT timezone, schedule FROM business_hours WHERE team_id IS NULL`,
-  );
-  const h = rows[0];
+async function estaAbiertoParaEsta(
+  c: PoolClient,
+  conversationId: string,
+  ahora: Date,
+): Promise<boolean | null> {
+  const h = await horarioDeLaConversacion(c, conversationId);
   if (!h) return null;
   return estaAbierto(ahora, h.schedule ?? {}, h.timezone);
 }
