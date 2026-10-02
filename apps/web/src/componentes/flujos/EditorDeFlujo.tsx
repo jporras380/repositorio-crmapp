@@ -415,6 +415,13 @@ function Paso({
             aria-label="Texto del mensaje"
             onChange={(e) => alCambiar({ ...nodo, texto: e.target.value })}
           />
+          <Opciones
+            valor={nodo.opciones ?? []}
+            alCambiar={(opciones) => {
+              const { opciones: _fuera, ...resto } = nodo;
+              alCambiar(opciones.length > 0 ? { ...resto, opciones } : resto);
+            }}
+          />
           <Enlace
             etiqueta="Luego"
             valor={nodo.siguiente}
@@ -812,6 +819,65 @@ function Disparadores({
         />
       )}
     </fieldset>
+  );
+}
+
+/**
+ * Opciones para pulsar de un mensaje (PR-112).
+ *
+ * Quien diseña el bot no elige «botones» o «lista»: elige opciones, y el
+ * número decide. Hasta 3 salen como botones; de 4 a 10, como lista. Se dice
+ * debajo, porque el huésped verá algo distinto según cuántas ponga.
+ */
+function Opciones({ valor, alCambiar }: { valor: string[]; alCambiar: (v: string[]) => void }) {
+  const tope = valor.length <= 3 ? 20 : 24;
+  if (valor.length === 0) {
+    return (
+      <button className={estilos.anadirCaso} onClick={() => alCambiar([''])}>
+        Añadir opciones para pulsar
+      </button>
+    );
+  }
+  return (
+    <div className={estilos.opciones}>
+      {valor.map((o, i) => (
+        <div key={i} className={estilos.caso}>
+          <input
+            className={estilos.palabras}
+            value={o}
+            aria-label={`Opción ${i + 1}`}
+            placeholder={i === 0 ? 'Bungalow' : i === 1 ? 'Familiar' : 'Otra opción'}
+            onChange={(e) => alCambiar(valor.map((x, j) => (j === i ? e.target.value : x)))}
+          />
+          <span
+            className={o.trim().length > tope ? estilos.contadorPasado : estilos.contador}
+            aria-label={`${o.trim().length} de ${tope} caracteres`}
+          >
+            {o.trim().length}/{tope}
+          </span>
+          <button
+            className={estilos.borrarCaso}
+            onClick={() => alCambiar(valor.filter((_, j) => j !== i))}
+            title="Quitar esta opción"
+          >
+            <span aria-hidden="true">×</span>
+            <span className="visually-hidden">Quitar la opción {i + 1}</span>
+          </button>
+        </div>
+      ))}
+      {valor.length < 10 && (
+        <button className={estilos.anadirCaso} onClick={() => alCambiar([...valor, ''])}>
+          Añadir opción
+        </button>
+      )}
+      <p className={estilos.pista}>
+        {valor.length <= 3
+          ? 'En WhatsApp salen como botones. Con 4 o más, como lista.'
+          : 'En WhatsApp salen como lista, detrás de un botón «Ver opciones».'}{' '}
+        Donde no hay botones se envían escritas. Lo que pulsen vuelve como respuesta: úsalo en una
+        condición.
+      </p>
+    </div>
   );
 }
 

@@ -142,6 +142,25 @@ describe('entrega correcta', () => {
   });
 });
 
+describe('mensajes con opciones (PR-112)', () => {
+  it('un interactive en cola llega al canal como botones, no como texto', async () => {
+    const base = await encolado('¿Qué habitación?');
+    const interactivo = {
+      tipo: 'botones' as const,
+      cuerpo: '¿Qué habitación?',
+      opciones: [
+        { id: 'op-1', titulo: 'Bungalow' },
+        { id: 'op-2', titulo: 'Familiar' },
+      ],
+    };
+    const carga: CargaDeEnvio = { ...base, peticion: { tipo: 'interactive', interactivo } };
+    expect(await enviarMensajeSaliente({ pool: app, canales: canales() }, tenantId, carga)).toBe(
+      'enviado',
+    );
+    expect(sandbox.enviados[0]).toMatchObject({ tipo: 'interactive', contenido: interactivo });
+  });
+});
+
 describe('idempotencia ante reintentos', () => {
   it('un segundo intento no vuelve a enviar', async () => {
     // BullMQ puede ejecutar el job dos veces. Sin la reserva condicional, el

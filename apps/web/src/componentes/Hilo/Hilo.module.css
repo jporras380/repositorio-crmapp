@@ -213,6 +213,21 @@
     font-size: var(--text-xs);
     opacity: 0.8;
   }
+  .opciones {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-1);
+  }
+  .opcion {
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    text-align: center;
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
   .texto {
     white-space: pre-wrap;
   }

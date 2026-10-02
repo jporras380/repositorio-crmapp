@@ -28,6 +28,7 @@ import {
   type PlantillaSincronizada,
   type RespuestaAComentario,
   type ResultadoDeEnvio,
+  type EnvioInteractivo,
 } from '../adaptador.js';
 
 const MB = 1024 * 1024;
@@ -86,6 +87,9 @@ export class AdaptadorInstagram implements ChannelAdapter {
       requiereUrlPublicaParaMedios: true,
       limitesDeMedios: { image: 8 * MB, video: 25 * MB, audio: 25 * MB },
       longitudMaximaTexto: 1000,
+      // Instagram y Messenger tienen respuestas rápidas, pero no se han
+      // construido: hasta entonces, las opciones llegan como texto.
+      interactivos: null,
     };
   }
 
@@ -129,6 +133,10 @@ export class AdaptadorInstagram implements ChannelAdapter {
 
   async sendTemplate(_envio: EnvioDePlantilla): Promise<ResultadoDeEnvio> {
     throw new ErrorDeCanal('tipo_no_soportado', 'Instagram no tiene plantillas.', false);
+  }
+
+  async sendInteractive(_envio: EnvioInteractivo): Promise<ResultadoDeEnvio> {
+    throw new ErrorDeCanal('tipo_no_soportado', 'Instagram no tiene mensajes con opciones.', false);
   }
 
   async replyToComment(respuesta: RespuestaAComentario): Promise<ResultadoDeEnvio> {

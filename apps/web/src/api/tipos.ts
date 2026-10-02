@@ -291,6 +291,8 @@ export interface Mensaje {
   medio_nombre: string | null;
   /** En una respuesta a comentario, si fue pública o privada. */
   modo_comentario: 'publica' | 'privada' | null;
+  /** Las opciones de un mensaje con botones o lista; `null` en el resto. */
+  opciones: string[] | null;
 }
 
 /**
@@ -529,7 +531,14 @@ export interface NotaInterna {
 // ---------------------------------------------------------------------------
 
 export type NodoDeFlujo =
-  | { id: string; tipo: 'mensaje'; texto: string; siguiente: string | null }
+  | {
+      id: string;
+      tipo: 'mensaje';
+      texto: string;
+      siguiente: string | null;
+      /** Hasta 3, botones; de 4 a 10, lista. Sin botones en el canal, escritas. */
+      opciones?: string[];
+    }
   | {
       id: string;
       tipo: 'esperar_respuesta';
@@ -588,7 +597,7 @@ export interface DetalleDeFlujo extends ResumenDeFlujo {
 }
 
 export type EfectoDeFlujo =
-  | { tipo: 'enviar_texto'; texto: string }
+  | { tipo: 'enviar_texto'; texto: string; opciones?: string[] }
   | { tipo: 'etiquetar'; etiquetaId: string }
   | { tipo: 'asignar'; usuarioId: string }
   | { tipo: 'pedir_humano'; motivo: string }

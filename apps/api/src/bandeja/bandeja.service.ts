@@ -362,6 +362,11 @@ export class BandejaService {
                 -- Solo lo tienen las respuestas a comentarios: distingue la
                 -- pública de la privada, que es de un solo uso.
                 m.payload -> 'comentario' ->> 'modo' AS modo_comentario,
+                -- Los títulos de un mensaje con botones o lista (PR-112): la
+                -- bandeja enseña lo que le llegó al huésped, no solo el texto.
+                (SELECT array_agg(o ->> 'titulo')
+                   FROM jsonb_array_elements(m.payload -> 'interactivo' -> 'opciones') o)
+                  AS opciones,
                 m.sent_by_user_id AS autor_id, u.full_name AS autor,
                 u.avatar_media_id AS autor_foto_id
            FROM messages m
@@ -1263,6 +1268,8 @@ export interface MensajeDeConversacion {
   medio_nombre: string | null;
   /** `publica` o `privada` en una respuesta a comentario; `null` en el resto. */
   modo_comentario: string | null;
+  /** Títulos de las opciones de un mensaje con botones o lista. */
+  opciones: string[] | null;
 }
 
 function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {

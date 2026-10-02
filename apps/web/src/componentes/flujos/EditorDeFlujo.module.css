@@ -290,6 +290,21 @@
   .caso .palabras {
     flex: 1 1 10rem;
   }
+  .opciones {
+    display: grid;
+    gap: var(--space-2);
+  }
+  .contador,
+  .contadorPasado {
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-muted);
+  }
+  /* Pasado de largo: no se publicará, y se ve antes de intentarlo. */
+  .contadorPasado {
+    color: var(--danger);
+    font-weight: 600;
+  }
   .anadirCaso {
     justify-self: start;
     font-size: var(--text-xs);

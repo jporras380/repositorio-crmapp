@@ -55,10 +55,29 @@ export function Simulador({
             )}
             {paso.efectos.map((efecto, j) => {
               if (efecto.tipo === 'enviar_texto') {
+                // Solo se pueden pulsar las opciones de lo último que dijo el
+                // bot, y si está esperando respuesta: las de antes ya pasaron.
+                const pulsables =
+                  simulacion?.final === 'sin_respuestas' &&
+                  i === (simulacion?.pasos.length ?? 0) - 1;
                 return (
-                  <p key={j} className={`${estilos.burbuja} ${estilos.bot}`}>
-                    {efecto.texto}
-                  </p>
+                  <div key={j} className={`${estilos.burbuja} ${estilos.bot}`}>
+                    <p className={estilos.textoBot}>{efecto.texto}</p>
+                    {efecto.opciones && efecto.opciones.length > 0 && (
+                      <div className={estilos.opciones}>
+                        {efecto.opciones.map((o) => (
+                          <button
+                            key={o}
+                            className={estilos.opcion}
+                            disabled={!pulsables}
+                            onClick={() => alCambiarRespuestas([...respuestas, o])}
+                          >
+                            {o}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 );
               }
               const texto =

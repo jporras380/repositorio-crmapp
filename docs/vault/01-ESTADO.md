@@ -38,6 +38,7 @@ Lo que PR-97 deja al alcance sin ser deuda: `business_hours.team_id` —horario 
 
 ## Completado
 
+- **PR-112, botones y listas de WhatsApp desde los bots** ([[ADR-014-mensajes-con-opciones]], [[salesbots]] §Bots que preguntan con botones): primer cambio al contrato `ChannelAdapter`, autorizado por el dueño. Capacidad `interactivos` + `sendInteractive`; donde no hay botones, o no caben, se mandan escritas con viñetas antes de guardar. Tipo de mensaje `interactive` (0053). El esquema de la API habría tirado las opciones en silencio (zod); test que lo impide, visto fallar.
 - **PR-111, cuánto se guardan los mensajes** ([[bandeja]] §Cuánto se guardan los mensajes): Ajustes → Privacidad, solo el propietario, apagado por defecto. Borra cada noche los mensajes más viejos que el plazo y sus archivos, **nunca** uno que otra cosa use; un test sobre el catálogo obliga a que toda columna nueva con archivos entre en la comprobación. Antes, un arreglo aparte: los tests del worker reintentan `ALTER ROLE` como los de la API (la CI de PR-110 cayó por esa carrera del banco de pruebas, no del producto).
 - **PR-110, horario por equipo** ([[bandeja]] §Horario por equipo): cada equipo puede tener el suyo; sin él usa el general. Una sola consulta decide qué horario rige una conversación, compartida por el aviso fuera de horario y los bots. El del equipo sustituye al general entero, aviso incluido. Rige conversaciones ya transferidas al equipo: el primer mensaje no tiene equipo todavía.
 - **PR-109, nombres que chocaban** ([[embudo]] §Nombres, [[salesbots]] §«Bot», no «flujo»): el menú «Leads» pasa a **Embudo**, el embudo por defecto deja de llamarse «Reservas» (chocaba con la pantalla Reservas) y pasa a **Ventas** (migración 0051), «lead» pasa a **oportunidad** y «flujo» a **bot** en todo lo visible. El código no se renombra.
@@ -191,9 +192,9 @@ Nada.
 
 1. **Conectar Instagram de verdad** para ver entrar un comentario: hace falta un token con permisos de Instagram y páginas. El número de WhatsApp de prueba ya usa un token de usuario del sistema (caduca el 2026-11-13).
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
-3. Del estudio de los repos de referencia: **enviar** mensajes interactivos de WhatsApp (botones y listas) desde bots y compositor; recibirlos ya funciona. **Cambiaría el contrato `ChannelAdapter`, que está en la lista de parada: hace falta el visto bueno del usuario.**
+3. Botones desde el **compositor** del agente, y respuestas rápidas de Instagram y Messenger: el contrato ya lo permite (ADR-014), falta construirlo si se pide.
 
-Deuda con nombre: equipos (`teams` y `team_members` siguen sin usarse; el horario y el reparto ya son de la cuenta). TikTok sigue bloqueado por falta de API pública de mensajería.
+Equipos ya tienen pantalla (PR-97) y horario propio (PR-110). TikTok sigue bloqueado por falta de API pública de mensajería.
 
 ## Cambio propuesto al plan de fases
 

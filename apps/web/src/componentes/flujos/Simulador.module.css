@@ -48,6 +48,28 @@
     color: var(--accent-fg);
     border-end-end-radius: 4px;
   }
+  .textoBot {
+    margin: 0;
+  }
+  .opciones {
+    display: grid;
+    gap: var(--space-1);
+    margin-block-start: var(--space-2);
+  }
+  /* Como los ve el huésped: cada opción, un botón a lo ancho de la burbuja. */
+  .opcion {
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--surface-raised);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: var(--text-sm);
+  }
+  .opcion:disabled {
+    color: var(--fg-muted);
+    cursor: default;
+  }
   .contacto {
     align-self: flex-start;
     background: var(--surface-raised);

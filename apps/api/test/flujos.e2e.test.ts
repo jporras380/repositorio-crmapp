@@ -221,6 +221,51 @@ describe('flujos', () => {
     expect(rows).toHaveLength(0);
   });
 
+  it('las opciones de un mensaje se guardan, se prueban y viajan hasta el efecto', async () => {
+    const grafo = {
+      inicio: 'pregunta',
+      nodos: [
+        {
+          id: 'pregunta',
+          tipo: 'mensaje',
+          texto: '¿Qué habitación buscas?',
+          opciones: ['Bungalow', 'Familiar', 'Doble'],
+          siguiente: 'fin',
+        },
+        { id: 'fin', tipo: 'fin' },
+      ],
+    };
+    // Sin el campo en el esquema de la API, zod lo quitaba en silencio y el
+    // bot se guardaba sin botones.
+    const { id } = await crear('Con botones', grafo);
+    const d = await http.get(`/v1/flujos/${id}`).set(auth()).expect(200);
+    expect(d.body.grafo.nodos[0].opciones).toEqual(['Bungalow', 'Familiar', 'Doble']);
+
+    const r = await http.post('/v1/flujos/probar').set(auth()).send({ grafo }).expect(201);
+    expect(r.body.pasos[0].efectos[0]).toEqual({
+      tipo: 'enviar_texto',
+      texto: '¿Qué habitación buscas?',
+      opciones: ['Bungalow', 'Familiar', 'Doble'],
+    });
+  });
+
+  it('un botón demasiado largo, o dos opciones iguales, no se publican', async () => {
+    const con = (opciones: string[]) => ({
+      inicio: 'p',
+      nodos: [
+        { id: 'p', tipo: 'mensaje', texto: 'Elige', opciones, siguiente: 'f' },
+        { id: 'f', tipo: 'fin' },
+      ],
+    });
+    for (const opciones of [['Bungalow matrimonial con vista'], ['Doble', 'doble']]) {
+      const { id } = await crear(`Mal ${opciones.join('-')}`, con(opciones));
+      const r = await http.post(`/v1/flujos/${id}/publicar`).set(auth()).expect(422);
+      expect(r.body.problemas.map((p: { codigo: string }) => p.codigo)).toContain(
+        'opciones_invalidas',
+      );
+    }
+  });
+
   it('una pausa se publica; una de más de 24 horas no', async () => {
     const conPausa = (segundos: number) => ({
       inicio: 'saludo',

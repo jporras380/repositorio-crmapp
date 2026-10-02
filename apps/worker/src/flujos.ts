@@ -32,6 +32,7 @@ import {
   decidirPaso,
   ErrorDeNegocio,
   estaAbierto,
+  formatoDeOpciones,
   puedeHablarElBot,
   type ContextoDelFlujo,
   type EntradaDelFlujo,
@@ -47,6 +48,7 @@ import {
   cargarConversacionParaEnvio,
   enviarPorConversacion,
   nuevoId,
+  type PeticionDeEnvio,
 } from '@crmapp/envio';
 import type { TrabajoDeFlujo } from '@crmapp/queue';
 
@@ -361,7 +363,7 @@ async function ejecutarEfecto(
           { canales: deps.canales, ...(deps.ahora ? { ahora: deps.ahora } : {}) },
           {
             conversacion,
-            peticion: { tipo: 'text', texto: efecto.texto },
+            peticion: peticionDelMensaje(efecto.texto, efecto.opciones),
             // El bot atraviesa la MISMA puerta que el agente: ventana de 24 h,
             // estado de la suscripción y capacidades del canal. Que envíe una
             // máquina no le da permisos extra.
@@ -643,4 +645,23 @@ async function terminar(
       WHERE id = $1`,
     [flowRunId, status, error, JSON.stringify(contexto), ahora],
   );
+}
+
+/**
+ * Un mensaje del bot, con o sin opciones. Con opciones pide botones o lista;
+ * si el canal no los tiene, la puerta de envío los escribe (PR-112).
+ *
+ * El id de cada opción no lo usa nadie al volver —lo que vuelve es el título,
+ * y es lo que mira la `condicion`—, pero Meta lo exige único.
+ */
+function peticionDelMensaje(texto: string, opciones: string[] | undefined): PeticionDeEnvio {
+  if (!opciones || opciones.length === 0) return { tipo: 'text', texto };
+  const lista = opciones.map((titulo, i) => ({ id: `op-${i + 1}`, titulo: titulo.trim() }));
+  return {
+    tipo: 'interactive',
+    interactivo:
+      formatoDeOpciones(lista.length) === 'botones'
+        ? { tipo: 'botones', cuerpo: texto, opciones: lista }
+        : { tipo: 'lista', cuerpo: texto, textoDelBoton: 'Ver opciones', opciones: lista },
+  };
 }

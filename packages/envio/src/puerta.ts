@@ -31,7 +31,9 @@ import {
   type TipoDeEnvio,
 } from '@crmapp/core';
 import {
+  interactivoComoTexto,
   validarContraCapacidades,
+  validarInteractivo,
   type ChannelAdapter,
   type TipoDeMensaje,
 } from '@crmapp/channels';
@@ -136,7 +138,9 @@ export async function enviarPorConversacion(
 
   // 1. Una respuesta rápida es, técnicamente, un mensaje libre: se expande a
   //    su versión actual y atraviesa la misma puerta.
-  const { peticion, quickReplyVersionId } = await expandirRapida(c, entrada.peticion);
+  const expandida = await expandirRapida(c, entrada.peticion);
+  let peticion = expandida.peticion;
+  const quickReplyVersionId = expandida.quickReplyVersionId;
 
   // 2. Estado de la suscripción. Deriva de las fechas, nunca de la columna
   //    cacheada (ADR y packages/core).
@@ -144,7 +148,9 @@ export async function enviarPorConversacion(
   const decision = evaluarEnvio(
     suscripcion,
     {
-      tipo: (peticion.tipo === 'comment_reply' ? 'text' : peticion.tipo) as TipoDeEnvio,
+      tipo: (peticion.tipo === 'comment_reply' || peticion.tipo === 'interactive'
+        ? 'text'
+        : peticion.tipo) as TipoDeEnvio,
       origen: remitente.origen,
     },
     ahora,
@@ -171,6 +177,13 @@ export async function enviarPorConversacion(
     throw new ErrorDeNegocio('canal_no_disponible', `Canal "${conv.channel}" no disponible.`, 503);
   const capacidades = canal.capacidades();
   const politica = canal.politicaDeVentana();
+
+  // 3b. Opciones para pulsar: si el canal no las tiene, o no caben en sus
+  //     límites, se mandan escritas. Se decide AQUÍ, antes de guardar, para
+  //     que la bandeja enseñe lo que de verdad le llegó al huésped.
+  if (peticion.tipo === 'interactive' && validarInteractivo(capacidades, peticion.interactivo)) {
+    peticion = { tipo: 'text', texto: interactivoComoTexto(peticion.interactivo) };
+  }
 
   // 4. Ventana de sesión. Las plantillas son la excepción: existen
   //    precisamente para hablar fuera de ventana.
@@ -243,6 +256,7 @@ export async function enviarPorConversacion(
   // 5. Capacidades del canal. Se pregunta, no se asume (ARCH §8).
   const error = validarContraCapacidades(capacidades, {
     tipo: (peticion.tipo === 'comment_reply' ? 'text' : peticion.tipo) as TipoDeMensaje,
+    // Un interactivo ya pasó `validarInteractivo` arriba, con sus límites.
     ...(peticion.tipo === 'text' || peticion.tipo === 'comment_reply'
       ? { longitudTexto: peticion.texto.length }
       : {}),
@@ -255,7 +269,8 @@ export async function enviarPorConversacion(
   if (
     peticion.tipo !== 'text' &&
     peticion.tipo !== 'template' &&
-    peticion.tipo !== 'comment_reply'
+    peticion.tipo !== 'comment_reply' &&
+    peticion.tipo !== 'interactive'
   ) {
     if (!peticion.url && !peticion.mediaAssetId) {
       throw new ErrorDeNegocio('medio_requerido', 'Indica url o mediaAssetId.', 400);
@@ -293,28 +308,34 @@ export async function enviarPorConversacion(
   const messageId = await nuevoId(c);
   const createdAt = ahora;
   const texto =
-    peticion.tipo === 'text' || peticion.tipo === 'comment_reply' ? peticion.texto : null;
+    peticion.tipo === 'text' || peticion.tipo === 'comment_reply'
+      ? peticion.texto
+      : peticion.tipo === 'interactive'
+        ? peticion.interactivo.cuerpo
+        : null;
   const payload =
     peticion.tipo === 'text'
       ? {}
-      : peticion.tipo === 'comment_reply'
-        ? { comentario: { id: comentarioId, modo: peticion.modo } }
-        : peticion.tipo === 'template'
-          ? {
-              plantilla: {
-                nombre: peticion.nombre,
-                idioma: peticion.idioma,
-                parametros: peticion.parametros,
-                versionId: waTemplateVersionId,
-              },
-            }
-          : {
-              media: {
-                url: peticion.url ?? null,
-                mediaAssetId,
-                pieDeFoto: peticion.pieDeFoto ?? null,
-              },
-            };
+      : peticion.tipo === 'interactive'
+        ? { interactivo: peticion.interactivo }
+        : peticion.tipo === 'comment_reply'
+          ? { comentario: { id: comentarioId, modo: peticion.modo } }
+          : peticion.tipo === 'template'
+            ? {
+                plantilla: {
+                  nombre: peticion.nombre,
+                  idioma: peticion.idioma,
+                  parametros: peticion.parametros,
+                  versionId: waTemplateVersionId,
+                },
+              }
+            : {
+                media: {
+                  url: peticion.url ?? null,
+                  mediaAssetId,
+                  pieDeFoto: peticion.pieDeFoto ?? null,
+                },
+              };
 
   await c.query(
     `INSERT INTO messages

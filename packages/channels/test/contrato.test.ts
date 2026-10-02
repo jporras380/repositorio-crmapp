@@ -11,8 +11,10 @@ import {
   AdaptadorSandbox,
   CanalNoRegistrado,
   RegistroDeCanales,
+  interactivoComoTexto,
   responderAlDesafioMeta,
   validarContraCapacidades,
+  validarInteractivo,
   type ErrorDeCanal,
 } from '../src/index.js';
 
@@ -251,5 +253,38 @@ describe('reto de alta del webhook', () => {
   it('con token configurado exige coincidencia exacta', () => {
     expect(responderAlDesafioMeta({ ...params, 'hub.verify_token': 'abc' }, 'abc')).toBe('123');
     expect(responderAlDesafioMeta({ ...params, 'hub.verify_token': 'abd' }, 'abc')).toBeNull();
+  });
+});
+
+describe('mensajes con opciones (PR-112)', () => {
+  const i = {
+    tipo: 'botones' as const,
+    cuerpo: '¿Qué habitación buscas?',
+    opciones: [
+      { id: 'a', titulo: 'Bungalow' },
+      { id: 'b', titulo: 'Familiar' },
+    ],
+  };
+
+  it('en un canal sin opciones, validar dice que no y el texto las escribe con viñetas', () => {
+    const ig = new AdaptadorSandbox({ canal: 'instagram' });
+    expect(ig.capacidades().interactivos).toBeNull();
+    expect(validarInteractivo(ig.capacidades(), i)?.tipo).toBe('tipo_no_soportado');
+    // Viñetas, no números: el bot reconoce «Bungalow», no «1».
+    expect(interactivoComoTexto(i)).toBe('¿Qué habitación buscas?\n\n• Bungalow\n• Familiar');
+  });
+
+  it('el sandbox de WhatsApp los acepta y los registra como interactive', async () => {
+    const wa = new AdaptadorSandbox({ canal: 'whatsapp' });
+    expect(validarInteractivo(wa.capacidades(), i)).toBeNull();
+    await wa.sendInteractive({ externalUserId: 'u', channelAccountId: 'c', interactivo: i });
+    expect(wa.enviados[0]).toMatchObject({ tipo: 'interactive', contenido: i });
+  });
+
+  it('una lista sin texto en su botón no vale', () => {
+    const wa = new AdaptadorSandbox({ canal: 'whatsapp' });
+    expect(
+      validarInteractivo(wa.capacidades(), { ...i, tipo: 'lista', textoDelBoton: '' }),
+    ).not.toBeNull();
   });
 });

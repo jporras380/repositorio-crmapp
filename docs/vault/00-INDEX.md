@@ -35,6 +35,7 @@ Si algo se averigua leyendo el código en menos de un minuto, no va aquí. No ha
 | [[ADR-011-modelo-de-cobro]] | Cobro por asiento, manual, con la mensajería fuera | aceptado |
 | [[ADR-012-constructor-de-flujos]] | Constructor de bots: mapa calculado, no lienzo | aceptado |
 | [[ADR-013-lead-no-es-conversacion]] | El lead cuelga del contacto, no del hilo | aceptado |
+| [[ADR-014-mensajes-con-opciones]] | Botones y listas: capacidad del canal, y si no, escritas | aceptado |
 
 Los siete ADR previstos están escritos. El siguiente se creará cuando aparezca una decisión nueva, no antes.
 

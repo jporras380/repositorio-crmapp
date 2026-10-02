@@ -123,6 +123,32 @@ describe('EditorDeFlujo', () => {
     });
   });
 
+  it('un mensaje puede llevar opciones; el contador avisa de las largas y quitar todas las borra', async () => {
+    const probar = vi.fn().mockResolvedValue({ pasos: [], final: 'fin', problemas: [] });
+    pintar(detalle(), probar);
+    await screen.findByDisplayValue('Hola');
+    await userEvent.click(screen.getByRole('button', { name: 'Añadir opciones para pulsar' }));
+    await userEvent.type(screen.getByLabelText('Opción 1'), 'Bungalow');
+    await userEvent.click(screen.getByRole('button', { name: 'Añadir opción' }));
+    await userEvent.type(screen.getByLabelText('Opción 2'), 'Familiar con vista al mar');
+
+    await waitFor(() => {
+      const ultimo = probar.mock.calls.at(-1);
+      expect(ultimo?.[0].nodos[0].opciones).toEqual(['Bungalow', 'Familiar con vista al mar']);
+    });
+    // Con dos opciones son botones: 20 caracteres. La segunda tiene 25.
+    expect(screen.getByLabelText('25 de 20 caracteres').className).toContain('contadorPasado');
+    expect(screen.getByText(/salen como botones/)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar la opción 2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar la opción 1' }));
+    await waitFor(() => {
+      const ultimo = probar.mock.calls.at(-1);
+      // Sin opciones, el nodo queda como antes: sin el campo.
+      expect('opciones' in ultimo![0].nodos[0]).toBe(false);
+    });
+  });
+
   it('no deja activar un flujo con avisos', async () => {
     const probar = vi.fn().mockResolvedValue({
       pasos: [],

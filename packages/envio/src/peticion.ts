@@ -1,4 +1,5 @@
 /** Formas de una petición de envío y su traducción a la carga del outbox. */
+import type { Interactivo } from '@crmapp/channels';
 
 export type PeticionDeEnvio =
   | {
@@ -19,6 +20,12 @@ export type PeticionDeEnvio =
       pieDeFoto?: string | undefined;
     }
   | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
+  /**
+   * Texto con opciones para pulsar (PR-112). Si el canal no las tiene, o no
+   * caben, la puerta lo convierte en texto con las opciones escritas: el bot
+   * no se queda mudo.
+   */
+  | { tipo: 'interactive'; interactivo: Interactivo }
   /** Respuesta rápida: se expande a su versión actual (texto o medio). */
   | { tipo: 'quick_reply'; quickReplyId: string }
   /** Respuesta a un comentario público (Instagram): en el hilo o por privado. */
@@ -50,6 +57,12 @@ export interface MensajeEncolado {
  * no existe para él.
  */
 export function peticionParaEnvio(p: PeticionEfectiva, mediaAssetId: string | null): unknown {
-  if (p.tipo === 'text' || p.tipo === 'template' || p.tipo === 'comment_reply') return p;
+  if (
+    p.tipo === 'text' ||
+    p.tipo === 'template' ||
+    p.tipo === 'comment_reply' ||
+    p.tipo === 'interactive'
+  )
+    return p;
   return { tipo: p.tipo, url: p.url ?? null, mediaAssetId, pieDeFoto: p.pieDeFoto };
 }

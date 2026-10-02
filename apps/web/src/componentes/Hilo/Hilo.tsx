@@ -284,6 +284,17 @@ function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean
         )}
         {m.tipo === 'template' && <span className={estilos.tipo}>Plantilla</span>}
         {m.texto && <p className={estilos.texto}>{m.texto}</p>}
+        {m.opciones && m.opciones.length > 0 && (
+          // Lo que el huésped vio como botones o lista. No se pueden pulsar
+          // aquí: son suyas, no del agente.
+          <ul className={estilos.opciones} aria-label="Opciones enviadas">
+            {m.opciones.map((o) => (
+              <li key={o} className={estilos.opcion}>
+                {o}
+              </li>
+            ))}
+          </ul>
+        )}
         <footer className={estilos.meta}>
           {/*
           Solo en el primero de una tanda: repetir «Marta» en seis burbujas

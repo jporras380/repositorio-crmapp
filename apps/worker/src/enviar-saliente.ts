@@ -16,7 +16,12 @@
  */
 import type { Pool } from 'pg';
 import { registrarUso, withTenant } from '@crmapp/db';
-import { ErrorDeCanal, type ChannelAdapter, type ResultadoDeEnvio } from '@crmapp/channels';
+import {
+  ErrorDeCanal,
+  type ChannelAdapter,
+  type Interactivo,
+  type ResultadoDeEnvio,
+} from '@crmapp/channels';
 import { escribirEnOutbox } from '@crmapp/queue';
 import type { Almacen } from '@crmapp/storage';
 
@@ -37,6 +42,8 @@ export interface CargaDeEnvio {
         pieDeFoto?: string | undefined;
       }
     | { tipo: 'template'; nombre: string; idioma: string; parametros: string[] }
+    /** Botones o lista. La puerta ya comprobó que el canal los tiene y que caben. */
+    | { tipo: 'interactive'; interactivo: Interactivo }
     | { tipo: 'comment_reply'; modo: 'publica' | 'privada'; texto: string; comentarioId: string };
 }
 
@@ -198,7 +205,13 @@ async function resolverMedioPropio(
   adaptador: ChannelAdapter,
 ): Promise<MedioResuelto> {
   const p = carga.peticion;
-  if (p.tipo === 'text' || p.tipo === 'template' || p.tipo === 'comment_reply' || !p.mediaAssetId)
+  if (
+    p.tipo === 'text' ||
+    p.tipo === 'template' ||
+    p.tipo === 'comment_reply' ||
+    p.tipo === 'interactive' ||
+    !p.mediaAssetId
+  )
     return { carga, bytes: null, nombre: null };
   if (!deps.almacen) throw new Error('Medio propio sin almacén configurado.');
   const medio = await withTenant(deps.pool, tenantId, async (c) => {
@@ -254,6 +267,8 @@ async function entregar(
         texto: p.texto,
         modo: p.modo,
       });
+    case 'interactive':
+      return adaptador.sendInteractive({ ...destino, interactivo: p.interactivo });
     case 'template':
       return adaptador.sendTemplate({
         ...destino,

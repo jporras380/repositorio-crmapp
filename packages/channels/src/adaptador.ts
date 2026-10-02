@@ -11,13 +11,30 @@
  * asume**. TikTok puede no tener plantillas ni ventana; Instagram limita la
  * respuesta privada a una por comentario y exige URL pública para los medios;
  * WhatsApp acepta subida directa. Nada de eso puede ser un `if` en el núcleo.
+ *
+ * ## Cambio autorizado: mensajes con opciones (PR-112, 2026-10-02)
+ *
+ * El dueño autorizó tocar el contrato para que los bots manden botones y
+ * listas de WhatsApp. Se hizo siguiendo la regla de arriba: una capacidad
+ * nueva (`interactivos`, `null` si el canal no los tiene) y un método
+ * (`sendInteractive`). El núcleo no pregunta «¿es WhatsApp?»: pregunta si el
+ * canal tiene opciones y con qué límites, y si no, las manda como texto.
  */
 import type { PoliticaDeVentana } from '@crmapp/core';
 
 export type Canal = 'whatsapp' | 'instagram' | 'facebook' | 'tiktok';
 
 export type TipoDeMensaje =
-  'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'location' | 'template';
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'document'
+  | 'sticker'
+  | 'location'
+  | 'template'
+  /** Texto con opciones para pulsar: botones o lista (PR-112). */
+  | 'interactive';
 
 // ---------------------------------------------------------------------------
 // Capacidades
@@ -55,6 +72,25 @@ export interface CapacidadesDeCanal {
 
   /** Longitud máxima del cuerpo de texto. */
   longitudMaximaTexto: number;
+
+  /**
+   * Mensajes con opciones para pulsar, y sus límites. `null` = el canal no
+   * los tiene, y quien envía los convierte en texto (`interactivoComoTexto`).
+   */
+  interactivos: LimitesDeInteractivos | null;
+}
+
+/** Límites de los mensajes con opciones. Todos en caracteres salvo los máximos. */
+export interface LimitesDeInteractivos {
+  /** Cuántos botones caben. Con más opciones, lista. */
+  botonesMax: number;
+  longitudBoton: number;
+  /** Cuántas filas caben en una lista. */
+  filasMax: number;
+  longitudFila: number;
+  /** El botón que abre la lista. */
+  longitudBotonDeLista: number;
+  longitudCuerpo: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +124,30 @@ export interface EnvioDePlantilla extends DestinoDeEnvio {
   /** Parámetros numerados, en orden. */
   parametros: readonly string[];
   cabecera?: { tipo: 'image' | 'video' | 'document'; url: string } | undefined;
+}
+
+/** Una opción que el contacto puede pulsar. Lo que pulse vuelve como texto: su `titulo`. */
+export interface OpcionInteractiva {
+  id: string;
+  titulo: string;
+}
+
+/**
+ * Un texto con opciones. Hasta `botonesMax` caben como botones; más, como
+ * lista detrás de un botón que la abre.
+ */
+export type Interactivo =
+  | { tipo: 'botones'; cuerpo: string; opciones: readonly OpcionInteractiva[] }
+  | {
+      tipo: 'lista';
+      cuerpo: string;
+      /** El texto del botón que despliega la lista: «Ver opciones». */
+      textoDelBoton: string;
+      opciones: readonly OpcionInteractiva[];
+    };
+
+export interface EnvioInteractivo extends DestinoDeEnvio {
+  interactivo: Interactivo;
 }
 
 export interface RespuestaAComentario {
@@ -188,6 +248,8 @@ export interface ChannelAdapter {
   sendText(envio: EnvioDeTexto): Promise<ResultadoDeEnvio>;
   sendMedia(envio: EnvioDeMedia): Promise<ResultadoDeEnvio>;
   sendTemplate(envio: EnvioDePlantilla): Promise<ResultadoDeEnvio>;
+  /** Texto con opciones. Un canal con `interactivos: null` lanza `tipo_no_soportado`. */
+  sendInteractive(envio: EnvioInteractivo): Promise<ResultadoDeEnvio>;
   replyToComment(respuesta: RespuestaAComentario): Promise<ResultadoDeEnvio>;
 
   /** Descarga un medio entrante antes de que caduque su URL firmada. */
@@ -250,4 +312,49 @@ export function validarContraCapacidades(
   }
 
   return null;
+}
+
+/**
+ * Comprueba un mensaje con opciones contra los límites del canal.
+ *
+ * `null` si cabe. Quien envía, si no cabe, lo manda como texto en vez de
+ * fallar: un bot que se queda mudo a mitad de conversación es peor que unos
+ * botones que llegan escritos.
+ */
+export function validarInteractivo(
+  capacidades: CapacidadesDeCanal,
+  i: Interactivo,
+): ErrorDeCanal | null {
+  const l = capacidades.interactivos;
+  const no = (mensaje: string) => new ErrorDeCanal('tipo_no_soportado', mensaje, false);
+  if (!l) return no(`El canal ${capacidades.canal} no tiene mensajes con opciones.`);
+  if (i.opciones.length === 0) return no('Un mensaje con opciones necesita al menos una.');
+  if (i.cuerpo.length > l.longitudCuerpo) {
+    return no(`El texto pasa de ${l.longitudCuerpo} caracteres.`);
+  }
+  if (i.tipo === 'botones') {
+    if (i.opciones.length > l.botonesMax) return no(`Caben ${l.botonesMax} botones como mucho.`);
+    const larga = i.opciones.find((o) => o.titulo.length > l.longitudBoton);
+    if (larga) return no(`«${larga.titulo}» pasa de ${l.longitudBoton} caracteres.`);
+    return null;
+  }
+  if (i.opciones.length > l.filasMax) return no(`Caben ${l.filasMax} opciones como mucho.`);
+  if (i.textoDelBoton.length === 0 || i.textoDelBoton.length > l.longitudBotonDeLista) {
+    return no(`El botón de la lista necesita texto, hasta ${l.longitudBotonDeLista} caracteres.`);
+  }
+  const larga = i.opciones.find((o) => o.titulo.length > l.longitudFila);
+  if (larga) return no(`«${larga.titulo}» pasa de ${l.longitudFila} caracteres.`);
+  return null;
+}
+
+/**
+ * Las mismas opciones, escritas. Es lo que recibe quien está en un canal sin
+ * botones, o cuando unas opciones no caben.
+ *
+ * Con viñetas y no con números a propósito: el bot reconoce la respuesta por
+ * lo que contiene (`condicion`), y alguien que contesta «2» no contiene
+ * «Bungalow». Quien lee una lista con viñetas responde con la palabra.
+ */
+export function interactivoComoTexto(i: Interactivo): string {
+  return `${i.cuerpo}\n\n${i.opciones.map((o) => `• ${o.titulo}`).join('\n')}`;
 }

@@ -19,7 +19,7 @@
  * de salida de la fase 3 —calificar un lead sin humano— y se amplían cuando un
  * flujo real lo pida:
  *
- *   mensaje            envía un texto y sigue
+ *   mensaje            envía un texto y sigue; con opciones, botones o lista
  *   esperar_respuesta  se duerme hasta que el contacto escriba, o hasta el plazo
  *   pausa              se duerme un rato sin esperar a nadie
  *   condicion          bifurca según lo que dijo el contacto
@@ -34,7 +34,19 @@
 // ---------------------------------------------------------------------------
 
 export type Nodo =
-  | { id: string; tipo: 'mensaje'; texto: string; siguiente: string | null }
+  | {
+      id: string;
+      tipo: 'mensaje';
+      texto: string;
+      siguiente: string | null;
+      /**
+       * Opciones para pulsar (PR-112). Hasta 3 salen como botones; de 4 a 10,
+       * como lista. Donde el canal no tiene botones, se mandan escritas. Lo
+       * que el contacto pulse vuelve como texto con el título, y lo reconoce
+       * una `condicion` como cualquier respuesta.
+       */
+      opciones?: string[] | undefined;
+    }
   | {
       id: string;
       tipo: 'esperar_respuesta';
@@ -99,11 +111,34 @@ export interface ProblemaDelGrafo {
     | 'espera_invalida'
     | 'pausa_invalida'
     | 'condicion_vacia'
+    | 'opciones_invalidas'
     | 'motivo_vacio'
     | 'bucle_sin_espera'
     | 'inalcanzable';
   mensaje: string;
   nodoId?: string;
+}
+
+/**
+ * Límites de las opciones de un mensaje. Son los de WhatsApp, el canal más
+ * estricto de los que tienen botones: un bot que cabe aquí cabe en todos, y
+ * donde no hay botones se mandan escritas y los límites no molestan.
+ *
+ * Se comprueban al PUBLICAR. Un bot que pasa de un límite en mitad de una
+ * conversación no se queda mudo —la puerta de envío las escribe—, pero el
+ * huésped recibe texto donde el hotel diseñó botones, y eso se avisa antes.
+ */
+export const LIMITES_DE_OPCIONES = {
+  maximo: 10,
+  comoBotones: 3,
+  longitudBoton: 20,
+  longitudFila: 24,
+  longitudTexto: 1024,
+} as const;
+
+/** Cómo salen unas opciones según cuántas son. */
+export function formatoDeOpciones(cuantas: number): 'botones' | 'lista' {
+  return cuantas <= LIMITES_DE_OPCIONES.comoBotones ? 'botones' : 'lista';
 }
 
 const MAX_SEGUNDOS_DE_ESPERA = 30 * 24 * 60 * 60; // 30 días
@@ -162,6 +197,11 @@ export function validarGrafo(g: Grafo): ProblemaDelGrafo[] {
             mensaje: 'Hay un mensaje sin texto.',
             nodoId: n.id,
           });
+        }
+        if (n.opciones && n.opciones.length > 0) {
+          const problema = problemaDeOpciones(n.texto, n.opciones);
+          if (problema)
+            problemas.push({ codigo: 'opciones_invalidas', mensaje: problema, nodoId: n.id });
         }
         destino(n.siguiente, n.id);
         break;
@@ -302,6 +342,32 @@ function buscarBuclesSinEspera(g: Grafo, porId: Map<string, Nodo>): ProblemaDelG
   return encontrados;
 }
 
+/** El primer problema de unas opciones, en palabras de quien diseña el bot. */
+function problemaDeOpciones(texto: string, opciones: string[]): string | null {
+  const l = LIMITES_DE_OPCIONES;
+  if (opciones.length > l.maximo) return `Un mensaje admite ${l.maximo} opciones como mucho.`;
+  if (texto.length > l.longitudTexto) {
+    return `Con opciones, el texto no puede pasar de ${l.longitudTexto} caracteres.`;
+  }
+  if (opciones.some((o) => !o.trim())) return 'Hay una opción vacía.';
+  const vistas = new Set<string>();
+  for (const o of opciones) {
+    const clave = o.trim().toLocaleLowerCase('es');
+    // Dos iguales no se distinguen al volver: el bot no sabría cuál pulsaron.
+    if (vistas.has(clave)) return `La opción «${o.trim()}» está repetida.`;
+    vistas.add(clave);
+  }
+  const tope = formatoDeOpciones(opciones.length) === 'botones' ? l.longitudBoton : l.longitudFila;
+  const larga = opciones.find((o) => o.trim().length > tope);
+  if (larga) {
+    return (
+      `«${larga.trim()}» tiene ${larga.trim().length} caracteres; ` +
+      `${formatoDeOpciones(opciones.length) === 'botones' ? 'un botón' : 'una opción de lista'} admite ${tope}.`
+    );
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Transiciones
 // ---------------------------------------------------------------------------
@@ -316,7 +382,8 @@ export type EntradaDelFlujo =
   | { tipo: 'expiro' };
 
 export type Efecto =
-  | { tipo: 'enviar_texto'; texto: string }
+  /** Con `opciones`, botones o lista donde el canal los tenga. */
+  | { tipo: 'enviar_texto'; texto: string; opciones?: string[] | undefined }
   | { tipo: 'etiquetar'; etiquetaId: string }
   | { tipo: 'asignar'; usuarioId: string }
   | { tipo: 'pedir_humano'; motivo: string }
@@ -352,7 +419,16 @@ export function decidirPaso(
 ): Paso {
   switch (nodo.tipo) {
     case 'mensaje':
-      return { efectos: [{ tipo: 'enviar_texto', texto: nodo.texto }], siguiente: nodo.siguiente };
+      return {
+        efectos: [
+          {
+            tipo: 'enviar_texto',
+            texto: nodo.texto,
+            ...(nodo.opciones && nodo.opciones.length > 0 ? { opciones: nodo.opciones } : {}),
+          },
+        ],
+        siguiente: nodo.siguiente,
+      };
 
     case 'etiquetar':
       return {

@@ -55,6 +55,7 @@ function mensaje(m: Partial<Mensaje>): Mensaje {
     medio_estado: null,
     medio_nombre: null,
     modo_comentario: null,
+    opciones: null,
     ...m,
   };
 }
@@ -283,5 +284,21 @@ describe('Hilo · abrir no marca como leído', () => {
     // El contador lo apaga el servidor dentro del mismo gesto; aquí basta con
     // que el gesto llegue.
     expect(api.ponerEnEspera).toHaveBeenCalledWith('c1', true);
+  });
+});
+
+describe('mensajes con opciones (PR-112)', () => {
+  it('enseña las opciones que le llegaron al huésped, debajo del texto', async () => {
+    pintar([
+      mensaje({
+        tipo: 'interactive',
+        origen: 'bot',
+        texto: '¿Qué habitación buscas?',
+        opciones: ['Bungalow', 'Familiar', 'Doble'],
+      }),
+    ]);
+    const lista = await screen.findByRole('list', { name: 'Opciones enviadas' });
+    expect(lista.textContent).toContain('Bungalow');
+    expect(lista.querySelectorAll('li')).toHaveLength(3);
   });
 });

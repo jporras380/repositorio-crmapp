@@ -800,3 +800,109 @@ describe('el motor no se deja engañar', () => {
     expect(await salientes()).toHaveLength(0);
   });
 });
+
+/**
+ * Bots que preguntan con botones o lista (PR-112).
+ *
+ * Lo que importa: en un canal con botones sale un mensaje `interactive`; en
+ * uno sin ellos, el MISMO bot manda las opciones escritas y no se queda mudo;
+ * y lo que el huésped pulsa vuelve como texto y lo reconoce una `condicion`.
+ */
+describe('bots con opciones', () => {
+  const PREGUNTA = (opciones: string[]): Grafo => ({
+    inicio: 'pregunta',
+    nodos: [
+      {
+        id: 'pregunta',
+        tipo: 'mensaje',
+        texto: '¿Qué habitación buscas?',
+        opciones,
+        siguiente: 'espera',
+      },
+      {
+        id: 'espera',
+        tipo: 'esperar_respuesta',
+        segundos: 3600,
+        siguiente: 'ramas',
+        alExpirar: 'fin',
+      },
+      {
+        id: 'ramas',
+        tipo: 'condicion',
+        casos: [{ contiene: ['familiar'], siguiente: 'familiar' }],
+        siNo: 'fin',
+      },
+      { id: 'familiar', tipo: 'mensaje', texto: 'La Familiar es para 4.', siguiente: 'fin' },
+      { id: 'fin', tipo: 'fin' },
+    ],
+  });
+
+  const ultimoSaliente = async () =>
+    (
+      await admin.query<{ type: string; body: string; payload: { interactivo?: unknown } }>(
+        `SELECT type, body, payload FROM messages
+          WHERE conversation_id = $1 AND direction = 'outbound'
+          ORDER BY created_at DESC LIMIT 1`,
+        [conversationId],
+      )
+    ).rows[0]!;
+
+  const arrancar = async () =>
+    manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'op',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: await entrante('Hola') },
+    });
+
+  it('en WhatsApp, tres opciones salen como botones, y lo pulsado se reconoce', async () => {
+    await crearFlujo(PREGUNTA(['Bungalow', 'Familiar', 'Doble']), 'conversacion_abierta');
+    await arrancar();
+
+    const m = await ultimoSaliente();
+    expect(m.type).toBe('interactive');
+    // El cuerpo va en `body`: es lo que leen la búsqueda y la vista previa.
+    expect(m.body).toBe('¿Qué habitación buscas?');
+    expect(m.payload.interactivo).toEqual({
+      tipo: 'botones',
+      cuerpo: '¿Qué habitación buscas?',
+      opciones: [
+        { id: 'op-1', titulo: 'Bungalow' },
+        { id: 'op-2', titulo: 'Familiar' },
+        { id: 'op-3', titulo: 'Doble' },
+      ],
+    });
+
+    // Lo pulsado vuelve como texto con el título (la ingesta de WhatsApp).
+    const pulsado = await entrante('Familiar');
+    await manejarTrabajoDeFlujo(deps(), {
+      tenantId,
+      correlationId: 'op2',
+      evento: { tipo: 'mensaje_recibido', conversationId, messageId: pulsado },
+    });
+    expect((await ultimoSaliente()).body).toBe('La Familiar es para 4.');
+  });
+
+  it('de cuatro a diez opciones, lista con su botón «Ver opciones»', async () => {
+    await crearFlujo(PREGUNTA(['A', 'B', 'C', 'D', 'E']), 'conversacion_abierta');
+    await arrancar();
+    expect((await ultimoSaliente()).payload.interactivo).toMatchObject({
+      tipo: 'lista',
+      textoDelBoton: 'Ver opciones',
+    });
+  });
+
+  it('en un canal sin botones, el mismo bot las manda escritas: no se queda mudo', async () => {
+    const original = canales.get('whatsapp')!;
+    // Un canal con las capacidades de Instagram: sin mensajes con opciones.
+    canales.set('whatsapp', new AdaptadorSandbox({ canal: 'instagram' }));
+    try {
+      await crearFlujo(PREGUNTA(['Bungalow', 'Familiar']), 'conversacion_abierta');
+      await arrancar();
+      const m = await ultimoSaliente();
+      expect(m.type).toBe('text');
+      expect(m.body).toBe('¿Qué habitación buscas?\n\n• Bungalow\n• Familiar');
+    } finally {
+      canales.set('whatsapp', original);
+    }
+  });
+});

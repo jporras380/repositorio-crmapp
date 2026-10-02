@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   contiene,
   decidirPaso,
+  formatoDeOpciones,
   simular,
   validarGrafo,
   type Grafo,
@@ -278,5 +279,55 @@ describe('simular (modo prueba sin envío real)', () => {
 
   it('si se acaban las respuestas, el flujo queda esperando; no inventa una', () => {
     expect(simular(CALIFICAR, []).final).toBe('sin_respuestas');
+  });
+});
+
+describe('opciones de un mensaje (PR-112)', () => {
+  const con = (opciones: string[], texto = 'Elige'): Grafo => ({
+    inicio: 'p',
+    nodos: [
+      { id: 'p', tipo: 'mensaje', texto, opciones, siguiente: 'f' },
+      { id: 'f', tipo: 'fin' },
+    ],
+  });
+  const codigos = (g: Grafo) => validarGrafo(g).map((p) => p.codigo);
+
+  it('hasta tres son botones; de cuatro en adelante, lista', () => {
+    expect(formatoDeOpciones(3)).toBe('botones');
+    expect(formatoDeOpciones(4)).toBe('lista');
+  });
+
+  it('unas opciones que caben pasan, y el efecto las lleva', () => {
+    expect(validarGrafo(con(['Bungalow', 'Familiar']))).toEqual([]);
+    const nodo = con(['Bungalow'])['nodos'][0] as Nodo;
+    expect(decidirPaso(nodo, { tipo: 'entrar' }).efectos).toEqual([
+      { tipo: 'enviar_texto', texto: 'Elige', opciones: ['Bungalow'] },
+    ]);
+  });
+
+  it('sin opciones, el efecto es el de siempre: nada cambia para los bots que ya hay', () => {
+    const nodo: Nodo = { id: 'm', tipo: 'mensaje', texto: 'Hola', siguiente: null };
+    expect(decidirPaso(nodo, { tipo: 'entrar' }).efectos).toEqual([
+      { tipo: 'enviar_texto', texto: 'Hola' },
+    ]);
+  });
+
+  it('el largo depende de cómo salen: 20 para un botón, 24 para una fila de lista', () => {
+    const veintiuno = 'Habitación familiar 4';
+    expect(veintiuno).toHaveLength(21);
+    expect(codigos(con([veintiuno]))).toContain('opciones_invalidas');
+    expect(codigos(con([veintiuno, 'B', 'C', 'D']))).toEqual([]);
+  });
+
+  it('vacías, repetidas sin importar mayúsculas, o más de diez: no', () => {
+    expect(codigos(con(['A', ' ']))).toContain('opciones_invalidas');
+    expect(codigos(con(['Doble', 'doble']))).toContain('opciones_invalidas');
+    expect(codigos(con(Array.from({ length: 11 }, (_, i) => `O${i}`)))).toContain(
+      'opciones_invalidas',
+    );
+  });
+
+  it('con opciones, el texto no pasa de 1024', () => {
+    expect(codigos(con(['A'], 'x'.repeat(1025)))).toContain('opciones_invalidas');
   });
 });

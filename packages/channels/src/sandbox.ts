@@ -19,12 +19,14 @@ import type { PoliticaDeVentana } from '@crmapp/core';
 import {
   ErrorDeCanal,
   validarContraCapacidades,
+  validarInteractivo,
   type CapacidadesDeCanal,
   type Canal,
   type ChannelAdapter,
   type EnvioDeMedia,
   type EnvioDePlantilla,
   type EnvioDeTexto,
+  type EnvioInteractivo,
   type MediaDescargada,
   type PlantillaSincronizada,
   type RespuestaAComentario,
@@ -75,8 +77,18 @@ export class AdaptadorSandbox implements ChannelAdapter {
     return {
       canal: this.canal,
       tiposSoportados: (
-        ['text', 'image', 'video', 'audio', 'document', 'sticker', 'location', 'template'] as const
-      ).filter((t) => !deMeta || t !== 'template'),
+        [
+          'text',
+          'image',
+          'video',
+          'audio',
+          'document',
+          'sticker',
+          'location',
+          'template',
+          'interactive',
+        ] as const
+      ).filter((t) => !deMeta || (t !== 'template' && t !== 'interactive')),
       // Imita lo que cada canal real declara, para que los tests de API y
       // worker ejerciten el mismo camino que en producción.
       soportaPlantillas: !deMeta,
@@ -91,6 +103,17 @@ export class AdaptadorSandbox implements ChannelAdapter {
         sticker: 500 * 1024,
       },
       longitudMaximaTexto: 4096,
+      // Los mismos límites que WhatsApp; Instagram y Facebook, sin opciones.
+      interactivos: deMeta
+        ? null
+        : {
+            botonesMax: 3,
+            longitudBoton: 20,
+            filasMax: 10,
+            longitudFila: 24,
+            longitudBotonDeLista: 20,
+            longitudCuerpo: 1024,
+          },
     };
   }
 
@@ -179,6 +202,13 @@ export class AdaptadorSandbox implements ChannelAdapter {
       nombre: envio.nombre,
       parametros: envio.parametros,
     });
+  }
+
+  async sendInteractive(envio: EnvioInteractivo): Promise<ResultadoDeEnvio> {
+    this.#comprobarFallo();
+    const error = validarInteractivo(this.capacidades(), envio.interactivo);
+    if (error) throw error;
+    return this.#registrar('interactive', envio.externalUserId, envio.interactivo);
   }
 
   async replyToComment(respuesta: RespuestaAComentario): Promise<ResultadoDeEnvio> {

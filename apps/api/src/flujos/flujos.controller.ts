@@ -18,6 +18,9 @@ const NodoSchema = z.discriminatedUnion('tipo', [
     tipo: z.literal('mensaje'),
     texto: z.string().min(1).max(4096),
     siguiente: z.string().nullable(),
+    // Sin declararlo aquí, zod lo quitaba en silencio: el bot se guardaba sin
+    // sus botones y en verde. Los límites finos los pone `validarGrafo`.
+    opciones: z.array(z.string().max(100)).max(10).optional(),
   }),
   z.object({
     id: z.string().min(1).max(64),

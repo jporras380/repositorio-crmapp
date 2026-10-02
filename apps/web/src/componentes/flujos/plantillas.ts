@@ -81,6 +81,9 @@ export const PLANTILLAS: PlantillaDeFlujo[] = [
           id: 'saludo',
           tipo: 'mensaje',
           texto: '¡Hola! ¿Buscas algo en concreto o prefieres que te asesoremos?',
+          // Botones en WhatsApp (PR-112). Cada uno contiene una palabra de las
+          // ramas de abajo, así que pulsarlo lleva por el camino correcto.
+          opciones: ['Busco algo concreto', 'Que me asesoren', 'Solo estoy mirando'],
           siguiente: 'espera',
         },
         {

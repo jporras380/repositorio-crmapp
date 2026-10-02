@@ -149,6 +149,7 @@ describe('CompositorDeComentario', () => {
       medio_estado: null,
       medio_nombre: null,
       modo_comentario: 'privada' as const,
+      opciones: null,
     };
     render(
       <CompositorDeComentario
@@ -187,6 +188,7 @@ describe('CompositorDeComentario', () => {
       medio_estado: null,
       medio_nombre: null,
       modo_comentario: 'privada' as const,
+      opciones: null,
     };
     render(
       <CompositorDeComentario

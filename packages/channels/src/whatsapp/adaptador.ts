@@ -23,6 +23,8 @@ import type { PoliticaDeVentana } from '@crmapp/core';
 import {
   ErrorDeCanal,
   validarContraCapacidades,
+  validarInteractivo,
+  type EnvioInteractivo,
   type CapacidadesDeCanal,
   type ChannelAdapter,
   type EnvioDeMedia,
@@ -96,6 +98,7 @@ export class AdaptadorWhatsapp implements ChannelAdapter {
         'sticker',
         'location',
         'template',
+        'interactive',
       ],
       soportaPlantillas: true,
       soportaComentarios: false,
@@ -110,6 +113,17 @@ export class AdaptadorWhatsapp implements ChannelAdapter {
         sticker: 500 * 1024,
       },
       longitudMaximaTexto: 4096,
+      // Límites de la Cloud API para mensajes interactivos: 3 botones de
+      // respuesta de hasta 20 caracteres; listas de hasta 10 filas de 24, con
+      // un botón de 20 que la abre; cuerpo de 1024.
+      interactivos: {
+        botonesMax: 3,
+        longitudBoton: 20,
+        filasMax: 10,
+        longitudFila: 24,
+        longitudBotonDeLista: 20,
+        longitudCuerpo: 1024,
+      },
     };
   }
 
@@ -122,6 +136,43 @@ export class AdaptadorWhatsapp implements ChannelAdapter {
   // -------------------------------------------------------------------------
   // Envío
   // -------------------------------------------------------------------------
+
+  /**
+   * Botones o lista. Lo que el contacto pulse vuelve por el webhook como
+   * `button_reply` o `list_reply`, y la ingesta lo convierte en texto con el
+   * título de la opción: así lo reconoce el bot sin saber de botones.
+   */
+  async sendInteractive(envio: EnvioInteractivo): Promise<ResultadoDeEnvio> {
+    const e = validarInteractivo(this.capacidades(), envio.interactivo);
+    if (e) throw e;
+    const i = envio.interactivo;
+    const cred = await this.#resolver(envio.channelAccountId);
+    return this.#enviarMensaje(cred, {
+      ...destinatario(envio.externalUserId),
+      type: 'interactive',
+      interactive:
+        i.tipo === 'botones'
+          ? {
+              type: 'button',
+              body: { text: i.cuerpo },
+              action: {
+                buttons: i.opciones.map((o) => ({
+                  type: 'reply',
+                  reply: { id: o.id, title: o.titulo },
+                })),
+              },
+            }
+          : {
+              type: 'list',
+              body: { text: i.cuerpo },
+              action: {
+                button: i.textoDelBoton,
+                // Una sección sin título: Meta solo lo exige con varias.
+                sections: [{ rows: i.opciones.map((o) => ({ id: o.id, title: o.titulo })) }],
+              },
+            },
+    });
+  }
 
   async sendText(envio: EnvioDeTexto): Promise<ResultadoDeEnvio> {
     this.#validar({ tipo: 'text', longitudTexto: envio.texto.length });

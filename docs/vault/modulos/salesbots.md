@@ -190,3 +190,15 @@ Bots → abre uno que haya atendido a alguien. Debajo del simulador aparecen sus
 El menú decía «Bots» y dentro de la pantalla se hablaba de «flujos»: «Nuevo flujo», «Nombre del flujo», «El flujo termina aquí». Ahora todo lo que ve el usuario dice **bot**, también los errores de la API. El código sigue llamándose `flujos`; renombrarlo cuesta tablas y rutas, y no aporta nada a quien usa la pantalla.
 
 Los bots que el hotel ya creó con «Flujo» en el nombre lo conservan: son datos suyos.
+
+## Bots que preguntan con botones o lista (PR-112, 2026-10-02)
+
+Ver [[ADR-014-mensajes-con-opciones]]. El nodo «Enviar mensaje» admite **opciones para pulsar**: hasta 3 salen como botones de WhatsApp, de 4 a 10 como lista detrás de «Ver opciones». En Instagram y Messenger se mandan escritas, con viñetas. Lo que el huésped pulsa vuelve como texto con el título, y lo reconoce una `condicion` como cualquier respuesta.
+
+- En el editor: «Añadir opciones para pulsar», con un contador por opción que se pone en rojo si pasa del límite (20 para botón, 24 para fila de lista).
+- En la prueba: las opciones salen como botones dentro de la burbuja, y se pueden pulsar para seguir.
+- En la bandeja: el mensaje enseña sus opciones debajo del texto.
+- La plantilla «Calificar la consulta» trae tres botones que encajan con sus ramas; se comprobó con el simulador de `core` que cada uno lleva por la suya.
+
+En la cuenta de desarrollo quedó un bot borrador, «Elegir habitación (prueba de botones)», para probarlo; se puede borrar.
+

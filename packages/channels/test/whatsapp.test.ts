@@ -98,6 +98,74 @@ describe('sendText', () => {
   });
 });
 
+describe('sendInteractive (PR-112)', () => {
+  const opciones = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: `op-${i + 1}`, titulo: `Opción ${i + 1}` }));
+
+  it('botones: type button, cada uno como reply con su id y título', async () => {
+    respuestas.push({ status: 200, json: { messages: [{ id: 'wamid.BTN' }] } });
+    const r = await adaptador().sendInteractive({
+      ...destino,
+      interactivo: { tipo: 'botones', cuerpo: '¿Qué habitación?', opciones: opciones(3) },
+    });
+    expect(r.externalMessageId).toBe('wamid.BTN');
+    expect(peticiones[0]!.cuerpo).toMatchObject({
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: '¿Qué habitación?' },
+        action: {
+          buttons: [
+            { type: 'reply', reply: { id: 'op-1', title: 'Opción 1' } },
+            { type: 'reply', reply: { id: 'op-2', title: 'Opción 2' } },
+            { type: 'reply', reply: { id: 'op-3', title: 'Opción 3' } },
+          ],
+        },
+      },
+    });
+  });
+
+  it('lista: type list, el botón que la abre y una sección con las filas', async () => {
+    respuestas.push({ status: 200, json: { messages: [{ id: 'wamid.LST' }] } });
+    await adaptador().sendInteractive({
+      ...destino,
+      interactivo: {
+        tipo: 'lista',
+        cuerpo: 'Elige',
+        textoDelBoton: 'Ver opciones',
+        opciones: opciones(5),
+      },
+    });
+    const cuerpo = peticiones[0]!.cuerpo as {
+      interactive: { type: string; action: { button: string; sections: { rows: unknown[] }[] } };
+    };
+    expect(cuerpo.interactive.type).toBe('list');
+    expect(cuerpo.interactive.action.button).toBe('Ver opciones');
+    expect(cuerpo.interactive.action.sections).toHaveLength(1);
+    expect(cuerpo.interactive.action.sections[0]!.rows).toHaveLength(5);
+  });
+
+  it('cuatro botones, o un botón de más de 20 caracteres, no llegan a la red', async () => {
+    await expect(
+      adaptador().sendInteractive({
+        ...destino,
+        interactivo: { tipo: 'botones', cuerpo: 'x', opciones: opciones(4) },
+      }),
+    ).rejects.toMatchObject({ tipo: 'tipo_no_soportado', reintentable: false });
+    await expect(
+      adaptador().sendInteractive({
+        ...destino,
+        interactivo: {
+          tipo: 'botones',
+          cuerpo: 'x',
+          opciones: [{ id: 'a', titulo: 'Bungalow matrimonial con vista' }],
+        },
+      }),
+    ).rejects.toMatchObject({ tipo: 'tipo_no_soportado' });
+    expect(peticiones).toHaveLength(0);
+  });
+});
+
 describe('sendMedia', () => {
   it('por enlace: link y caption', async () => {
     respuestas.push({ status: 200, json: { messages: [{ id: 'm1' }] } });
