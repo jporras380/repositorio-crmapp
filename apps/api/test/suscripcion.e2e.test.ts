@@ -1548,3 +1548,165 @@ describe('la boleta, por el camino de la pantalla', () => {
     await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
   });
 });
+
+/**
+ * Todo lo que el operador hace DENTRO de otra cuenta, con el cliente en otra
+ * cuenta de verdad.
+ *
+ * El fallo de la boleta enseñó que el resto del archivo tiene un punto ciego:
+ * el operador es miembro de la cuenta sobre la que actúa. Aquí se repiten los
+ * demás caminos que cruzan cuentas —pedir acceso, el chat, ver qué falla,
+ * confirmar un pago declarado— con un cliente que no comparte nada con él.
+ */
+describe('el operador en una cuenta que no es la suya', () => {
+  let clienteId: string;
+  let clienteToken: string;
+  const comoCliente = () => ({ Authorization: `Bearer ${clienteToken}` });
+
+  beforeAll(async () => {
+    await admin.query(`UPDATE users SET is_operator = true WHERE email = 'jefe@acme.test'`);
+    const r = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Hostal Ajeno',
+        slug: 'hostal-ajeno',
+        email: 'gerencia@ajeno.test',
+        contrasena: 'contrasena-muy-larga',
+        nombreCompleto: 'Rosa',
+      })
+      .expect(201);
+    clienteId = r.body.tenantId;
+    clienteToken = r.body.token;
+  });
+
+  it('el cliente sabe QUIÉN pide entrar, aunque no sea de su equipo', async () => {
+    await http
+      .post('/v1/operador/soporte')
+      .set(auth())
+      .send({ tenantId: clienteId, motivo: 'Dicen que no les llegan los mensajes desde ayer.' })
+      .expect(201);
+
+    const r = await http.get('/v1/cuenta/soporte').set(comoCliente()).expect(200);
+    expect(r.body[0].estado).toBe('pendiente');
+    // «Alguien» pidiendo entrar no se puede valorar. En la vida real quien
+    // pide nunca es del equipo del cliente.
+    expect(r.body[0].pedidoPor).toBe('Jefa');
+  });
+
+  it('abierto por el cliente, el operador ve qué falla en ESA cuenta', async () => {
+    const lista = await http.get('/v1/cuenta/soporte').set(comoCliente()).expect(200);
+    await http
+      .post(`/v1/cuenta/soporte/${lista.body[0].id}/aprobar`)
+      .set(comoCliente())
+      .send({ horas: 2 })
+      .expect(200);
+
+    await http.get(`/v1/operador/soporte/${clienteId}/conversaciones`).set(auth()).expect(200);
+    // Y el permiso es de esa cuenta: no abre la del propio operador.
+    await http.get(`/v1/operador/soporte/${tenantId}/conversaciones`).set(auth()).expect(403);
+  });
+
+  it('el chat: el cliente escribe, el operador lo lee y contesta, con nombre', async () => {
+    await http
+      .post('/v1/cuenta/soporte/mensajes')
+      .set(comoCliente())
+      .send({ cuerpo: 'No nos llegan los WhatsApp.' })
+      .expect(201);
+
+    const hilo = await http
+      .get(`/v1/operador/soporte/${clienteId}/mensajes`)
+      .set(auth())
+      .expect(200);
+    expect(hilo.body.at(-1).cuerpo).toBe('No nos llegan los WhatsApp.');
+    expect(hilo.body.at(-1).autor).toBe('Rosa');
+
+    await http
+      .post(`/v1/operador/soporte/${clienteId}/mensajes`)
+      .set(auth())
+      .send({ cuerpo: 'Lo estamos mirando.' })
+      .expect(201);
+
+    const r = await http.get('/v1/cuenta/soporte/mensajes').set(comoCliente()).expect(200);
+    const respuesta = r.body.at(-1);
+    expect(respuesta.deLaPlataforma).toBe(true);
+    expect(respuesta.cuerpo).toBe('Lo estamos mirando.');
+    // Nombre visible: quien responde es una persona, no «la plataforma».
+    expect(respuesta.autor).toBe('Jefa');
+  });
+
+  it('confirmar un pago declarado lo crea en la cuenta del CLIENTE', async () => {
+    const d = await http
+      .post('/v1/cuenta/suscripcion/pagos-declarados')
+      .set(comoCliente())
+      .send({ importeCentimos: 2500, moneda: 'USD', metodo: 'plin', pagadoEl: '2026-09-30' })
+      .expect(201);
+    const declaracion = d.body.declaraciones[0].id;
+
+    const pendientes = await http.get('/v1/operador/pagos-declarados').set(auth()).expect(200);
+    expect(pendientes.body.find((x: { id: string }) => x.id === declaracion).cuenta).toBe(
+      'Hostal Ajeno',
+    );
+
+    await http
+      .post(`/v1/operador/pagos-declarados/${declaracion}`)
+      .set(auth())
+      .send({ tenantId: clienteId, confirmar: true })
+      .expect(200);
+
+    const r = await http.get('/v1/cuenta/suscripcion').set(comoCliente()).expect(200);
+    expect(r.body.pagos).toHaveLength(1);
+    expect(r.body.declaraciones[0].estado).toBe('confirmado');
+  });
+
+  it('una cuenta donde el operador NO entró no obtiene ni su nombre', async () => {
+    const otra = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Hostal Sin Visitas',
+        slug: 'hostal-sin-visitas',
+        email: 'gerencia@sinvisitas.test',
+        contrasena: 'contrasena-muy-larga',
+        nombreCompleto: 'Luis',
+      })
+      .expect(201);
+    const { rows: op } = await admin.query<{ id: string }>(
+      `SELECT id FROM users WHERE email = 'jefe@acme.test'`,
+    );
+
+    const cliente = await admin.connect();
+    try {
+      await cliente.query('BEGIN');
+      await cliente.query('SET LOCAL ROLE crmapp_app');
+      const nombre = async (tenant: string) => {
+        await cliente.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenant]);
+        const { rows } = await cliente.query<{ n: string | null }>(
+          `SELECT app.nombre_de_quien_entro($1) AS n`,
+          [op[0]!.id],
+        );
+        return rows[0]!.n;
+      };
+      // Donde pidió acceso, sí: es lo que el cliente necesita saber.
+      expect(await nombre(clienteId)).toBe('Jefa');
+      // Donde no ha hecho nada, la función no sirve para preguntar por nadie.
+      expect(await nombre(otra.body.tenantId)).toBeNull();
+      await cliente.query('ROLLBACK');
+    } finally {
+      cliente.release();
+    }
+  });
+
+  it('con la cuenta equivocada, la declaración no se encuentra', async () => {
+    const d = await http
+      .post('/v1/cuenta/suscripcion/pagos-declarados')
+      .set(comoCliente())
+      .send({ importeCentimos: 2500, moneda: 'USD', metodo: 'yape', pagadoEl: '2026-09-30' })
+      .expect(201);
+    // El operador dice que es de SU cuenta: bajo la RLS de esa cuenta no
+    // existe, y no se confirma nada en ningún sitio.
+    await http
+      .post(`/v1/operador/pagos-declarados/${d.body.declaraciones[0].id}`)
+      .set(auth())
+      .send({ tenantId, confirmar: true })
+      .expect(404);
+  });
+});

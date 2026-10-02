@@ -524,3 +524,21 @@ El recorrido entero está probado end-to-end contra PostgreSQL, con el operador 
 1. Consola → pulsa una cuenta → **Comprobantes pendientes**.
 2. Escribe el número de la boleta y pulsa **Subir comprobante**.
 3. Entra como ese cliente → Ajustes → Suscripción → **Pagos registrados**: la columna Comprobante deja de decir «nos hemos retrasado» y se puede descargar.
+
+## El nombre de quien entra (PR-107, 2026-10-02)
+
+Al cliente le llegaba **«Soporte pide entrar»** y no el nombre de la persona, y las respuestas del chat salían firmadas «Soporte · soporte». La pantalla tenía un respaldo para el nombre vacío, y por eso no se veía un hueco: se veía un genérico. Justo lo que el código decía querer evitar: *«"alguien" pidiendo entrar no se puede valorar»*.
+
+La causa es la política `tenant_members` de `users` (0002): solo enseña a los miembros de la cuenta propia, y el operador nunca lo es. Los tests no lo veían porque en ellos sí lo era.
+
+**Arreglo:** `app.nombre_de_quien_entro(user_id)`, `SECURITY DEFINER`, migración 0050.
+
+| Opción | Por qué no / por qué sí |
+|---|---|
+| Política nueva en `users` para operadores | Enseñaría correo y hash de contraseña a todas las cuentas |
+| Copiar el nombre en `support_grants` al pedir | Arregla lo nuevo, no lo que ya hay; columna que mantener |
+| **Función que devuelve el nombre** | Un solo dato, y solo de quien dejó rastro en la cuenta que pregunta |
+
+No mira `is_operator`: si a alguien le quitan el rol, el registro de quién entró el mes pasado tiene que seguir diciéndolo.
+
+**Cómo comprobarlo:** consola de operador → una cuenta → «Pedir acceso». Entrar como el cliente → Ajustes → Soporte técnico: sale «<tu nombre> pide entrar».

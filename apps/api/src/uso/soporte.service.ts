@@ -146,7 +146,11 @@ export class SoporteService {
         expires_at: Date | null;
         revoked_at: Date | null;
       }>(
-        `SELECT g.id, g.reason, u.full_name AS pedido_por, g.requested_at,
+        // `users` solo enseña a los miembros de la cuenta, y quien pide nunca
+        // lo es: sin la función (0050) esto llegaba vacío al cliente.
+        `SELECT g.id, g.reason,
+                COALESCE(u.full_name, app.nombre_de_quien_entro(g.requested_by)) AS pedido_por,
+                g.requested_at,
                 g.approved_at, g.expires_at, g.revoked_at
            FROM support_grants g
            LEFT JOIN users u ON u.id = g.requested_by
@@ -558,7 +562,11 @@ async function leerHilo(c: PoolClient, tenantId: string): Promise<MensajeDeSopor
     medio_mime: string | null;
     medio_nombre: string | null;
   }>(
-    `SELECT m.id, m.from_platform, u.full_name AS autor, m.body, m.created_at, m.read_at,
+    // Quien responde desde la plataforma no es miembro de la cuenta, y `users`
+    // no lo enseña: su nombre sale de la función de 0050.
+    `SELECT m.id, m.from_platform,
+            COALESCE(u.full_name, app.nombre_de_quien_entro(m.author_id)) AS autor,
+            m.body, m.created_at, m.read_at,
             m.media_asset_id, a.mime AS medio_mime, a.filename AS medio_nombre
        FROM support_messages m
        LEFT JOIN users u ON u.id = m.author_id

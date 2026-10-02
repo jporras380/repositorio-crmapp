@@ -1,11 +1,11 @@
 ---
 estado: vivo
-fecha: 2026-09-28
+fecha: 2026-10-02
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 28 de septiembre de 2026
+# Estado — 2 de octubre de 2026
 
 **El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
 
@@ -38,6 +38,8 @@ Lo que PR-97 deja al alcance sin ser deuda: `business_hours.team_id` —horario 
 
 ## Completado
 
+- **PR-107, el operador en una cuenta que no es la suya** ([[2026-10-02-el-operador-era-de-la-casa]]): lo de la boleta no era un fallo suelto, era un **punto ciego de todo el archivo de tests**: en él, el operador era miembro de la cuenta sobre la que actuaba. Se repitieron los demás caminos que cruzan cuentas con un cliente de verdad ajeno. Tres estaban bien (ver qué falla, confirmar un pago declarado, la cuenta equivocada da 404) y **dos no**: el cliente veía «Soporte pide entrar» en vez del nombre de quien pide, y las respuestas del chat llegaban sin firma. `users` solo enseña a los miembros de la cuenta. Arreglo: la función `app.nombre_de_quien_entro` (0050), que devuelve **solo el nombre** y **solo** de quien pidió acceso o escribió desde la plataforma en esa cuenta; abrir `users` habría enseñado también el correo. Un test demuestra que otra cuenta no obtiene ni el nombre, y se vio fallar al aflojar la función.
+- **PR-106, la boleta se subía a la cuenta equivocada** ([[facturacion]] §La boleta estaba rota): la consola tenía el botón desde PR-95 y **daba 404**; el archivo nacía en la cuenta del operador. Rutas de subida con la cuenta del cliente en la URL, y un test con dos cuentas que se vio fallar con el fallo reintroducido.
 - **PR-105, por cuántos meses se contrata** ([[facturacion]] §El plazo): 1, 3, 6 o 12 meses, y **un año se paga a once**. Se elige en el alta —donde se está mirando el precio— y se cambia luego desde Ajustes. **Toca el modelo de cobro, que estaba en la lista de no tocar**: se hizo porque lo pidió el dueño, y queda dicho en la migración para que dentro de un año nadie se pregunte por qué. La regla del descuento vive en `packages/core` y viaja calculada hasta la web: es la primera vez que se estuvo a punto de meter `@crmapp/core` en `apps/web` —que nunca lo ha importado— y se corrigió a tiempo.
 - **PR-104, cómo te pagan** ([[facturacion]] §Cómo te pagan): lo preguntó el usuario y la respuesta era que **ese apartado no existía**. La pantalla de Suscripción decía «los pagos se hacen por transferencia y los registramos nosotros» y **en ningún sitio decía a dónde**: ni cuenta, ni CCI, ni Yape. ADR-011 eligió cobro manual; lo que faltaba no era una pasarela, era decir los datos —la mitad manual del cobro manual estaba sin construir—. Ahora: el operador los carga una vez en su consola, el cliente los ve, y **declara su pago con el voucher adjunto**. Declarar NO es pagar: entra en `payment_claims` y solo al confirmarlo el operador se escribe en el libro del dinero, con una función `SECURITY DEFINER` porque el rol de la aplicación no puede —ni debe— insertar ahí.
 - **PR-103, lo que se cobra ahora se mide** ([[2026-09-28-repaso-como-cliente-nuevo]]): salió de **abrir el producto como un cliente recién dado de alta** y mirar las 20 pantallas, no de una lista de tareas. «Uso del plan» decía **«sin medir» en tres de sus cinco líneas**, una de ellas `agentes`, que es la unidad de cobro (ADR-011) y que el sistema SÍ cuenta para rechazar la cuarta invitación. Había un test que **fijaba el fallo** afirmando `usado: null`. También: el hueco de Clientes culpaba a unos filtros que una cuenta nueva no tiene puestos.
