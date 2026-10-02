@@ -59,6 +59,8 @@ export const tenants = pgTable('tenants', {
   conversationVisibility: text('conversation_visibility').notNull().default('all'),
   /** Reparto automático de conversaciones nuevas (0026). */
   autoAssignment: text('auto_assignment').notNull().default('off'),
+  /** Meses que se guardan los mensajes y sus archivos; null = siempre (0052). */
+  messageRetentionMonths: integer('message_retention_months'),
   createdAt: creado,
   updatedAt: actualizado,
 });

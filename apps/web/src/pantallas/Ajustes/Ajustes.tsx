@@ -15,6 +15,7 @@ import { Ia } from '../../componentes/ajustes/Ia.tsx';
 import { Etiquetas } from '../../componentes/ajustes/Etiquetas.tsx';
 import { Reparto } from '../../componentes/ajustes/Reparto.tsx';
 import { Horario } from '../../componentes/ajustes/Horario.tsx';
+import { Privacidad } from '../../componentes/ajustes/Privacidad.tsx';
 import { irA, type Ruta } from '../../estado/ruta.ts';
 import estilos from './Ajustes.module.css';
 
@@ -35,6 +36,7 @@ const SECCIONES: [Seccion, string, string][] = [
   ['etiquetas', 'Etiquetas', 'Crear, renombrar, cambiar de color y borrar'],
   ['reparto', 'Reparto', 'Asignar solas las conversaciones nuevas'],
   ['horario', 'Horario', 'Cuándo atiende el equipo y qué responder fuera'],
+  ['privacidad', 'Privacidad', 'Cuánto tiempo se guardan los mensajes'],
   ['plantillas', 'Plantillas', 'Mensajes aprobados por Meta para escribir primero'],
   ['respuestas', 'Respuestas rápidas', 'Atajos con «/» en el compositor'],
   ['ia', 'IA asistida', 'Borradores de respuesta con la clave del hotel'],
@@ -94,6 +96,7 @@ export function Ajustes({ sesion, seccion, alSalir }: Props) {
         {seccion === 'horario' && (
           <Horario api={api} administra={sesion.rol === 'owner' || sesion.rol === 'admin'} />
         )}
+        {seccion === 'privacidad' && <Privacidad api={api} />}
         {seccion === 'reparto' && (
           <Reparto api={api} administra={sesion.rol === 'owner' || sesion.rol === 'admin'} />
         )}

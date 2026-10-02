@@ -597,3 +597,19 @@ Un equipo puede tener horario propio: «Reservas» de 9 a 18 mientras «Recepci�
 
 API: `GET/PUT /v1/cuenta/horario?equipo=<id>`, `DELETE /v1/cuenta/horario/equipos/:id`. Sin migración: `business_hours.team_id` y su índice único existen desde 0002/0027.
 
+## Cuánto se guardan los mensajes (PR-111, 2026-10-02)
+
+Ajustes → Privacidad. Cada hotel elige: **siempre** (por defecto, lo de antes), 1, 2, 3 o 5 años. Lo cambia **solo el propietario**: borrar el historial no tiene vuelta.
+
+**Qué se borra:** cada noche (04:00 UTC = 23:00 en Lima), los mensajes más viejos que el plazo **y sus archivos**. Un archivo solo se borra si **nada más lo usa**: otro mensaje (están deduplicados), una respuesta rápida, la boleta de un pago, un voucher declarado, un adjunto del chat de soporte o una foto de perfil.
+
+**Lo que no era obvio:**
+
+- Cuatro de esas referencias son `ON DELETE SET NULL` y la foto de perfil no tiene FK (0034). Si faltara una en la función, borrar el archivo **no daría error**: dejaría la boleta del cliente en blanco. Por eso un test busca en el catálogo **toda columna uuid con «media» en el nombre** y exige que la función la mencione. Se vio fallar quitando la foto de perfil.
+- Los objetos del almacén se borran **después** de que la transacción confirme: al revés, un fallo dejaría filas apuntando a archivos que ya no existen. Si el almacén falla, quedan objetos sueltos —cuestan, no rompen— y el worker lo avisa en el log.
+- Antes de guardar, la pantalla dice **cuántos mensajes caerían hoy** con cada plazo, y pide confirmación con esa cifra.
+- Función `SECURITY DEFINER` (`app.purgar_mensajes_antiguos`), el patrón de 0047: el relay no gana permiso para borrar mensajes, gana poder llamar a esto. El mínimo de 12 meses está en el CHECK **y** repetido en la función.
+- Índice parcial nuevo `messages (media_asset_id)`: sin él, cada «¿lo usa otro mensaje?» recorre todos los mensajes de la cuenta.
+
+**Lo que queda fuera:** `inbound_events` (los webhooks crudos, que también llevan texto de huéspedes) sigue sin retención. Es infraestructura de la plataforma, no decisión del hotel, y pide su propio PR.
+

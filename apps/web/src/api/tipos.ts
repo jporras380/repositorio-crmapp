@@ -190,6 +190,19 @@ export interface HorarioDeAtencion {
   equiposConHorario: string[];
 }
 
+/** Meses que se guardan los mensajes (0052). El mínimo es un año. */
+export type PlazoDeRetencion = 12 | 24 | 36 | 60;
+
+/** Ajustes → Privacidad: cuánto se guardan los mensajes. */
+export interface Privacidad {
+  /** `null` = siempre (por defecto). */
+  retencionMeses: PlazoDeRetencion | null;
+  /** Cuántos mensajes de hoy caerían con cada plazo. */
+  caerianConCadaPlazo: Record<PlazoDeRetencion, number>;
+  /** Solo el propietario. */
+  puedeCambiar: boolean;
+}
+
 /** Lo que uno puede ver y cambiar de sí mismo. */
 export interface Perfil {
   userId: string;

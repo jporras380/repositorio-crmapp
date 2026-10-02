@@ -1,0 +1,52 @@
+@layer components {
+  .opciones {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .opcion {
+    display: grid;
+    grid-template-columns: auto 8rem minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    cursor: pointer;
+  }
+  .opciones:disabled .opcion {
+    cursor: default;
+  }
+  .opcionElegida {
+    border-color: var(--accent);
+  }
+  .opcion input {
+    inline-size: 1.1rem;
+    block-size: 1.1rem;
+    accent-color: var(--accent);
+  }
+  .nombre {
+    font-weight: 600;
+  }
+  .detalle {
+    color: var(--fg-muted);
+  }
+  /* Lo que se perdería va en el color de peligro: es la cifra que importa. */
+  .caen {
+    color: var(--danger);
+    font-weight: 600;
+  }
+
+  @media (max-width: 40rem) {
+    .opcion {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    .caen,
+    .detalle {
+      grid-column: 2;
+    }
+  }
+}

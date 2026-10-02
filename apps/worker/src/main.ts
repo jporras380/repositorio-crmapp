@@ -45,6 +45,7 @@ import {
   esperasVencidas,
   INQUILINO_SISTEMA,
   precrearParticiones,
+  purgarMensajesAntiguos,
   purgarMessageKeys,
   purgarOutbox,
 } from './mantenimiento.js';
@@ -212,6 +213,8 @@ await colaMantenimiento.upsertJobScheduler(
 for (const [nombre, tarea] of [
   ['outbox-diaria', 'purgar_outbox'],
   ['claves-diaria', 'purgar_message_keys'],
+  // 0052: solo hace algo en las cuentas que eligieron un plazo.
+  ['mensajes-diaria', 'purgar_mensajes_antiguos'],
 ] as const) {
   await colaMantenimiento.upsertJobScheduler(
     nombre,
@@ -256,6 +259,13 @@ const workerMantenimiento = new Worker<TrabajoDeMantenimiento>(
     if (job.data.tarea === 'purgar_message_keys') {
       const borradas = await purgarMessageKeys(poolMantenimiento, 90);
       if (borradas > 0) log.info('claves de idempotencia purgadas', { borradas });
+      return;
+    }
+    if (job.data.tarea === 'purgar_mensajes_antiguos') {
+      const r = await purgarMensajesAntiguos(poolMantenimiento, almacen);
+      if (r.mensajes > 0) log.info('mensajes antiguos purgados', r);
+      // Objetos sueltos en el almacén: no rompen nada, pero se pagan.
+      if (r.sinBorrar > 0) log.warn('archivos sin borrar del almacén', { total: r.sinBorrar });
       return;
     }
     log.warn('tarea de mantenimiento sin implementar', { tarea: job.data.tarea });

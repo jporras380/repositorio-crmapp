@@ -87,6 +87,8 @@ export interface TrabajoDeMantenimiento extends TrabajoBase {
     | 'precrear_particiones'
     /** Claves de idempotencia de más de 90 días (0004, implementada en 0047). */
     | 'purgar_message_keys'
+    /** Mensajes más viejos que el plazo que eligió cada hotel (0052). */
+    | 'purgar_mensajes_antiguos'
     /** Eventos del outbox ya publicados y viejos (0047). */
     | 'purgar_outbox'
     /** Red de seguridad de ADR-002: esperas de Salesbot que nadie despertó. */

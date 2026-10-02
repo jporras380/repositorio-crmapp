@@ -20,6 +20,8 @@ import type {
   DeclaracionDePago,
   EquipoDeLaCuenta,
   HorarioDeAtencion,
+  PlazoDeRetencion,
+  Privacidad,
   BorradorDePlantilla,
   ProblemaDePlantilla,
   DescubrimientoWhatsapp,
@@ -326,6 +328,13 @@ export function crearApi(token: string | null) {
       peticion<HorarioDeAtencion>(`/v1/cuenta/horario/equipos/${equipoId}`, {
         ...t,
         metodo: 'DELETE',
+      }),
+    privacidad: () => peticion<Privacidad>('/v1/cuenta/privacidad', t),
+    guardarPrivacidad: (retencionMeses: PlazoDeRetencion | null) =>
+      peticion<Privacidad>('/v1/cuenta/privacidad', {
+        ...t,
+        metodo: 'PUT',
+        cuerpo: { retencionMeses },
       }),
     reparto: () => peticion<ConfiguracionDeReparto>('/v1/cuenta/reparto', t),
     guardarReparto: (d: {

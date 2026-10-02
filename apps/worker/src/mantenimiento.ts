@@ -11,6 +11,7 @@
  * ese rol es el único que puede — de forma acotada y visible en el catálogo.
  */
 import type { Pool } from 'pg';
+import type { Almacen } from '@crmapp/storage';
 import { withSystemTransaction } from '@crmapp/db';
 
 /** Inquilino ficticio para trabajos del sistema: el tipo exige uno y el semáforo no aplica. */
@@ -81,4 +82,52 @@ export async function purgarMessageKeys(poolRelay: Pool, dias = 90): Promise<num
     c.query<{ purgar_message_keys: string }>('SELECT app.purgar_message_keys($1)', [dias]),
   );
   return Number(rows[0]?.purgar_message_keys ?? 0);
+}
+
+/**
+ * Mensajes más viejos que el plazo que eligió cada hotel, y sus archivos
+ * (0052).
+ *
+ * Qué se borra lo decide la función de la base —solo las cuentas que lo
+ * pidieron, nunca un archivo que otra cosa use—; aquí solo se borran del
+ * almacén los objetos que ella devuelve, y DESPUÉS de que su transacción
+ * confirme. Al revés, una transacción fallida dejaría filas apuntando a
+ * archivos que ya no existen.
+ *
+ * Si el almacén falla o no está configurado, quedan objetos sueltos: cuestan
+ * espacio pero no rompen nada, y se dice en el resultado para que se vea.
+ */
+export async function purgarMensajesAntiguos(
+  poolRelay: Pool,
+  almacen: Almacen | null,
+  lote = 5000,
+): Promise<{ cuentas: number; mensajes: number; archivos: number; sinBorrar: number }> {
+  const { rows } = await withSystemTransaction(poolRelay, (c) =>
+    c.query<{ inquilino: string; mensajes: string; claves: string[] }>(
+      'SELECT * FROM app.purgar_mensajes_antiguos($1)',
+      [lote],
+    ),
+  );
+  let archivos = 0;
+  let sinBorrar = 0;
+  for (const r of rows) {
+    for (const clave of r.claves) {
+      if (!almacen) {
+        sinBorrar++;
+        continue;
+      }
+      try {
+        await almacen.borrar(clave);
+        archivos++;
+      } catch {
+        sinBorrar++;
+      }
+    }
+  }
+  return {
+    cuentas: rows.length,
+    mensajes: rows.reduce((n, r) => n + Number(r.mensajes), 0),
+    archivos,
+    sinBorrar,
+  };
 }
