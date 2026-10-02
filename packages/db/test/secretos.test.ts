@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
 import { Cifrador, generarClaveMaestra, parsearClaveMaestra } from '@crmapp/crypto';
 import { withTenant } from '../src/client.js';
+import { reintentandoSiChocaElCatalogo } from '../src/roles.js';
 import {
   CanalNoConectado,
   crearResolverDeCredencialesWhatsapp,
@@ -34,7 +35,9 @@ beforeAll(async () => {
   admin = poolAdmin(DB);
   const conf = new Client({ connectionString: urlAdmin(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD 'crmapp_dev'`);
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_auth LOGIN PASSWORD 'crmapp_dev'`),
+  );
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_auth`);
   tenantId = (
     await conf.query<{ id: string }>(

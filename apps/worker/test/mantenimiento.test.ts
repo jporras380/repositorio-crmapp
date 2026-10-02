@@ -4,7 +4,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
-import { migrar } from '@crmapp/db';
+import { migrar, reintentandoSiChocaElCatalogo } from '@crmapp/db';
 import { precrearParticiones } from '../src/mantenimiento.js';
 
 const HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
@@ -25,7 +25,9 @@ beforeAll(async () => {
   await migrar(url(DB));
   const conf = new Client({ connectionString: url(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD 'crmapp_dev'`);
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_relay LOGIN PASSWORD 'crmapp_dev'`),
+  );
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_relay`);
   await conf.end();
   relay = new Pool({ connectionString: url(DB, 'crmapp_relay', 'crmapp_dev') });

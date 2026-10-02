@@ -6,7 +6,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
-import { migrar, withTenant } from '@crmapp/db';
+import { migrar, withTenant, reintentandoSiChocaElCatalogo } from '@crmapp/db';
 import { AdaptadorSandbox } from '@crmapp/channels';
 import { AlmacenEnMemoria } from '@crmapp/storage';
 import { descargarMedia, type CargaDeMedia } from '../src/descargar-media.js';
@@ -35,7 +35,9 @@ beforeAll(async () => {
   await migrar(url(DB));
   const conf = new Client({ connectionString: url(DB) });
   await conf.connect();
-  await conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_dev'`);
+  await reintentandoSiChocaElCatalogo(() =>
+    conf.query(`ALTER ROLE crmapp_app LOGIN PASSWORD 'crmapp_dev'`),
+  );
   await conf.query(`GRANT CONNECT ON DATABASE ${DB} TO crmapp_app`);
   const t = await conf.query<{ id: string }>(
     `INSERT INTO tenants (name, slug) VALUES ('A','a'), ('B','b') RETURNING id`,
