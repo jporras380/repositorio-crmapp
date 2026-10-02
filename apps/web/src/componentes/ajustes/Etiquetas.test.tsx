@@ -48,7 +48,7 @@ function pintar(extra: Record<string, unknown> = {}, gestor = true) {
 describe('Ajustes → Etiquetas', () => {
   it('dice dónde se usa cada una y qué bot la usa', async () => {
     pintar();
-    expect(await screen.findByText('12 conversaciones · 3 clientes · 1 lead')).toBeTruthy();
+    expect(await screen.findByText('12 conversaciones · 3 clientes · 1 oportunidad')).toBeTruthy();
     expect(screen.getByText(/Sin usar · la usa el bot «Bienvenida»/)).toBeTruthy();
   });
 
@@ -68,7 +68,7 @@ describe('Ajustes → Etiquetas', () => {
     await screen.findByLabelText('Nombre de VIP');
     const [borrarVip] = screen.getAllByRole('button', { name: 'Borrar' });
     await userEvent.click(borrarVip!);
-    expect(confirmar.mock.calls[0]![0]).toContain('12 conversaciones · 3 clientes · 1 lead');
+    expect(confirmar.mock.calls[0]![0]).toContain('12 conversaciones · 3 clientes · 1 oportunidad');
     expect(api.borrarEtiqueta).toHaveBeenCalledWith('t1');
   });
 

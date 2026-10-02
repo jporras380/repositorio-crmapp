@@ -119,7 +119,7 @@ export class FlujosService {
 
   async detalle(id: string): Promise<DetalleDeFlujo> {
     const resumen = (await this.listar()).find((f) => f.id === id);
-    if (!resumen) throw new ErrorDeNegocio('flujo_no_encontrado', 'El flujo no existe.', 404);
+    if (!resumen) throw new ErrorDeNegocio('flujo_no_encontrado', 'El bot no existe.', 404);
     const grafo = await this.#db.enTransaccion(async (c) => this.#ultimoGrafo(c, id));
     return {
       ...resumen,
@@ -144,7 +144,7 @@ export class FlujosService {
         );
       } catch (error) {
         if ((error as { code?: string }).code === '23505') {
-          throw new ErrorDeNegocio('flujo_repetido', 'Ya existe un flujo con ese nombre.', 409);
+          throw new ErrorDeNegocio('flujo_repetido', 'Ya existe un bot con ese nombre.', 409);
         }
         throw error;
       }
@@ -205,13 +205,13 @@ export class FlujosService {
         [id],
       );
       const ultima = rows[0];
-      if (!ultima) throw new ErrorDeNegocio('flujo_sin_version', 'El flujo no tiene pasos.', 409);
+      if (!ultima) throw new ErrorDeNegocio('flujo_sin_version', 'El bot no tiene pasos.', 409);
 
       const problemas = validarGrafo(ultima.graph);
       if (problemas.length > 0) {
         throw new ErrorDeNegocio(
           'flujo_invalido',
-          'El flujo tiene errores que hay que corregir antes de activarlo.',
+          'El bot tiene errores que hay que corregir antes de activarlo.',
           422,
           { problemas },
         );
@@ -224,7 +224,7 @@ export class FlujosService {
       if (Number(disparadores[0]?.n ?? 0) === 0) {
         throw new ErrorDeNegocio(
           'flujo_sin_disparador',
-          'Un flujo sin disparador no se ejecutaría nunca. Añade uno antes de activarlo.',
+          'Un bot sin disparador no se ejecutaría nunca. Añade uno antes de activarlo.',
           422,
         );
       }
@@ -382,7 +382,7 @@ export class FlujosService {
     const { rows } = await c.query(`SELECT 1 FROM flows WHERE id = $1`, [id]);
     // RLS ya filtra por inquilino: uno ajeno simplemente no existe desde aquí.
     if (rows.length === 0)
-      throw new ErrorDeNegocio('flujo_no_encontrado', 'El flujo no existe.', 404);
+      throw new ErrorDeNegocio('flujo_no_encontrado', 'El bot no existe.', 404);
   }
 
   #exigirContexto() {

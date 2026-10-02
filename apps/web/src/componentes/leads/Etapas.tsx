@@ -161,7 +161,7 @@ export function Etapas({ api, embudoId, etapas, totales, alCerrar, alCambiar }: 
                   <select
                     className={estilos.tipo}
                     value={destino}
-                    aria-label="Mover sus leads a"
+                    aria-label="Mover sus oportunidades a"
                     onChange={(ev) => setDestino(ev.target.value)}
                   >
                     <option value="">¿A qué etapa van?</option>

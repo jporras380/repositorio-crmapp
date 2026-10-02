@@ -110,7 +110,7 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
         setEtiquetas(e);
         setUsuarios(u);
       } catch (err) {
-        if (vivo) setError(err instanceof Error ? err.message : 'No se pudo abrir el flujo.');
+        if (vivo) setError(err instanceof Error ? err.message : 'No se pudo abrir el bot.');
       }
     })();
     return () => {
@@ -202,7 +202,7 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
         <input
           className={estilos.nombre}
           value={nombre}
-          aria-label="Nombre del flujo"
+          aria-label="Nombre del bot"
           onChange={(e) => {
             setNombre(e.target.value);
             setSucio(true);
@@ -250,7 +250,7 @@ export function EditorDeFlujo({ api, flujoId, alCambiar }: Props) {
       )}
 
       <div className={estilos.columnas}>
-        <section className={`glass ${estilos.lienzo}`} aria-label="Pasos del flujo">
+        <section className={`glass ${estilos.lienzo}`} aria-label="Pasos del bot">
           {/*
             El mapa enseña la FORMA del flujo —ramas incluidas— y la tarjeta de
             abajo lo edita. Es la decisión de ADR-012: ver como en un lienzo,
@@ -792,7 +792,7 @@ function Disparadores({
         <input
           className={estilos.palabras}
           value={(porPalabra.palabras ?? []).join(', ')}
-          aria-label="Palabras que disparan el flujo"
+          aria-label="Palabras que disparan el bot"
           placeholder="precio, catálogo, horario"
           onChange={(e) =>
             alCambiar(

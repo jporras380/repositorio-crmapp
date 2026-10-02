@@ -71,7 +71,7 @@ export const PLANTILLAS: PlantillaDeFlujo[] = [
   },
   {
     id: 'calificar',
-    nombre: 'Calificar el lead',
+    nombre: 'Calificar la consulta',
     resume: 'Pregunta si busca algo concreto y separa a quien compra de quien mira.',
     grupo: 'Calificar',
     grafo: {

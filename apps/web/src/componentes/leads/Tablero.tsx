@@ -60,7 +60,7 @@ export function Tablero({ columnas, moneda, seleccionado, alAbrir, alMover }: Pr
             />
             <h2 className={estilos.nombre}>{col.etapa.nombre}</h2>
             <p className={estilos.cuenta}>
-              {col.total} {col.total === 1 ? 'lead' : 'leads'}
+              {col.total} {col.total === 1 ? 'oportunidad' : 'oportunidades'}
               {col.importe > 0 && (
                 <>
                   {' · '}

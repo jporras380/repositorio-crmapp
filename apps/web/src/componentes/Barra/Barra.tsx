@@ -100,11 +100,11 @@ export function Barra({ api, yo, activa = 'bandeja', alSalir }: Props) {
       <button
         className={`${estilos.item} ${activa === 'leads' ? estilos.activo : ''}`}
         aria-current={activa === 'leads' ? 'page' : undefined}
-        title="Leads"
+        title="Embudo"
         onClick={() => irA({ pantalla: 'leads', leadId: null })}
       >
         <IconoEmbudo />
-        <span className="visually-hidden">Leads</span>
+        <span className="visually-hidden">Embudo</span>
       </button>
       <button
         className={`${estilos.item} ${activa === 'reservas' ? estilos.activo : ''}`}

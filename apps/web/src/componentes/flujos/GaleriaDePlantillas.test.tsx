@@ -16,7 +16,7 @@ describe('GaleriaDePlantillas', () => {
   it('elegir devuelve la plantilla entera, con su grafo y sus disparadores', async () => {
     const elegir = vi.fn();
     render(<GaleriaDePlantillas ocupado={false} alElegir={elegir} alCerrar={vi.fn()} />);
-    await userEvent.click(screen.getByText('Calificar el lead'));
+    await userEvent.click(screen.getByText('Calificar la consulta'));
     expect(elegir.mock.calls[0]![0].id).toBe('calificar');
     expect(elegir.mock.calls[0]![0].grafo.nodos.length).toBeGreaterThan(3);
   });

@@ -56,7 +56,7 @@ describe('Tablero', () => {
     // Por el encabezado, no por texto suelto: los mismos nombres salen en los
     // desplegables «Mover a» de cada tarjeta.
     expect(screen.getByRole('heading', { name: 'Consulta' })).toBeTruthy();
-    expect(screen.getByText(/3 leads/)).toBeTruthy();
+    expect(screen.getByText(/3 oportunidades/)).toBeTruthy();
     expect(screen.getAllByText(/450/).length).toBeGreaterThan(0);
     expect(screen.getByText('Nada por aquí.')).toBeTruthy();
   });

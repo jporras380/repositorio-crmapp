@@ -133,7 +133,7 @@ describe('embudo', () => {
     const r = await http.get('/v1/embudos').set(auth()).expect(200);
     const embudos = r.body as { nombre: string; moneda: string; etapas: { nombre: string }[] }[];
     expect(embudos).toHaveLength(1);
-    expect(embudos[0]!.nombre).toBe('Reservas');
+    expect(embudos[0]!.nombre).toBe('Ventas');
     expect(embudos[0]!.moneda).toBe('PEN');
     // El recorrido de una reserva, no un tablero en blanco que nadie sabe llenar.
     expect(embudos[0]!.etapas.map((e) => e.nombre)).toEqual([

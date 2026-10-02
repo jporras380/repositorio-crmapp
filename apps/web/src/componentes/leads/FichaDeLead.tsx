@@ -60,7 +60,7 @@ export function FichaDeLead({
       setCampoImporte(aCampo(d.importe));
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo cargar el lead.');
+      setError(e instanceof Error ? e.message : 'No se pudo cargar la oportunidad.');
     }
   }, [api, leadId]);
 
@@ -90,7 +90,7 @@ export function FichaDeLead({
 
   if (!lead) {
     return (
-      <aside className={`glass ${estilos.ficha}`} aria-label="Lead">
+      <aside className={`glass ${estilos.ficha}`} aria-label="Oportunidad">
         <p className={estilos.cargando}>{error ?? 'Cargando…'}</p>
       </aside>
     );
@@ -99,7 +99,7 @@ export function FichaDeLead({
   const puestas = new Set(lead.etiquetas.map((e) => e.id));
 
   return (
-    <aside className={`glass ${estilos.ficha}`} aria-label={`Lead: ${lead.titulo}`}>
+    <aside className={`glass ${estilos.ficha}`} aria-label={`Oportunidad: ${lead.titulo}`}>
       <header className={estilos.cabecera}>
         <div>
           <p className={estilos.contacto}>{lead.contacto.nombre ?? 'Sin nombre'}</p>
@@ -111,7 +111,7 @@ export function FichaDeLead({
                 : 'Perdido'}
           </p>
         </div>
-        <button className={estilos.cerrar} onClick={alCerrar} aria-label="Cerrar el lead">
+        <button className={estilos.cerrar} onClick={alCerrar} aria-label="Cerrar la oportunidad">
           ×
         </button>
       </header>

@@ -184,3 +184,9 @@ Usé `.pasoTipo` y `.pasoHora` sin declararlas en la hoja, exactamente el fallo 
 Bots → abre uno que haya atendido a alguien. Debajo del simulador aparecen sus ejecuciones, con «N en curso» si las hay. Despliega una para ver los pasos, y salta a la conversación desde ahí.
 
 11 tests de pantalla.
+
+## «Bot», no «flujo» (PR-109, 2026-10-02)
+
+El menú decía «Bots» y dentro de la pantalla se hablaba de «flujos»: «Nuevo flujo», «Nombre del flujo», «El flujo termina aquí». Ahora todo lo que ve el usuario dice **bot**, también los errores de la API. El código sigue llamándose `flujos`; renombrarlo cuesta tablas y rutas, y no aporta nada a quien usa la pantalla.
+
+Los bots que el hotel ya creó con «Flujo» en el nombre lo conservan: son datos suyos.

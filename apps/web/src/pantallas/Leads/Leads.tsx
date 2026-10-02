@@ -91,7 +91,7 @@ export function Leads({ sesion, leadId, alSalir }: Props) {
       await api.editarLead(id, { etapaId });
       await cargar();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo mover el lead.');
+      setError(e instanceof Error ? e.message : 'No se pudo mover la oportunidad.');
     }
   }
 
@@ -124,7 +124,7 @@ export function Leads({ sesion, leadId, alSalir }: Props) {
             className={estilos.buscar}
             type="search"
             placeholder="Buscar por cliente o por lo que pide…"
-            aria-label="Buscar leads"
+            aria-label="Buscar oportunidades"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />

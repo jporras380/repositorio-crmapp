@@ -43,7 +43,7 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
       setFlujos(await api.flujos());
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudieron cargar los flujos.');
+      setError(e instanceof Error ? e.message : 'No se pudieron cargar los bots.');
     } finally {
       setCargando(false);
     }
@@ -75,7 +75,7 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
       setEligiendo(false);
       irA({ pantalla: 'flujos', flujoId: id });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo crear el flujo.');
+      setError(e instanceof Error ? e.message : 'No se pudo crear el bot.');
     } finally {
       setCreando(false);
     }
@@ -85,11 +85,11 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
     <div className={estilos.pantalla}>
       <Barra api={api} yo={yo} activa="flujos" alSalir={alSalir} />
 
-      <nav className={`glass ${estilos.lista}`} aria-label="Flujos">
+      <nav className={`glass ${estilos.lista}`} aria-label="Bots">
         <header className={estilos.cabecera}>
           <h1 className={estilos.titulo}>Bots</h1>
           <button className={estilos.nuevo} onClick={() => setEligiendo(true)} disabled={creando}>
-            Nuevo flujo
+            Nuevo bot
           </button>
         </header>
         <p className={estilos.explicacion}>
@@ -141,7 +141,7 @@ export function Flujos({ sesion, flujoId, alSalir }: Props) {
           <EditorDeFlujo key={flujoId} api={api} flujoId={flujoId} alCambiar={cargar} />
         ) : (
           <div className={`glass ${estilos.sinSeleccion}`}>
-            <p className={estilos.sinSeleccionTitulo}>Elige un flujo o crea uno</p>
+            <p className={estilos.sinSeleccionTitulo}>Elige un bot o crea uno</p>
             <p className={estilos.sinSeleccionTexto}>
               Se construye por pasos y se prueba aquí mismo, con respuestas de mentira, antes de que
               hable con nadie.

@@ -11,8 +11,8 @@ interface Props {
 }
 
 const FINALES: Record<SimulacionDeFlujo['final'], string> = {
-  fin: 'El flujo termina aquí.',
-  esperando: 'El flujo queda esperando.',
+  fin: 'El bot termina aquí.',
+  esperando: 'El bot queda esperando.',
   sin_respuestas: 'Aquí espera respuesta. Escribe una para seguir.',
   limite_de_pasos: 'Demasiados pasos seguidos: revisa si hay un bucle.',
 };
@@ -41,7 +41,7 @@ export function Simulador({
     etiquetas.find((e) => e.id === id)?.nombre ?? 'sin elegir';
 
   return (
-    <aside className={`glass ${estilos.simulador}`} aria-label="Prueba del flujo">
+    <aside className={`glass ${estilos.simulador}`} aria-label="Prueba del bot">
       <header className={estilos.cabecera}>
         <h2 className={estilos.titulo}>Prueba</h2>
         <p className={estilos.subtitulo}>Respuestas de mentira. No se envía nada.</p>

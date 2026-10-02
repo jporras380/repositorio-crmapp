@@ -78,7 +78,7 @@ export function MapaDelFlujo({ grafo, seleccionado, alSeleccionar, ajustado = fa
         viewBox={`0 0 ${ancho} ${alto}`}
         preserveAspectRatio="xMinYMin meet"
         role="img"
-        aria-label="Mapa del flujo"
+        aria-label="Mapa del bot"
       >
         <defs>
           <marker

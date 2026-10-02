@@ -62,3 +62,17 @@ El embudo se llenaba **solo** desde la ingesta: quien escribe por WhatsApp o Ins
 Leads → **«Nueva oportunidad»** → escribir un nombre que no exista, poner teléfono y crear. Aparece la tarjeta en la etapa elegida, y el cliente en Clientes.
 
 5 tests.
+
+## Nombres: «Embudo», «Ventas», «oportunidad» (PR-109, 2026-10-02)
+
+El dueño vio dos cosas distintas llamadas «Reservas» en el mismo menú: la pantalla de reservas de verdad (habitación, fechas, importe) y el embudo por defecto, que son consultas que quizá acaben en reserva. Pidió elegir otros nombres.
+
+| Antes | Ahora | Por qué |
+|---|---|---|
+| Menú «Leads» | **Embudo** | Inglés en una interfaz en español; «embudo» es como se le llama en todo lo demás |
+| Embudo por defecto «Reservas» | **Ventas** | Es lo que el tablero mide, y no choca con nada |
+| «lead» / «leads» en tarjetas, ficha, errores | **oportunidad** | Ya era la palabra del botón «Nueva oportunidad» |
+
+Migración 0051: renombra solo el embudo por defecto que siga llamándose exactamente «Reservas» (si el hotel ya lo renombró, el nombre es suyo) y redefine `app.sembrar_embudo` para las cuentas nuevas. Reversible.
+
+**No se renombró el código** (`leads`, `/v1/leads`, `pantalla: 'leads'`): cuesta una migración de tablas y rutas, y no lo ve nadie.

@@ -21,7 +21,7 @@ function describirUso(e: EtiquetaConUso): string {
   const partes = [
     e.usos.conversaciones && plural(e.usos.conversaciones, 'conversación', 'conversaciones'),
     e.usos.clientes && plural(e.usos.clientes, 'cliente', 'clientes'),
-    e.usos.leads && plural(e.usos.leads, 'lead', 'leads'),
+    e.usos.leads && plural(e.usos.leads, 'oportunidad', 'oportunidades'),
   ].filter(Boolean);
   return partes.length ? partes.join(' · ') : 'Sin usar';
 }

@@ -276,7 +276,7 @@ export class EmbudoService {
         if (!destinoId) {
           throw new ErrorDeNegocio(
             'etapa_con_leads',
-            `La etapa tiene ${cuantos} lead(s). Elige a qué etapa se mueven.`,
+            `La etapa tiene ${cuantos} oportunidad(es). Elige a qué etapa se mueven.`,
             409,
             { leads: cuantos },
           );
@@ -498,17 +498,17 @@ export class EmbudoService {
         [id],
       );
       const f = rows[0];
-      if (!f) throw new ErrorDeNegocio('lead_no_encontrado', 'Ese lead no existe.', 404);
+      if (!f) throw new ErrorDeNegocio('lead_no_encontrado', 'Esa oportunidad no existe.', 404);
       const vis = await this.#visibilidadDeLeads(c, ctx);
       if (vis === 'propios' && f.assignee_user_id !== ctx.userId) {
-        throw new ErrorDeNegocio('lead_no_encontrado', 'Ese lead no existe.', 404);
+        throw new ErrorDeNegocio('lead_no_encontrado', 'Esa oportunidad no existe.', 404);
       }
       if (
         vis === 'propios_y_libres' &&
         f.assignee_user_id !== null &&
         f.assignee_user_id !== ctx.userId
       ) {
-        throw new ErrorDeNegocio('lead_no_encontrado', 'Ese lead no existe.', 404);
+        throw new ErrorDeNegocio('lead_no_encontrado', 'Esa oportunidad no existe.', 404);
       }
 
       const { rows: historial } = await c.query<{
@@ -597,7 +597,7 @@ export class EmbudoService {
           if (e.code === '23505') {
             throw new ErrorDeNegocio(
               'lead_abierto_existente',
-              'Ese contacto ya tiene un lead abierto en este embudo. Ciérralo o edita el que hay.',
+              'Ese contacto ya tiene una oportunidad abierta en este embudo. Ciérrala o edita la que hay.',
               409,
             );
           }
@@ -630,7 +630,8 @@ export class EmbudoService {
         [id],
       );
       const actual = rows[0];
-      if (!actual) throw new ErrorDeNegocio('lead_no_encontrado', 'Ese lead no existe.', 404);
+      if (!actual)
+        throw new ErrorDeNegocio('lead_no_encontrado', 'Esa oportunidad no existe.', 404);
 
       let estado: string | null = null;
       if (datos.etapaId && datos.etapaId !== actual.stage_id) {
@@ -694,7 +695,7 @@ export class EmbudoService {
     await this.#db.enTransaccion(async (c) => {
       const { rowCount } = await c.query(`DELETE FROM leads WHERE id = $1`, [id]);
       if (rowCount === 0) {
-        throw new ErrorDeNegocio('lead_no_encontrado', 'Ese lead no existe.', 404);
+        throw new ErrorDeNegocio('lead_no_encontrado', 'Esa oportunidad no existe.', 404);
       }
       // Borrar un lead borra una venta del historial: queda en la auditoría de
       // la cuenta aunque la fila ya no esté.
