@@ -107,4 +107,22 @@
     background: var(--warn-soft);
     color: var(--fg);
   }
+
+  /* Lo que cambia en el celular del dueño al conectar por QR. Va a la vista,
+     encima del botón: son cosas que no se deshacen pulsando «atrás». */
+  .antes {
+    margin: 0;
+    padding-inline-start: 1.2rem;
+    display: grid;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    max-inline-size: 48rem;
+  }
+  .otraForma {
+    justify-self: start;
+    font-size: var(--text-sm);
+    color: var(--accent);
+    text-decoration: underline;
+  }
 }

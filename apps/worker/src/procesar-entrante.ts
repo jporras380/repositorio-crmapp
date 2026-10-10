@@ -26,12 +26,16 @@ import type {
   AdaptadorDeIngesta,
   ChannelAdapter,
   EventoDeComentario,
+  EventoDeContacto,
+  EventoDeEco,
   EventoDeEstado,
+  EventoDeHistorial,
   EventoDeMensaje,
   EventoDePlantilla,
   EventoEntrante,
 } from '@crmapp/channels';
 import { escribirEnOutbox } from '@crmapp/queue';
+import { cederElTurnoAlHumano, registrarDelHistorial, registrarSalienteAjeno } from '@crmapp/envio';
 
 export interface Dependencias {
   pool: Pool;
@@ -54,6 +58,12 @@ export interface ResultadoDeProcesamiento {
   estadosAplicados: number;
   /** Cambios de estado de plantillas HSM reflejados desde Meta. */
   plantillasActualizadas: number;
+  /** Mensajes que el negocio envió desde la app del celular (coexistencia). */
+  ecos: number;
+  /** Mensajes antiguos importados del historial de la app. */
+  historial: number;
+  /** Nombres de la agenda de la app guardados o quitados. */
+  contactos: number;
   ignorados: number;
   /** `true` si la cuenta está suspendida y el crudo se guardó sin mostrarse. */
   omitidoPorSuspension: boolean;
@@ -97,6 +107,9 @@ export async function procesarEventoEntrante(
       duplicados: 0,
       estadosAplicados: 0,
       plantillasActualizadas: 0,
+      ecos: 0,
+      historial: 0,
+      contactos: 0,
       avisosFueraDeHorario: 0,
       ignorados: 0,
       omitidoPorSuspension: false,
@@ -127,6 +140,10 @@ export async function procesarEventoEntrante(
     const eventos = ingesta.parsearEventos(fila.raw);
     const politica = canal.politicaDeVentana();
 
+    // Conversaciones que han recibido mensajes del historial en este webhook:
+    // al final se recalcula cómo quedan, una sola vez cada una.
+    const conHistorial = new Set<string>();
+
     for (const evento of eventos) {
       if (evento.clase === 'mensaje') {
         const nuevo = await procesarMensaje(c, fila, evento, politica, ahora());
@@ -152,9 +169,39 @@ export async function procesarEventoEntrante(
         const nuevo = await procesarComentario(c, fila, evento, ahora());
         if (nuevo) resultado.comentariosNuevos += 1;
         else resultado.duplicados += 1;
+      } else if (evento.clase === 'eco') {
+        const nuevo = await procesarEco(c, fila, evento, ahora());
+        if (nuevo) resultado.ecos += 1;
+        else resultado.duplicados += 1;
+      } else if (evento.clase === 'historial') {
+        const r = await procesarHistorial(c, fila, evento, ahora());
+        if (r === 'duplicado') resultado.duplicados += 1;
+        else if (r === 'fuera') resultado.ignorados += 1;
+        else {
+          resultado.historial += 1;
+          conHistorial.add(r.conversationId);
+        }
+      } else if (evento.clase === 'contacto') {
+        await procesarContacto(c, fila, evento);
+        resultado.contactos += 1;
       } else {
         resultado.ignorados += 1;
       }
+    }
+
+    for (const conversationId of conHistorial) {
+      await asentarConversacionImportada(c, conversationId, politica, ahora());
+    }
+    if (conHistorial.size > 0) {
+      // Uno por webhook, no por mensaje: es para que la bandeja abierta se
+      // entere de que hay conversaciones nuevas que pintar.
+      await escribirEnOutbox(c, {
+        tenantId: fila.tenant_id,
+        aggregateType: 'channel_account',
+        aggregateId: fila.channel_account_id,
+        eventType: 'historial.importado',
+        payload: { conversaciones: conHistorial.size, mensajes: resultado.historial },
+      });
     }
 
     await anotarSenalDeVida(c, fila.channel_account_id, ahora());
@@ -409,6 +456,349 @@ async function procesarMensaje(
   return { conversationId: conversacion.id };
 }
 
+/**
+ * Un mensaje que el negocio envió desde la app WhatsApp Business del celular
+ * (coexistencia, ADR-015). Devuelve `false` si ya se conocía.
+ *
+ * Se guarda como **saliente de una persona**, porque eso es: alguien del
+ * hotel contestó, solo que no desde aquí. De ahí salen tres consecuencias, y
+ * las tres son la razón de no tratarlo como un entrante al revés:
+ *
+ * 1. **Los bots se apartan**, igual que cuando responde un agente desde la
+ *    bandeja. Si no, el huésped recibiría al bot y a la persona a la vez.
+ * 2. **La ventana de 24 h no se toca**: la abre lo que escribe el huésped.
+ * 3. **No se mide como envío nuestro** ni pasa por la puerta de envío: no lo
+ *    mandó el CRM, no hay nada que entregar ni que cobrar.
+ *
+ * La clave de idempotencia es la misma tabla que la de los entrantes y los
+ * salientes propios: si Meta mandara el eco de algo que SÍ envió el CRM, la
+ * clave ya existe y aquí no se duplica.
+ */
+async function procesarEco(
+  c: PoolClient,
+  fila: FilaEntrante,
+  evento: EventoDeEco,
+  ahora: Date,
+): Promise<boolean> {
+  const messageId = await nuevoId(c);
+  const reserva = await c.query(
+    `INSERT INTO message_keys
+       (tenant_id, channel_account_id, external_message_id, message_id, message_created_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (channel_account_id, external_message_id) DO NOTHING`,
+    [fila.tenant_id, fila.channel_account_id, evento.externalMessageId, messageId, ahora],
+  );
+  if (reserva.rowCount === 0) return false;
+
+  // La identidad es la del DESTINATARIO: es con quien se habla. Puede ser
+  // alguien nuevo —el hotel escribió primero desde el celular— y entonces se
+  // crea, sin nombre: el eco no trae el perfil de la otra persona.
+  const contacto = await resolverIdentidad(c, fila, {
+    clase: 'mensaje',
+    canal: evento.canal,
+    externalAccountId: evento.externalAccountId,
+    ocurridoEn: evento.ocurridoEn,
+    externalMessageId: evento.externalMessageId,
+    externalUserId: evento.externalUserId,
+    telefonoE164: evento.telefonoE164,
+    tipo: evento.tipo,
+  });
+  const conversacion = await resolverConversacion(c, fila, contacto);
+
+  const mediaAssetId = evento.mediaId && esTipoDeMedio(evento.tipo) ? await nuevoId(c) : null;
+  if (mediaAssetId) {
+    await c.query(
+      `INSERT INTO media_assets (id, tenant_id, kind, filename, status)
+       VALUES ($1, $2, $3, $4, 'pending')`,
+      [mediaAssetId, fila.tenant_id, evento.tipo, evento.nombreDeArchivo ?? null],
+    );
+  }
+
+  // Por la otra puerta de `@crmapp/envio`: la que anota y no envía.
+  await registrarSalienteAjeno(c, {
+    id: messageId,
+    tenantId: fila.tenant_id,
+    conversationId: conversacion.id,
+    channelAccountId: fila.channel_account_id,
+    tipo: evento.tipo,
+    texto: evento.texto ?? null,
+    payload: {
+      proveedor: { ocurridoEn: evento.ocurridoEn.toISOString(), mediaId: evento.mediaId ?? null },
+      // La bandeja lo enseña: «desde el celular». Sin esto parecería un
+      // mensaje del CRM sin autor.
+      desdeLaApp: true,
+    },
+    externalMessageId: evento.externalMessageId,
+    estado: 'sent',
+    creadoEn: ahora,
+    mediaAssetId,
+  });
+
+  if (mediaAssetId) {
+    await escribirEnOutbox(c, {
+      tenantId: fila.tenant_id,
+      aggregateType: 'media_asset',
+      aggregateId: mediaAssetId,
+      eventType: 'media.descargar',
+      payload: {
+        mediaAssetId,
+        messageId,
+        channelAccountId: fila.channel_account_id,
+        canal: fila.channel,
+        mediaId: evento.mediaId,
+      },
+    });
+  }
+
+  await c.query(
+    `UPDATE conversations
+        SET last_outbound_at = $2,
+            first_response_at = COALESCE(first_response_at, $2),
+            human_reply_at = $2,
+            handoff_reason = NULL,
+            handoff_at = NULL,
+            -- Quien contestó desde el celular ya leyó lo que había.
+            unread_count = 0,
+            updated_at = now()
+      WHERE id = $1`,
+    [conversacion.id, ahora],
+  );
+  await cederElTurnoAlHumano(c, { tenantId: fila.tenant_id, conversationId: conversacion.id });
+
+  // Para que la bandeja abierta lo pinte al momento. El relay no lo enruta a
+  // ninguna cola: no hay nada que enviar.
+  await escribirEnOutbox(c, {
+    tenantId: fila.tenant_id,
+    aggregateType: 'message',
+    aggregateId: messageId,
+    eventType: 'mensaje.eco',
+    payload: { conversationId: conversacion.id, tipo: evento.tipo },
+  });
+  return true;
+}
+
+/** Hasta dónde hay particiones de `messages` hacia atrás (0055): siete meses. */
+function limiteDelHistorial(ahora: Date): Date {
+  return new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() - 7, 1));
+}
+
+/**
+ * Un mensaje antiguo, del historial que el dueño compartió al conectar por QR
+ * (coexistencia, ADR-015).
+ *
+ * Se guarda **con su fecha de verdad**, no con la de hoy: es la diferencia
+ * entre un historial y un montón de mensajes desordenados. Y no hace nada de
+ * lo que hace un mensaje vivo, porque ya pasó:
+ *
+ * - no abre la ventana de 24 h ni suma «sin leer»,
+ * - no arranca bots ni manda el aviso de «estamos cerrados»,
+ * - no abre un lead ni reparte la conversación,
+ * - no se mide como uso.
+ *
+ * Los medios antiguos llegan sin archivo: se guarda el mensaje con su tipo y
+ * su pie de foto, y la bandeja dice que el archivo no vino.
+ */
+async function procesarHistorial(
+  c: PoolClient,
+  fila: FilaEntrante,
+  evento: EventoDeHistorial,
+  ahora: Date,
+): Promise<{ conversationId: string } | 'duplicado' | 'fuera'> {
+  // Más viejo que las particiones que existen: no tiene dónde guardarse, y
+  // intentarlo tumbaría la tanda entera. Meta promete 180 días; el margen es
+  // de siete meses.
+  if (evento.ocurridoEn < limiteDelHistorial(ahora)) return 'fuera';
+  // Un reloj adelantado no puede dejar un mensaje «en el futuro».
+  const fecha = evento.ocurridoEn > ahora ? ahora : evento.ocurridoEn;
+
+  const messageId = await nuevoId(c);
+  const reserva = await c.query(
+    `INSERT INTO message_keys
+       (tenant_id, channel_account_id, external_message_id, message_id, message_created_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (channel_account_id, external_message_id) DO NOTHING`,
+    [fila.tenant_id, fila.channel_account_id, evento.externalMessageId, messageId, fecha],
+  );
+  if (reserva.rowCount === 0) return 'duplicado';
+
+  const identidad = await resolverIdentidad(c, fila, {
+    clase: 'mensaje',
+    canal: evento.canal,
+    externalAccountId: evento.externalAccountId,
+    ocurridoEn: evento.ocurridoEn,
+    externalMessageId: evento.externalMessageId,
+    externalUserId: evento.externalUserId,
+    telefonoE164: evento.telefonoE164,
+    tipo: evento.tipo,
+  });
+  const conversationId = await conversacionParaHistorial(c, fila, identidad);
+
+  const delNegocio = evento.direccion !== 'inbound';
+  await registrarDelHistorial(c, {
+    id: messageId,
+    tenantId: fila.tenant_id,
+    conversationId,
+    channelAccountId: fila.channel_account_id,
+    direccion: evento.direccion,
+    estado: evento.estado,
+    tipo: evento.tipo,
+    texto: evento.texto ?? null,
+    payload: {
+      historial: true,
+      // Lo del negocio se escribió en la app del celular: el CRM no existía.
+      ...(delNegocio ? { desdeLaApp: true } : {}),
+    },
+    externalMessageId: evento.externalMessageId,
+    creadoEn: fecha,
+  });
+  return { conversationId };
+}
+
+/**
+ * La conversación donde cuelga el historial de una persona: la que ya tenga,
+ * o una nueva que nace CERRADA.
+ *
+ * Cerrada a propósito. Seis meses de chats abiertos de golpe llenarían la
+ * bandeja de conversaciones «nuevas» que nadie tiene que atender. Cerradas no
+ * estorban, y cuando esa persona vuelva a escribir se reabre ESA —es lo que
+ * ya hace `resolverConversacion`—, con toda su historia a la vista.
+ */
+async function conversacionParaHistorial(
+  c: PoolClient,
+  fila: FilaEntrante,
+  identidad: Identidad,
+): Promise<string> {
+  const { rows } = await c.query<{ id: string }>(
+    `SELECT id FROM conversations
+      WHERE contact_identity_id = $1
+      ORDER BY created_at DESC LIMIT 1
+      FOR UPDATE`,
+    [identidad.identityId],
+  );
+  if (rows[0]) return rows[0].id;
+  const id = await nuevoId(c);
+  await c.query(
+    `INSERT INTO conversations
+       (id, tenant_id, contact_identity_id, contact_id, channel_account_id, kind, status, closed_at)
+     VALUES ($1, $2, $3, $4, $5, 'dm', 'closed', now())`,
+    [id, fila.tenant_id, identidad.identityId, identidad.contactId, fila.channel_account_id],
+  );
+  return id;
+}
+
+/**
+ * Deja una conversación importada como corresponde a lo que contiene.
+ *
+ * El historial llega por tandas y desordenado, así que no se decide mensaje a
+ * mensaje: al terminar cada webhook se mira la conversación entera.
+ *
+ * Solo se toca si TODO lo que tiene es historial. En cuanto hay un mensaje
+ * vivo —la persona ya escribió con el canal conectado—, la conversación es
+ * del presente y la gobierna el camino normal.
+ *
+ * Queda **abierta** únicamente si lo último fue de la persona y hace menos de
+ * lo que dura la ventana: alguien escribió anoche y nadie le contestó. Eso sí
+ * hay que atenderlo, y todavía se puede responder sin plantilla.
+ */
+async function asentarConversacionImportada(
+  c: PoolClient,
+  conversationId: string,
+  politica: PoliticaDeVentana,
+  ahora: Date,
+): Promise<void> {
+  const { rows } = await c.query<{
+    solo_historial: boolean;
+    ultimo_entrante: Date | null;
+    ultimo_saliente: Date | null;
+    primer_saliente: Date | null;
+  }>(
+    `SELECT bool_and(COALESCE((payload ->> 'historial')::boolean, false)) AS solo_historial,
+            max(created_at) FILTER (WHERE direction = 'inbound') AS ultimo_entrante,
+            max(created_at) FILTER (WHERE direction <> 'inbound') AS ultimo_saliente,
+            min(created_at) FILTER (WHERE direction <> 'inbound') AS primer_saliente
+       FROM messages WHERE conversation_id = $1`,
+    [conversationId],
+  );
+  const r = rows[0];
+  if (!r || !r.solo_historial) return;
+
+  const expira = r.ultimo_entrante
+    ? expiracionTrasMensaje(politica, 'inbound', r.ultimo_entrante, null, 'mensaje')
+    : null;
+  const esperaRespuesta =
+    r.ultimo_entrante !== null &&
+    (r.ultimo_saliente === null || r.ultimo_entrante > r.ultimo_saliente) &&
+    expira !== null &&
+    expira > ahora;
+
+  await c.query(
+    `UPDATE conversations
+        SET last_inbound_at = $2,
+            last_outbound_at = $3,
+            first_response_at = $4,
+            session_expires_at = $5,
+            status = $6,
+            closed_at = CASE WHEN $6 = 'closed' THEN COALESCE(closed_at, now()) ELSE NULL END,
+            unread_count = $7,
+            updated_at = now()
+      WHERE id = $1`,
+    [
+      conversationId,
+      r.ultimo_entrante,
+      r.ultimo_saliente,
+      r.primer_saliente,
+      expira,
+      esperaRespuesta ? 'open' : 'closed',
+      esperaRespuesta ? 1 : 0,
+    ],
+  );
+}
+
+/**
+ * Un contacto de la agenda de la app del canal (0055).
+ *
+ * No crea un cliente: la agenda de un teléfono trae a mucha gente con la que
+ * el hotel nunca habló por aquí. Se guarda el nombre aparte, para ponérselo a
+ * quien SÍ tenga conversación —ahora o cuando llegue su historial—.
+ *
+ * Si esa persona ya es un cliente y sigue llamándose como su número, se le
+ * pone el nombre. Si alguien ya lo renombró, o trae nombre de perfil, no se
+ * pisa: el nombre que puso una persona manda.
+ */
+async function procesarContacto(
+  c: PoolClient,
+  fila: FilaEntrante,
+  evento: EventoDeContacto,
+): Promise<void> {
+  if (evento.nombre === null) {
+    await c.query(
+      `DELETE FROM channel_contact_names WHERE channel_account_id = $1 AND external_user_id = $2`,
+      [fila.channel_account_id, evento.externalUserId],
+    );
+    return;
+  }
+  const nombre = evento.nombre.slice(0, 200);
+  await c.query(
+    `INSERT INTO channel_contact_names (tenant_id, channel_account_id, external_user_id, display_name)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (channel_account_id, external_user_id)
+       DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()`,
+    [fila.tenant_id, fila.channel_account_id, evento.externalUserId, nombre],
+  );
+  await c.query(
+    `UPDATE contacts ct
+        SET display_name = $3, updated_at = now()
+       FROM contact_identities ci
+      WHERE ci.contact_id = ct.id
+        AND ci.channel_account_id = $1
+        AND ci.external_user_id = $2
+        AND (ct.display_name IS NULL
+             OR ct.display_name = ci.external_user_id
+             OR ct.display_name = ci.phone_e164)`,
+    [fila.channel_account_id, evento.externalUserId, nombre],
+  );
+}
+
 interface Identidad {
   identityId: string;
   contactId: string;
@@ -622,11 +1012,20 @@ async function resolverIdentidad(
     return { identityId: existente.rows[0].id, contactId: existente.rows[0].contact_id };
   }
 
+  // Si el hotel lo tiene guardado en la agenda de su app (0055), ese nombre
+  // manda sobre el del perfil: es como ÉL lo conoce.
+  const { rows: enLaAgenda } = await c.query<{ display_name: string }>(
+    `SELECT display_name FROM channel_contact_names
+      WHERE channel_account_id = $1 AND external_user_id = $2`,
+    [fila.channel_account_id, evento.externalUserId],
+  );
+
   const contactId = await nuevoId(c);
   await c.query(`INSERT INTO contacts (id, tenant_id, display_name) VALUES ($1, $2, $3)`, [
     contactId,
     fila.tenant_id,
-    evento.nombreDeContacto ??
+    enLaAgenda[0]?.display_name ??
+      evento.nombreDeContacto ??
       (evento.nombreDeUsuario ? `@${evento.nombreDeUsuario}` : null) ??
       evento.telefonoE164 ??
       (evento.canal === 'facebook' ? null : evento.externalUserId),

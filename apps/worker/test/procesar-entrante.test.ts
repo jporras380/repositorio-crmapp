@@ -1032,3 +1032,360 @@ describe('aviso fuera de horario, por equipo', () => {
     expect(r.avisosFueraDeHorario).toBe(0);
   });
 });
+
+/**
+ * Ecos (ADR-015): lo que el hotel responde desde la app WhatsApp Business del
+ * celular, con el número compartido con el CRM.
+ *
+ * Lo que importa no es que se guarde, sino lo que NO pasa: no reabre la
+ * ventana, no se mide como envío nuestro, y un bot que estaba hablando se
+ * calla porque ya hay una persona atendiendo.
+ */
+describe('ecos de la app del celular', () => {
+  const eco = (externalMessageId: string, extra: Record<string, unknown> = {}) => ({
+    clase: 'eco',
+    externalMessageId,
+    externalUserId: 'wa-ana',
+    tipo: 'text',
+    text: 'Sí, tenemos bungalow libre.',
+    telefono: '+34600111222',
+    ...extra,
+  });
+
+  const mensajes = async () =>
+    (
+      await admin.query<{
+        direction: string;
+        sent_by: string;
+        status: string;
+        body: string | null;
+        desde: boolean | null;
+      }>(
+        `SELECT direction, sent_by, status, body, (payload ->> 'desdeLaApp')::boolean AS desde
+           FROM messages ORDER BY created_at, direction`,
+      )
+    ).rows;
+
+  it('queda en la conversación como saliente de una persona, marcado «desde el celular»', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.e0')]));
+    const r = await procesarEventoEntrante(deps(), tenantId, await webhook([eco('wamid.e1')]));
+
+    expect(r).toMatchObject({ ecos: 1, mensajesNuevos: 0, duplicados: 0 });
+    // La misma conversación: no se abre otra por contestar desde el teléfono.
+    expect(await contar('conversations')).toBe(1);
+    expect((await mensajes()).at(-1)).toEqual({
+      direction: 'outbound',
+      sent_by: 'human',
+      status: 'sent',
+      body: 'Sí, tenemos bungalow libre.',
+      desde: true,
+    });
+  });
+
+  it('el mismo eco dos veces no se duplica', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([eco('wamid.e2')]));
+    const r = await procesarEventoEntrante(deps(), tenantId, await webhook([eco('wamid.e2')]));
+    expect(r).toMatchObject({ ecos: 0, duplicados: 1 });
+    expect(await contar('messages')).toBe(1);
+  });
+
+  it('NO reabre la ventana de 24 h ni cuenta como leído por el huésped', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.e3')]));
+    const antes = (
+      await admin.query<{ session_expires_at: Date; last_inbound_at: Date }>(
+        `SELECT session_expires_at, last_inbound_at FROM conversations`,
+      )
+    ).rows[0]!;
+
+    // Veinte horas después, el hotel contesta desde el celular.
+    ahora = new Date(T0.getTime() + 20 * 3_600_000);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([eco('wamid.e4')]));
+    const despues = (
+      await admin.query<{
+        session_expires_at: Date;
+        last_inbound_at: Date;
+        unread_count: number;
+        human_reply_at: Date | null;
+      }>(
+        `SELECT session_expires_at, last_inbound_at, unread_count, human_reply_at
+           FROM conversations`,
+      )
+    ).rows[0]!;
+    // La ventana la abre lo que escribe el HUÉSPED: sigue donde estaba.
+    expect(despues.session_expires_at).toEqual(antes.session_expires_at);
+    expect(despues.last_inbound_at).toEqual(antes.last_inbound_at);
+    // Quien contestó ya leyó lo pendiente, y el hilo es de una persona.
+    expect(despues.unread_count).toBe(0);
+    expect(despues.human_reply_at).not.toBeNull();
+  });
+
+  it('no se mide como envío del CRM: no lo mandó el CRM', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([eco('wamid.e5')]));
+    const { rows } = await admin.query<{ metric: string }>(
+      `SELECT metric FROM usage_events WHERE metric = 'messages.outbound'`,
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it('un bot que estaba esperando se aparta: ya contesta una persona', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.e6')]));
+    const conversationId = (await admin.query<{ id: string }>(`SELECT id FROM conversations`))
+      .rows[0]!.id;
+    const flowId = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO flows (tenant_id, name, status) VALUES ($1, 'Bot de eco', 'activo') RETURNING id`,
+        [tenantId],
+      )
+    ).rows[0]!.id;
+    const versionId = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO flow_versions (tenant_id, flow_id, version, graph)
+         VALUES ($1, $2, 1, '{"inicio":"a","nodos":[]}') RETURNING id`,
+        [tenantId, flowId],
+      )
+    ).rows[0]!.id;
+    await admin.query(
+      `INSERT INTO flow_runs (tenant_id, flow_id, flow_version_id, conversation_id, status,
+                              current_node_id, wait_until, wait_for)
+       VALUES ($1, $2, $3, $4, 'waiting', 'a', now() + interval '1 hour', 'respuesta')`,
+      [tenantId, flowId, versionId, conversationId],
+    );
+
+    await procesarEventoEntrante(deps(), tenantId, await webhook([eco('wamid.e7')]));
+    const { rows } = await admin.query<{ status: string; error: string | null }>(
+      `SELECT status, error FROM flow_runs WHERE conversation_id = $1`,
+      [conversationId],
+    );
+    expect(rows).toEqual([{ status: 'cancelled', error: 'humano_tomo_el_control' }]);
+
+    await admin.query(`DELETE FROM flow_run_steps`);
+    await admin.query(`DELETE FROM flow_runs`);
+    await admin.query(`DELETE FROM flow_versions`);
+    await admin.query(`DELETE FROM flows`);
+  });
+
+  it('si el hotel escribe primero desde el celular, se crea la conversación sin inventar nombre', async () => {
+    const r = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([eco('wamid.e8', { externalUserId: 'wa-nuevo', telefono: '+51911000111' })]),
+    );
+    expect(r.ecos).toBe(1);
+    expect(await contar('conversations')).toBe(1);
+    const { rows } = await admin.query<{ display_name: string | null }>(
+      `SELECT display_name FROM contacts`,
+    );
+    // El eco no trae el perfil de la otra persona.
+    expect(rows).toHaveLength(1);
+  });
+});
+
+/**
+ * Historial y agenda de la app del celular (ADR-015, 0055).
+ *
+ * Lo que se prueba es que un mensaje antiguo se queda en el pasado: con su
+ * fecha, sin abrir ventana ni lead ni «sin leer», y sin llenar la bandeja de
+ * conversaciones que nadie tiene que atender.
+ */
+describe('historial de la app del celular', () => {
+  const dias = (n: number) => new Date(T0.getTime() - n * 86_400_000).toISOString();
+  const antiguo = (
+    externalMessageId: string,
+    haceDias: number,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    clase: 'historial',
+    externalMessageId,
+    externalUserId: 'wa-ana',
+    direccion: 'inbound',
+    tipo: 'text',
+    text: 'mensaje antiguo',
+    telefono: '+34600111222',
+    ocurridoEn: dias(haceDias),
+    ...extra,
+  });
+  const conversacion = async () =>
+    (
+      await admin.query<{
+        status: string;
+        unread_count: number;
+        session_expires_at: Date | null;
+        last_inbound_at: Date | null;
+        last_outbound_at: Date | null;
+      }>(
+        `SELECT status, unread_count, session_expires_at, last_inbound_at, last_outbound_at
+           FROM conversations`,
+      )
+    ).rows[0]!;
+
+  it('se guarda con su fecha de verdad, y en su orden aunque llegue desordenado', async () => {
+    const r = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([
+        antiguo('wamid.h2', 39, {
+          direccion: 'outbound',
+          text: 'Sí, del 10 al 15.',
+          estado: 'read',
+        }),
+        antiguo('wamid.h1', 40, { text: '¿Tienen bungalow?' }),
+      ]),
+    );
+    expect(r).toMatchObject({ historial: 2, mensajesNuevos: 0 });
+    const { rows } = await admin.query<{
+      body: string;
+      direction: string;
+      status: string;
+      created_at: Date;
+    }>(`SELECT body, direction, status, created_at FROM messages ORDER BY created_at`);
+    expect(rows.map((m) => [m.body, m.direction, m.status])).toEqual([
+      ['¿Tienen bungalow?', 'inbound', 'delivered'],
+      ['Sí, del 10 al 15.', 'outbound', 'read'],
+    ]);
+    expect(rows[0]!.created_at.toISOString()).toBe(dias(40));
+  });
+
+  it('la conversación nace CERRADA y sin «sin leer»: no llena la bandeja', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([antiguo('wamid.h3', 40)]));
+    const c = await conversacion();
+    expect(c.status).toBe('closed');
+    expect(c.unread_count).toBe(0);
+    // La ventana de aquel mensaje caducó hace mucho.
+    expect(c.session_expires_at!.getTime()).toBeLessThan(T0.getTime());
+  });
+
+  it('no abre lead, no se mide, no encola nada que enviar', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([antiguo('wamid.h4', 40)]));
+    expect(await contar('leads')).toBe(0);
+    expect(await contar('usage_events')).toBe(0);
+    const { rows } = await admin.query<{ event_type: string }>(`SELECT event_type FROM outbox`);
+    // Un solo aviso para la pantalla, por webhook y no por mensaje.
+    expect(rows.map((x) => x.event_type)).toEqual(['historial.importado']);
+  });
+
+  it('pero si lo último fue de la persona y hace poco, queda ABIERTA: hay que contestar', async () => {
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([
+        antiguo('wamid.h5', 3, { direccion: 'outbound', text: 'Le confirmo mañana.' }),
+        // Hace dos horas, y nadie le ha respondido.
+        antiguo('wamid.h6', 0, {
+          text: '¿Me confirma la reserva?',
+          ocurridoEn: new Date(T0.getTime() - 2 * 3_600_000).toISOString(),
+        }),
+      ]),
+    );
+    const c = await conversacion();
+    expect(c.status).toBe('open');
+    expect(c.unread_count).toBe(1);
+    // Y todavía se le puede responder sin plantilla.
+    expect(c.session_expires_at!.getTime()).toBeGreaterThan(T0.getTime());
+  });
+
+  it('cuando esa persona vuelve a escribir, se reabre ESA conversación, con su historia', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([antiguo('wamid.h7', 40)]));
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.vivo')]));
+    expect(await contar('conversations')).toBe(1);
+    expect(await contar('messages')).toBe(2);
+    const c = await conversacion();
+    expect(c.status).toBe('open');
+    expect(c.unread_count).toBe(1);
+  });
+
+  it('una tanda que llega después no pisa una conversación que ya está viva', async () => {
+    // Dos mensajes vivos sin leer. Si la tanda antigua recalculara esta
+    // conversación como si fuera importada, los dejaría en uno.
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.vivo2')]));
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.vivo3')]));
+    const antes = await conversacion();
+    expect(antes.unread_count).toBe(2);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([antiguo('wamid.h8', 40)]));
+    const despues = await conversacion();
+    expect(despues.status).toBe('open');
+    expect(despues.unread_count).toBe(antes.unread_count);
+    expect(despues.session_expires_at).toEqual(antes.session_expires_at);
+  });
+
+  it('el mismo mensaje en dos tandas no se duplica, y uno de hace un año se deja fuera', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([antiguo('wamid.h9', 40)]));
+    const r = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([antiguo('wamid.h9', 40), antiguo('wamid.viejo', 400)]),
+    );
+    expect(r).toMatchObject({ historial: 0, duplicados: 1, ignorados: 1 });
+    expect(await contar('messages')).toBe(1);
+  });
+});
+
+describe('agenda de la app del celular', () => {
+  const contacto = (nombre: string | null, externalUserId = 'wa-ana') => ({
+    clase: 'contacto',
+    externalUserId,
+    ...(nombre ? { nombre } : {}),
+  });
+  const nombres = async () =>
+    (
+      await admin.query<{ display_name: string | null }>(`SELECT display_name FROM contacts`)
+    ).rows.map((x) => x.display_name);
+
+  beforeEach(async () => {
+    await admin.query(`TRUNCATE channel_contact_names`);
+  });
+
+  it('NO crea clientes: la agenda trae a gente con la que nunca se habló por aquí', async () => {
+    const r = await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([contacto('Proveedor de gas', 'wa-proveedor'), contacto('Rosa Quispe')]),
+    );
+    expect(r.contactos).toBe(2);
+    expect(await contar('contacts')).toBe(0);
+    expect(await contar('channel_contact_names')).toBe(2);
+  });
+
+  it('pero quien llega después con su historial sale con el nombre de la agenda', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([contacto('Rosa Quispe')]));
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([
+        {
+          clase: 'historial',
+          externalMessageId: 'wamid.ag1',
+          externalUserId: 'wa-ana',
+          direccion: 'inbound',
+          tipo: 'text',
+          text: 'hola',
+          ocurridoEn: new Date(T0.getTime() - 86_400_000).toISOString(),
+        },
+      ]),
+    );
+    expect(await nombres()).toEqual(['Rosa Quispe']);
+  });
+
+  it('a un cliente que seguía llamándose como su número se le pone el nombre', async () => {
+    await procesarEventoEntrante(
+      deps(),
+      tenantId,
+      await webhook([mensaje('wamid.ag2', { nombre: undefined, telefono: '+34600111222' })]),
+    );
+    expect(await nombres()).toEqual(['+34600111222']);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([contacto('Ana de Barranca')]));
+    expect(await nombres()).toEqual(['Ana de Barranca']);
+  });
+
+  it('pero no pisa un nombre que ya puso una persona', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([mensaje('wamid.ag3')]));
+    await admin.query(`UPDATE contacts SET display_name = 'Ana (cliente frecuente)'`);
+    await procesarEventoEntrante(deps(), tenantId, await webhook([contacto('Ana')]));
+    expect(await nombres()).toEqual(['Ana (cliente frecuente)']);
+  });
+
+  it('quitarlo de la agenda lo borra de aquí', async () => {
+    await procesarEventoEntrante(deps(), tenantId, await webhook([contacto('Rosa Quispe')]));
+    await procesarEventoEntrante(deps(), tenantId, await webhook([contacto(null)]));
+    expect(await contar('channel_contact_names')).toBe(0);
+  });
+});

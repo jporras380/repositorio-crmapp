@@ -6,6 +6,11 @@
  * allá de una variable local: entra por la petición, se verifica contra Meta
  * y se guarda cifrado. No se devuelve nunca, ni en la respuesta de alta ni en
  * el listado. Si el cliente lo pierde, lo vuelve a pegar.
+ *
+ * Desde ADR-015 hay otra forma, que convive con esta: conectar con la app de
+ * Meta de la plataforma —inicio de sesión, o el QR de WhatsApp Business—. El
+ * alta es la MISMA; lo que cambia es de dónde salen el token y la clave. Ver
+ * `plataforma-meta.ts`.
  */
 import type { PoolClient } from 'pg';
 import type { Cifrador } from '@crmapp/crypto';
@@ -21,6 +26,17 @@ import {
 import { cabeUnoMas } from '@crmapp/core';
 import { contextoActual, type BaseDeDatos } from '../db.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
+import { randomInt } from 'node:crypto';
+import {
+  abrirCredencial,
+  clienteGraphDePlataforma,
+  generarPin,
+  plataformaVisible,
+  sellarCredencial,
+  type ClienteDePlataformaMeta,
+  type ConfigDeMeta,
+  type PlataformaMetaVisible,
+} from './plataforma-meta.js';
 import {
   CAMPOS_DE_WEBHOOK,
   descubridorGraph,
@@ -47,34 +63,39 @@ export interface PaginaDeFacebookVisible {
   yaConectado: boolean;
 }
 
-export interface CredencialesDeAlta {
+/**
+ * De dónde salen el token y la clave secreta. O los pega el cliente (ADR-004),
+ * o trae la `credencial` sellada que le dio «Conectar con Meta» (ADR-015) y
+ * la clave es la de la app de la plataforma. Una de las dos formas.
+ */
+export interface OrigenDeCredenciales {
+  accessToken?: string | undefined;
+  appSecret?: string | undefined;
+  credencial?: string | undefined;
+}
+
+export interface CredencialesDeAlta extends OrigenDeCredenciales {
   phoneNumberId: string;
   wabaId: string;
-  accessToken: string;
-  appSecret: string;
   displayName?: string | undefined;
 }
 
-export interface CredencialesDeAltaInstagram {
+export interface CredencialesDeAltaInstagram extends OrigenDeCredenciales {
   /** Id de la cuenta profesional de Instagram (IG User). */
   igUserId: string;
-  accessToken: string;
-  appSecret: string;
   displayName?: string | undefined;
 }
 
-export interface CredencialesDeAltaFacebook {
+export interface CredencialesDeAltaFacebook extends OrigenDeCredenciales {
   /** Id de la página, elegida de la lista que trae Meta. */
   paginaId: string;
-  /** Token de usuario (se cambia por el de página) o ya de página. */
-  accessToken: string;
-  appSecret: string;
   displayName?: string | undefined;
 }
 
-export type VerificadorDeInstagram = (
-  cred: Pick<CredencialesDeAltaInstagram, 'igUserId' | 'accessToken'>,
-) => Promise<{ nombreDeUsuario: string }>;
+export type VerificadorDeInstagram = (cred: {
+  igUserId: string;
+  accessToken: string;
+}) => Promise<{ nombreDeUsuario: string }>;
 
 /** `GET /{ig-user-id}?fields=username`: si el token no ve la cuenta, no se guarda nada. */
 export function verificadorGraphInstagram(
@@ -157,9 +178,10 @@ export interface IdentidadVerificada {
  * cliente pega mal el token y se entera dos días después, cuando nadie
  * recibe nada.
  */
-export type VerificadorDeCredenciales = (
-  cred: Pick<CredencialesDeAlta, 'phoneNumberId' | 'accessToken'>,
-) => Promise<IdentidadVerificada>;
+export type VerificadorDeCredenciales = (cred: {
+  phoneNumberId: string;
+  accessToken: string;
+}) => Promise<IdentidadVerificada>;
 
 export function verificadorGraph(
   opciones: { fetch?: typeof fetch; apiVersion?: string } = {},
@@ -204,8 +226,32 @@ export interface CuentaDeCanal {
   status: string;
   /** `false` = conectado pero el proveedor no nos envía sus webhooks (0014). */
   webhookSuscrito: boolean | null;
+  /** `credenciales` pegadas (ADR-004) o `plataforma`, con un botón (ADR-015). */
+  conectadoVia: 'credenciales' | 'plataforma';
   lastEventAt: Date | null;
   createdAt: Date;
+}
+
+/**
+ * Un WhatsApp recién conectado. Con coexistencia dice además si se pidió el
+ * historial: lo que el dueño compartió desde su celular llega después, por
+ * tandas, y la pantalla tiene que avisarlo en vez de parecer vacía.
+ */
+export interface WhatsappConectado extends CuentaDeCanal {
+  /** `null` si no es coexistencia; `false` si Meta no aceptó la petición. */
+  historialPedido: boolean | null;
+}
+
+/** Lo que devuelve «Conectar con Meta» para WhatsApp: los números y el sobre. */
+export interface SesionDeWhatsapp extends DescubrimientoWhatsappVisible {
+  credencial: string;
+}
+
+/** Y para páginas: las de Facebook, las cuentas de Instagram, y el sobre. */
+export interface SesionDePaginas {
+  credencial: string;
+  facebook: PaginaDeFacebookVisible[];
+  instagram: CuentaDeInstagramVisible[];
 }
 
 export interface OpcionesDeCanales {
@@ -215,6 +261,10 @@ export interface OpcionesDeCanales {
   verificarInstagram?: VerificadorDeInstagram;
   suscribir?: SuscriptorDeWebhook;
   descubridor?: DescubridorDeMeta;
+  /** La app de Meta de la plataforma. Sin ella no hay «Conectar con Meta». */
+  meta?: ConfigDeMeta | undefined;
+  plataformaMeta?: ClienteDePlataformaMeta | undefined;
+  ahora?: () => Date;
 }
 
 /** Cómo queda una cuenta de Instagram tras resolver el token que pegó el cliente. */
@@ -232,6 +282,9 @@ export class CanalesService {
   readonly #verificarInstagram: VerificadorDeInstagram;
   readonly #suscribir: SuscriptorDeWebhook;
   readonly #descubridor: DescubridorDeMeta;
+  readonly #meta: ConfigDeMeta | null;
+  readonly #plataforma: ClienteDePlataformaMeta | null;
+  readonly #ahora: () => Date;
 
   constructor(o: OpcionesDeCanales) {
     this.#db = o.db;
@@ -240,6 +293,9 @@ export class CanalesService {
     this.#verificarInstagram = o.verificarInstagram ?? verificadorGraphInstagram();
     this.#suscribir = o.suscribir ?? suscriptorGraph();
     this.#descubridor = o.descubridor ?? descubridorGraph();
+    this.#meta = o.meta ?? null;
+    this.#plataforma = o.plataformaMeta ?? (o.meta ? clienteGraphDePlataforma(o.meta) : null);
+    this.#ahora = o.ahora ?? (() => new Date());
     this.resolverCuenta = crearResolverDeCuenta(o.db.poolAuth, o.cifrador);
     this.resolverCredencialesWhatsapp = crearResolverDeCredencialesWhatsapp(
       o.db.poolAuth,
@@ -253,6 +309,119 @@ export class CanalesService {
       o.db.poolAuth,
       o.cifrador,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Conectar con la app de Meta de la plataforma (ADR-015)
+  // -------------------------------------------------------------------------
+
+  /** Lo que la pantalla necesita para abrir la ventana de Meta. Sin secretos. */
+  plataforma(): PlataformaMetaVisible {
+    this.#exigirContexto();
+    return plataformaVisible(this.#meta);
+  }
+
+  /**
+   * Vuelta de la ventana de Meta para WhatsApp (Embedded Signup, que incluye
+   * el QR de coexistencia). Cambia el código por un token y enseña los números
+   * de la cuenta que el dueño acaba de compartir. No guarda nada todavía.
+   *
+   * El cupo se mira ANTES de gastar el código: vale una sola vez, y gastarlo
+   * para decir «no cabe» obligaría al dueño a repetir el QR.
+   */
+  async sesionDeWhatsapp(p: { code: string; wabaId: string }): Promise<SesionDeWhatsapp> {
+    const ctx = this.#exigirAdmin();
+    const plataforma = this.#exigirPlataforma();
+    await this.#db.enTransaccion((c) => this.#exigirCupoDeCanal(c, ctx.tenantId));
+    const accessToken = await plataforma.intercambiarCodigo(p.code);
+    const d = await this.#descubridor.whatsapp({ accessToken, wabaId: p.wabaId });
+    const conectados = await this.#conectadosAqui('whatsapp');
+    return {
+      ...d,
+      cuentas: d.cuentas.map((w) => ({
+        ...w,
+        numeros: w.numeros.map((n) => ({ ...n, yaConectado: conectados.has(n.phoneNumberId) })),
+      })),
+      credencial: this.#sellar(ctx.tenantId, accessToken),
+    };
+  }
+
+  /** Lo mismo para páginas: las de Facebook y las cuentas de Instagram que ve. */
+  async sesionDePaginas(p: { code: string }): Promise<SesionDePaginas> {
+    const ctx = this.#exigirAdmin();
+    const plataforma = this.#exigirPlataforma();
+    await this.#db.enTransaccion((c) => this.#exigirCupoDeCanal(c, ctx.tenantId));
+    const accessToken = await plataforma.intercambiarCodigo(p.code);
+    const paginas = await this.#descubridor.paginas({ accessToken });
+    const [enFacebook, enInstagram] = await Promise.all([
+      this.#conectadosAqui('facebook'),
+      this.#conectadosAqui('instagram'),
+    ]);
+    return {
+      credencial: this.#sellar(ctx.tenantId, accessToken),
+      facebook: paginas.map((pg) => ({
+        paginaId: pg.paginaId,
+        pagina: pg.pagina,
+        yaConectado: enFacebook.has(pg.paginaId),
+      })),
+      instagram: paginas
+        .filter((pg) => pg.igUserId !== null)
+        .map((pg) => ({
+          igUserId: pg.igUserId!,
+          usuario: pg.usuario,
+          paginaId: pg.paginaId,
+          pagina: pg.pagina,
+          yaConectado: enInstagram.has(pg.igUserId!),
+        })),
+    };
+  }
+
+  #sellar(tenantId: string, accessToken: string): string {
+    return sellarCredencial(this.#cifrador, { accessToken, tenantId, ahora: this.#ahora() });
+  }
+
+  #exigirPlataforma(): ClienteDePlataformaMeta {
+    if (!this.#meta || !this.#plataforma) {
+      throw new ErrorDeNegocio(
+        'plataforma_no_configurada',
+        '«Conectar con Meta» no está disponible todavía. Conecta pegando tus credenciales.',
+        503,
+      );
+    }
+    return this.#plataforma;
+  }
+
+  /**
+   * El token y la clave secreta con que se da de alta, vengan de donde vengan.
+   *
+   * Con `credencial`, la clave es la de la app de la plataforma: los webhooks
+   * de ese canal los firma esa app, no una del cliente.
+   */
+  #origen(
+    tenantId: string,
+    cred: OrigenDeCredenciales,
+  ): { accessToken: string; appSecret: string; via: 'credenciales' | 'plataforma' } {
+    if (cred.credencial) {
+      this.#exigirPlataforma();
+      return {
+        accessToken: abrirCredencial(this.#cifrador, {
+          credencial: cred.credencial,
+          tenantId,
+          ahora: this.#ahora(),
+        }),
+        appSecret: this.#meta!.appSecret,
+        via: 'plataforma',
+      };
+    }
+    if (!cred.accessToken || !cred.appSecret) {
+      throw new ErrorDeNegocio('datos_invalidos', 'Faltan el token y la clave secreta.', 400);
+    }
+    return { accessToken: cred.accessToken, appSecret: cred.appSecret, via: 'credenciales' };
+  }
+
+  async #marcarVia(c: PoolClient, id: string, via: 'credenciales' | 'plataforma'): Promise<void> {
+    if (via === 'credenciales') return; // es el valor por defecto de la columna
+    await c.query(`UPDATE channel_accounts SET connected_via = 'plataforma' WHERE id = $1`, [id]);
   }
 
   /**
@@ -306,7 +475,8 @@ export class CanalesService {
     const ctx = this.#exigirAdmin();
     // Antes de hablar con Meta: si no cabe, no tiene sentido verificar nada.
     await this.#db.enTransaccion((c) => this.#exigirCupoDeCanal(c, ctx.tenantId));
-    const r = await this.#resolverFacebook(cred.paginaId, cred.accessToken);
+    const origen = this.#origen(ctx.tenantId, cred);
+    const r = await this.#resolverFacebook(cred.paginaId, origen.accessToken);
 
     return this.#db.enTransaccion(async (c) => {
       // Otra vez dentro: entre la comprobación de arriba y esta, otra
@@ -341,8 +511,9 @@ export class CanalesService {
         tenantId: ctx.tenantId,
         channelAccountId: id,
         kind: 'app_secret',
-        valor: cred.appSecret,
+        valor: origen.appSecret,
       });
+      await this.#marcarVia(c, id, origen.via);
       await c.query(
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
          VALUES ($1, $2, 'canal.conectado', 'channel_account', $3, $4)`,
@@ -369,7 +540,8 @@ export class CanalesService {
     const ctx = this.#exigirAdmin();
     // Antes de hablar con Meta: si no cabe, no tiene sentido verificar nada.
     await this.#db.enTransaccion((c) => this.#exigirCupoDeCanal(c, ctx.tenantId));
-    const r = await this.#resolverInstagram(cred.igUserId, cred.accessToken);
+    const origen = this.#origen(ctx.tenantId, cred);
+    const r = await this.#resolverInstagram(cred.igUserId, origen.accessToken);
 
     return this.#db.enTransaccion(async (c) => {
       // Otra vez dentro: entre la comprobación de arriba y esta, otra
@@ -404,8 +576,9 @@ export class CanalesService {
         tenantId: ctx.tenantId,
         channelAccountId: id,
         kind: 'app_secret',
-        valor: cred.appSecret,
+        valor: origen.appSecret,
       });
+      await this.#marcarVia(c, id, origen.via);
       await c.query(
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
          VALUES ($1, $2, 'canal.conectado', 'channel_account', $3, $4)`,
@@ -425,23 +598,50 @@ export class CanalesService {
     });
   }
 
-  async conectarWhatsapp(cred: CredencialesDeAlta): Promise<CuentaDeCanal> {
+  async conectarWhatsapp(cred: CredencialesDeAlta): Promise<WhatsappConectado> {
     const ctx = this.#exigirAdmin();
     // Antes de verificar y de suscribir la WABA: si no cabe, no se toca Meta.
     await this.#db.enTransaccion((c) => this.#exigirCupoDeCanal(c, ctx.tenantId));
 
     // Verificar ANTES de abrir la transacción: es una llamada de red y no debe
     // retener conexión ni bloqueos mientras Meta responde.
-    const identidad = await this.#verificar(cred);
+    const origen = this.#origen(ctx.tenantId, cred);
+    const identidad = await this.#verificar({
+      phoneNumberId: cred.phoneNumberId,
+      accessToken: origen.accessToken,
+    });
 
     // Y suscribir la WABA a nuestra app, o el número quedaría conectado y
     // sordo. No aborta si falla: se guarda el estado y se avisa.
     const suscrito = await this.#suscribir({
       providerAccountId: cred.wabaId,
-      accessToken: cred.accessToken,
+      accessToken: origen.accessToken,
     });
 
-    return this.#db.enTransaccion(async (c) => {
+    // Con la app de la plataforma, el número puede venir de dos sitios:
+    //
+    // - **Coexistencia**: sigue en el WhatsApp Business del celular (el QR).
+    //   Ya está registrado; registrarlo otra vez lo sacaría de la app.
+    // - **Número nuevo** dado de alta en la ventana de Meta: hay que
+    //   registrarlo en la Cloud API con un PIN, o no envía ni recibe.
+    //
+    // Se le pregunta a Meta cuál es, no al navegador. Si el registro falla el
+    // canal se conecta igual y queda dicho: es mejor verlo conectado con un
+    // aviso que repetir el alta sin saber qué pasó.
+    let coexistencia: boolean | null = null;
+    let pin: string | null = null;
+    let registrado: boolean | null = null;
+    if (origen.via === 'plataforma') {
+      const plataforma = this.#exigirPlataforma();
+      const destino = { phoneNumberId: cred.phoneNumberId, accessToken: origen.accessToken };
+      coexistencia = await plataforma.estaEnLaApp(destino);
+      if (!coexistencia) {
+        pin = generarPin(randomInt);
+        registrado = await plataforma.registrarNumero({ ...destino, pin });
+      }
+    }
+
+    const cuenta = await this.#db.enTransaccion(async (c) => {
       // Otra vez dentro: entre la comprobación de arriba y esta, otra
       // pestaña ha podido conectar el canal que llenaba el cupo.
       await this.#exigirCupoDeCanal(c, ctx.tenantId);
@@ -479,14 +679,25 @@ export class CanalesService {
         tenantId: ctx.tenantId,
         channelAccountId: id,
         kind: 'access_token',
-        valor: cred.accessToken,
+        valor: origen.accessToken,
       });
       await guardarSecretoDeCanal(c, this.#cifrador, {
         tenantId: ctx.tenantId,
         channelAccountId: id,
         kind: 'app_secret',
-        valor: cred.appSecret,
+        valor: origen.appSecret,
       });
+      await this.#marcarVia(c, id, origen.via);
+      // El PIN solo si Meta lo aceptó: guardar uno que no vale confundiría a
+      // quien tenga que volver a registrar el número.
+      if (pin && registrado) {
+        await guardarSecretoDeCanal(c, this.#cifrador, {
+          tenantId: ctx.tenantId,
+          channelAccountId: id,
+          kind: 'pin',
+          valor: pin,
+        });
+      }
 
       await c.query(
         `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
@@ -499,12 +710,48 @@ export class CanalesService {
             canal: 'whatsapp',
             numero: identidad.numeroMostrado,
             webhookSuscrito: suscrito,
+            via: origen.via,
+            // Solo con la plataforma: si comparte número con la app del
+            // celular, y si hubo que registrarlo. Nunca el PIN.
+            ...(origen.via === 'plataforma' ? { coexistencia, registrado } : {}),
           }),
         ],
       );
 
       return (await this.#leer(c, id))!;
     });
+
+    // Coexistencia: pedir la agenda y los chats que el dueño compartió desde
+    // su celular. DESPUÉS de confirmar la transacción: lo que Meta mande
+    // llega por webhook, y el webhook tiene que encontrar ya la cuenta.
+    //
+    // Primero la agenda —Meta lo exige, y así los chats llegan con nombre—.
+    // Cada cosa se puede pedir una sola vez: si falla no se reintenta a
+    // ciegas, se dice, y el canal queda conectado igual.
+    let historialPedido: boolean | null = null;
+    if (coexistencia) {
+      const plataforma = this.#exigirPlataforma();
+      const destino = { phoneNumberId: cred.phoneNumberId, accessToken: origen.accessToken };
+      const agenda = await plataforma.pedirSincronizacion({
+        ...destino,
+        tipo: 'smb_app_state_sync',
+      });
+      historialPedido =
+        agenda && (await plataforma.pedirSincronizacion({ ...destino, tipo: 'history' }));
+      await this.#db.enTransaccion((c) =>
+        c.query(
+          `INSERT INTO audit_log (tenant_id, actor_user_id, action, entity_type, entity_id, meta)
+           VALUES ($1, $2, 'canal.historial_pedido', 'channel_account', $3, $4)`,
+          [
+            ctx.tenantId,
+            ctx.userId,
+            cuenta.id,
+            JSON.stringify({ agenda, historial: historialPedido }),
+          ],
+        ),
+      );
+    }
+    return { ...cuenta, historialPedido };
   }
 
   async listar(): Promise<CuentaDeCanal[]> {
@@ -512,7 +759,7 @@ export class CanalesService {
     return this.#db.enTransaccion(async (c) => {
       const { rows } = await c.query<FilaCuenta>(
         `SELECT id, channel, external_id, provider_account_id, display_name, status,
-                webhook_subscribed, last_event_at, created_at
+                webhook_subscribed, connected_via, last_event_at, created_at
            FROM channel_accounts ORDER BY created_at`,
       );
       return rows.map(aCuenta);
@@ -623,6 +870,9 @@ export class CanalesService {
       const cuenta = await this.#leer(c, id);
       if (!cuenta) throw new ErrorDeNegocio('canal_no_encontrado', 'El canal no existe.', 404);
       await borrarSecretosDeCanal(c, id);
+      // La agenda de la app del celular (0055) se va con la conexión: era
+      // para nombrar a quien escribe por este canal, y ya no escribe nadie.
+      await c.query(`DELETE FROM channel_contact_names WHERE channel_account_id = $1`, [id]);
       await c.query(
         `UPDATE channel_accounts SET status = 'disconnected', updated_at = now() WHERE id = $1`,
         [id],
@@ -770,7 +1020,7 @@ export class CanalesService {
   async #leer(c: PoolClient, id: string): Promise<CuentaDeCanal | null> {
     const { rows } = await c.query<FilaCuenta>(
       `SELECT id, channel, external_id, provider_account_id, display_name, status,
-              webhook_subscribed, last_event_at, created_at
+              webhook_subscribed, connected_via, last_event_at, created_at
          FROM channel_accounts WHERE id = $1`,
       [id],
     );
@@ -804,6 +1054,7 @@ interface FilaCuenta {
   display_name: string;
   status: string;
   webhook_subscribed: boolean | null;
+  connected_via: 'credenciales' | 'plataforma';
   last_event_at: Date | null;
   created_at: Date;
 }
@@ -817,6 +1068,7 @@ function aCuenta(f: FilaCuenta): CuentaDeCanal {
     displayName: f.display_name,
     status: f.status,
     webhookSuscrito: f.webhook_subscribed,
+    conectadoVia: f.connected_via,
     lastEventAt: f.last_event_at,
     createdAt: f.created_at,
   };

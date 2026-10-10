@@ -18,6 +18,9 @@ import {
   type EventoDePlantilla,
   type EventoEntrante,
   type PeticionDeWebhook,
+  type EventoDeEco,
+  type EventoDeContacto,
+  type EventoDeHistorial,
 } from '../ingesta.js';
 
 type Obj = Record<string, unknown>;
@@ -94,6 +97,28 @@ export class IngestaWhatsapp implements AdaptadorDeIngesta {
         const phoneNumberId = str(obj(value['metadata'])['phone_number_id']);
         if (!phoneNumberId) continue;
 
+        // Coexistencia (ADR-015): la agenda de la app del celular. Campo
+        // `smb_app_state_sync`. Solo los contactos; lo demás se ignora.
+        for (const sinc of arr(value['state_sync'])) {
+          const evento = contacto(obj(sinc), phoneNumberId);
+          if (evento) salida.push(evento);
+        }
+
+        // Y el historial: campo `history`, por tandas. Cada hilo es una
+        // persona; dentro van sus mensajes y los del negocio, mezclados. Una
+        // tanda que solo trae `errors` es que el dueño no quiso compartirlo.
+        const numeroDelNegocio = soloDigitos(str(obj(value['metadata'])['display_phone_number']));
+        for (const tanda of arr(value['history'])) {
+          for (const hilo of arr(obj(tanda)['threads'])) {
+            const persona = str(obj(hilo)['id']);
+            if (!persona) continue;
+            for (const m of arr(obj(hilo)['messages'])) {
+              const evento = delHistorial(obj(m), phoneNumberId, persona, numeroDelNegocio);
+              if (evento) salida.push(evento);
+            }
+          }
+        }
+
         // Perfiles: Meta manda nombre y nombre de usuario aparte, en
         // `contacts[]`. Se indexan por BSUID (`user_id`) y por número
         // (`wa_id`), porque el número puede faltar y el BSUID no.
@@ -117,6 +142,13 @@ export class IngestaWhatsapp implements AdaptadorDeIngesta {
 
         for (const s of arr(value['statuses'])) {
           const evento = estado(obj(s), phoneNumberId);
+          if (evento) salida.push(evento);
+        }
+
+        // Coexistencia (ADR-015): lo que el negocio envió desde la app
+        // WhatsApp Business del celular. Campo `smb_message_echoes`.
+        for (const e of arr(value['message_echoes'])) {
+          const evento = eco(obj(e), phoneNumberId);
           if (evento) salida.push(evento);
         }
       }
@@ -220,6 +252,96 @@ function textoDeEleccion(tipoMeta: string, m: Obj): string | undefined {
     return str(r['title']) ?? str(r['id']);
   }
   return undefined;
+}
+
+/**
+ * Un eco tiene la forma de un mensaje, con `to` en vez de un remitente que
+ * importe: `from` es el propio negocio. Se lee con el mismo código que un
+ * entrante —tipos, texto, medio— para no tener dos traducciones que se
+ * separen, y se le da la vuelta al destinatario.
+ */
+function eco(e: Obj, phoneNumberId: string): EventoDeEco | null {
+  const para = str(e['to']);
+  if (!para) return null;
+  const m = mensaje({ ...e, from: para, from_user_id: undefined }, phoneNumberId, new Map());
+  if (!m) return null;
+  return {
+    clase: 'eco',
+    canal: 'whatsapp',
+    externalAccountId: phoneNumberId,
+    ocurridoEn: m.ocurridoEn,
+    externalMessageId: m.externalMessageId,
+    externalUserId: m.externalUserId,
+    telefonoE164: m.telefonoE164,
+    tipo: m.tipo,
+    texto: m.texto,
+    mediaId: m.mediaId,
+    nombreDeArchivo: m.nombreDeArchivo,
+  };
+}
+
+const soloDigitos = (v: string | undefined): string => (v ?? '').replace(/\D/g, '');
+
+/** Cómo quedó en su día un mensaje del historial, en nuestros estados. */
+const ESTADO_DEL_HISTORIAL: Record<string, EventoDeHistorial['estado']> = {
+  SENT: 'sent',
+  PENDING: 'sent',
+  DELIVERED: 'delivered',
+  READ: 'read',
+  PLAYED: 'read',
+  ERROR: 'failed',
+};
+
+/**
+ * Un mensaje del historial. Lo escribió el negocio si `from` es su número;
+ * si no, la persona del hilo. Se lee con el mismo código que un entrante,
+ * para que un tipo de mensaje no se traduzca de dos formas.
+ *
+ * Los medios antiguos llegan SIN identificador de archivo (Meta solo manda,
+ * aparte, los de los últimos 14 días): se importa el mensaje con su tipo y su
+ * pie de foto, y la bandeja dice que el archivo no vino.
+ */
+function delHistorial(
+  m: Obj,
+  phoneNumberId: string,
+  persona: string,
+  numeroDelNegocio: string,
+): EventoDeHistorial | null {
+  const leido = mensaje({ ...m, from: persona, from_user_id: undefined }, phoneNumberId, new Map());
+  if (!leido) return null;
+  const deQuien = soloDigitos(str(m['from']));
+  const delNegocio =
+    deQuien !== soloDigitos(persona) && (numeroDelNegocio === '' || deQuien === numeroDelNegocio);
+  return {
+    clase: 'historial',
+    canal: 'whatsapp',
+    externalAccountId: phoneNumberId,
+    ocurridoEn: leido.ocurridoEn,
+    externalMessageId: leido.externalMessageId,
+    externalUserId: leido.externalUserId,
+    telefonoE164: leido.telefonoE164,
+    direccion: delNegocio ? 'outbound' : 'inbound',
+    tipo: leido.tipo,
+    texto: leido.texto,
+    estado: ESTADO_DEL_HISTORIAL[str(obj(m['history_context'])['status']) ?? ''],
+  };
+}
+
+/** Un contacto de la agenda de la app. `remove` lo quita; lo demás lo guarda. */
+function contacto(s: Obj, phoneNumberId: string): EventoDeContacto | null {
+  if (str(s['type']) !== 'contact') return null;
+  const c = obj(s['contact']);
+  const numero = soloDigitos(str(c['phone_number']));
+  if (!numero) return null;
+  const nombre = str(c['full_name'])?.trim() || str(c['first_name'])?.trim() || null;
+  return {
+    clase: 'contacto',
+    canal: 'whatsapp',
+    externalAccountId: phoneNumberId,
+    ocurridoEn: new Date(),
+    externalUserId: numero,
+    nombre: str(s['action']) === 'remove' ? null : nombre,
+  };
 }
 
 function estado(s: Obj, phoneNumberId: string): EventoDeEstado | null {

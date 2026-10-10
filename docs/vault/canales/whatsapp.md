@@ -175,3 +175,37 @@ El contacto real llegó con nombre `.` porque así se llama el perfil de WhatsAp
 ### Evidencia
 
 Entrante: `wamid.HBgLNTE5MjUzMDAyMjQ…`, texto «Respuesta», firma verificada, ventana calculada a 24 h, uso medido. Saliente desde el CRM: `delivered` confirmado por Meta con su propio `wamid`. Los dos sentidos, con el mismo código que corre en los tests.
+
+## Coexistencia: el mismo número en la app del celular y en el CRM (2026-10-10)
+
+Leído en la documentación de Meta al construir PR-114 ([[ADR-015-conectar-con-la-plataforma]]). **Sin probar contra Meta real.**
+
+**Requisitos**
+
+- La plataforma tiene que ser *Tech Provider* o *Solution Partner*, con acceso avanzado a los dos permisos de WhatsApp.
+- El negocio necesita la app WhatsApp Business **2.24.17 o posterior**.
+- *Embedded Signup* **v4**: v2 y v3 se retiran el **15 de octubre de 2026**. En v4 basta `extras: { setup: {}, featureType: 'whatsapp_business_app_onboarding' }`; ya no hace falta `sessionInfoVersion`.
+
+**La ventana devuelve dos cosas por dos caminos**
+
+- El `code`, en el callback de `FB.login`. Un solo uso, dura minutos, y se cambia en `GET /oauth/access_token` **sin** `redirect_uri`.
+- La cuenta compartida, en un mensaje `WA_EMBEDDED_SIGNUP` a la ventana (`FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`). Trae `waba_id`; el `phone_number_id` **puede faltar** en coexistencia, y entonces se listan los números de la WABA.
+- `FB.login` tiene que llamarse **en el clic**, sin `await` antes, o el navegador bloquea la ventana.
+
+**Después de conectar**
+
+- Un número en coexistencia **no se registra** (`/register`): ya lo está, y registrarlo lo sacaría de la app. Se distingue con `GET /{numero}?fields=is_on_biz_app`.
+- `POST /{numero}/smb_app_data` con `sync_type`: primero `smb_app_state_sync` (agenda), después `history`. **Cada una, una sola vez**, y dentro de las **24 h** siguientes a conectar. Para repetir hay que desconectar y volver a pasar por la ventana.
+- El historial llega por tandas (`phase`, `chunk_order`, `progress` hasta 100) y cubre **180 días**. Los medios antiguos vienen **sin** identificador de archivo; aparte llegan los de los últimos **14 días**.
+- Si el dueño no comparte los chats, llega un `history` con `errors` (código 2593109) y nada más.
+
+**Webhooks nuevos** (hay que suscribirlos en el panel de la app): `smb_message_echoes`, `history`, `smb_app_state_sync`. La desconexión desde el celular llega como `account_update` con `PARTNER_REMOVED`.
+
+**Lo que cambia para el hotel**
+
+- Tiene que abrir la app del celular al menos **cada 14 días**.
+- Pierde en el celular las listas de difusión, los mensajes temporales y los de ver una vez. Los grupos no se comparten.
+- Tope de **20 mensajes por segundo** en un número compartido.
+- Lo enviado desde el celular es gratis; lo enviado por la Cloud API se cobra.
+- Meta avisa a sus clientes del cambio de privacidad.
+

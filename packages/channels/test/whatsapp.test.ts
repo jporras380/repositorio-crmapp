@@ -747,3 +747,191 @@ describe('respuestas a botones y listas', () => {
     );
   });
 });
+
+/**
+ * Coexistencia (ADR-015): lo que el hotel responde desde la app WhatsApp
+ * Business del celular llega por el campo `smb_message_echoes`. El payload es
+ * el que documenta Meta, tal cual.
+ */
+describe('ingesta: ecos de la app WhatsApp Business', () => {
+  const eco = (mensaje: Record<string, unknown>) => ({
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: 'WABA9',
+        changes: [
+          {
+            field: 'smb_message_echoes',
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: { display_phone_number: '51955000000', phone_number_id: 'PN123' },
+              message_echoes: [
+                {
+                  from: '51955000000',
+                  to: '51911222333',
+                  id: 'wamid.ECO1',
+                  timestamp: '1757440000',
+                  ...mensaje,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  it('un texto sale como eco, dirigido a quien lo recibió y no al propio negocio', () => {
+    const eventos = new IngestaWhatsapp().parsearEventos(
+      eco({ type: 'text', text: { body: 'Sí, tenemos bungalow libre.' } }),
+    );
+    expect(eventos).toHaveLength(1);
+    expect(eventos[0]).toMatchObject({
+      clase: 'eco',
+      canal: 'whatsapp',
+      externalAccountId: 'PN123',
+      externalMessageId: 'wamid.ECO1',
+      // `to`, no `from`: `from` es el número del hotel.
+      externalUserId: '51911222333',
+      telefonoE164: '+51911222333',
+      tipo: 'text',
+      texto: 'Sí, tenemos bungalow libre.',
+    });
+  });
+
+  it('una foto enviada desde el celular trae su medio para descargarlo', () => {
+    const [e] = new IngestaWhatsapp().parsearEventos(
+      eco({ type: 'image', image: { id: 'MEDIA-ECO', caption: 'El bungalow' } }),
+    );
+    expect(e).toMatchObject({
+      clase: 'eco',
+      tipo: 'image',
+      mediaId: 'MEDIA-ECO',
+      texto: 'El bungalow',
+    });
+  });
+
+  it('un eco sin destinatario se ignora: no hay conversación a la que colgarlo', () => {
+    const cuerpo = eco({ type: 'text', text: { body: 'x' } });
+    delete (cuerpo.entry[0]!.changes[0]!.value.message_echoes[0] as Record<string, unknown>)['to'];
+    expect(new IngestaWhatsapp().parsearEventos(cuerpo)).toEqual([]);
+  });
+});
+
+/**
+ * Coexistencia (ADR-015): al conectar por QR, el dueño comparte la agenda y
+ * hasta 180 días de chats. Los cuerpos son los que documenta Meta.
+ */
+describe('ingesta: historial y agenda de la app WhatsApp Business', () => {
+  const sobre = (field: string, value: Record<string, unknown>) => ({
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: 'WABA9',
+        changes: [
+          {
+            field,
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: { display_phone_number: '+51 955 000 000', phone_number_id: 'PN123' },
+              ...value,
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  const historial = (mensajes: Record<string, unknown>[]) =>
+    sobre('history', {
+      history: [
+        {
+          metadata: { phase: 1, chunk_order: 1, progress: 55 },
+          threads: [{ id: '51911222333', messages: mensajes }],
+        },
+      ],
+    });
+
+  it('cada mensaje sabe de quién fue: de la persona del hilo, o del negocio', () => {
+    const eventos = new IngestaWhatsapp().parsearEventos(
+      historial([
+        {
+          from: '51911222333',
+          id: 'wamid.H1',
+          timestamp: '1750000000',
+          type: 'text',
+          text: { body: '¿Tienen bungalow para julio?' },
+          history_context: { status: 'READ' },
+        },
+        {
+          from: '51955000000',
+          id: 'wamid.H2',
+          timestamp: '1750000600',
+          type: 'text',
+          text: { body: 'Sí, del 10 al 15.' },
+          history_context: { status: 'DELIVERED' },
+        },
+      ]),
+    );
+    expect(eventos).toMatchObject([
+      {
+        clase: 'historial',
+        externalMessageId: 'wamid.H1',
+        externalUserId: '51911222333',
+        direccion: 'inbound',
+        texto: '¿Tienen bungalow para julio?',
+      },
+      {
+        clase: 'historial',
+        externalMessageId: 'wamid.H2',
+        // El hilo es de la MISMA persona aunque lo escribiera el hotel.
+        externalUserId: '51911222333',
+        direccion: 'outbound',
+        estado: 'delivered',
+      },
+    ]);
+    // Con su fecha de verdad, no la de hoy.
+    expect((eventos[0] as { ocurridoEn: Date }).ocurridoEn).toEqual(new Date(1750000000 * 1000));
+  });
+
+  it('una foto antigua llega sin archivo: se importa con su tipo y su pie', () => {
+    const [e] = new IngestaWhatsapp().parsearEventos(
+      historial([
+        {
+          from: '51911222333',
+          id: 'wamid.H3',
+          timestamp: '1750000000',
+          type: 'image',
+          image: { caption: 'El comprobante' },
+        },
+      ]),
+    );
+    expect(e).toMatchObject({ clase: 'historial', tipo: 'image', texto: 'El comprobante' });
+  });
+
+  it('si el dueño no quiso compartir los chats, no se inventa nada', () => {
+    const cuerpo = sobre('history', {
+      history: [
+        { errors: [{ code: 2593109, title: 'History sync is turned off by the business' }] },
+      ],
+    });
+    expect(new IngestaWhatsapp().parsearEventos(cuerpo)).toEqual([]);
+  });
+
+  it('la agenda: guardar un contacto trae su nombre; quitarlo, lo borra', () => {
+    const contacto = (action: string) => ({
+      type: 'contact',
+      contact: { full_name: 'Rosa Quispe', first_name: 'Rosa', phone_number: '+51 911 222 333' },
+      action,
+      metadata: { timestamp: '1757440000' },
+    });
+    const eventos = new IngestaWhatsapp().parsearEventos(
+      sobre('smb_app_state_sync', { state_sync: [contacto('add'), contacto('remove')] }),
+    );
+    expect(eventos).toMatchObject([
+      // Solo dígitos: es la misma clave con que llega un mensaje suyo.
+      { clase: 'contacto', externalUserId: '51911222333', nombre: 'Rosa Quispe' },
+      { clase: 'contacto', externalUserId: '51911222333', nombre: null },
+    ]);
+  });
+});

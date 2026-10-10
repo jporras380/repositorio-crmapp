@@ -253,11 +253,23 @@ function porDias(mensajes: Mensaje[]): { dia: string; delDia: Mensaje[] }[] {
 function autorDe(m: Mensaje): string | null {
   if (m.direccion !== 'outbound') return null;
   if (m.origen === 'bot') return 'Bot';
+  // Coexistencia: lo escribió alguien del hotel, pero en la app del celular.
+  // «Un agente» sería mentira a medias: no fue nadie con sesión aquí.
+  if (m.desde_la_app) return 'Desde el celular';
   // Una persona borrada del equipo deja su mensaje, pero ya no su nombre: se
   // dice «un agente» en vez de fingir que no lo escribió nadie.
   if (m.origen === 'human') return m.autor ?? 'Un agente';
   return null;
 }
+
+/** Cómo se nombra un medio del historial que llegó sin su archivo. */
+const SIN_ARCHIVO: Record<string, string> = {
+  image: 'Foto',
+  video: 'Vídeo',
+  audio: 'Audio',
+  document: 'Documento',
+  sticker: 'Sticker',
+};
 
 function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean }) {
   const saliente = m.direccion === 'outbound';
@@ -281,6 +293,11 @@ function Burbuja({ m, api, agrupado }: { m: Mensaje; api: Api; agrupado: boolean
             estado={m.medio_estado}
             nombre={m.medio_nombre}
           />
+        )}
+        {m.del_historial && !m.medio_id && SIN_ARCHIVO[m.tipo] && (
+          // Meta entrega el historial sin los archivos antiguos. Sin esto, una
+          // foto sin pie de foto sería una burbuja vacía.
+          <span className={estilos.tipo}>{SIN_ARCHIVO[m.tipo]} · el archivo no se importó</span>
         )}
         {m.tipo === 'template' && <span className={estilos.tipo}>Plantilla</span>}
         {m.texto && <p className={estilos.texto}>{m.texto}</p>}

@@ -293,6 +293,10 @@ export interface Mensaje {
   modo_comentario: 'publica' | 'privada' | null;
   /** Las opciones de un mensaje con botones o lista; `null` en el resto. */
   opciones: string[] | null;
+  /** Lo envió el hotel desde la app del celular, no desde el CRM. */
+  desde_la_app: boolean;
+  /** Anterior a conectar el canal: vino con el historial importado. */
+  del_historial: boolean;
 }
 
 /**
@@ -344,8 +348,32 @@ export interface CuentaDeCanal {
   status: 'connected' | 'degraded' | 'blocked' | 'disconnected' | string;
   /** `false` = conectado pero el proveedor no nos manda sus webhooks. */
   webhookSuscrito: boolean | null;
+  /** `credenciales` pegadas, o `plataforma`: con el botón de Meta (ADR-015). */
+  conectadoVia: 'credenciales' | 'plataforma';
   lastEventAt: string | null;
   createdAt: string;
+}
+
+/** Si la plataforma ofrece «Conectar con Meta», y con qué ids públicos. */
+export interface PlataformaMeta {
+  disponible: boolean;
+  appId: string | null;
+  version: string;
+  /** `null` = esa forma de conectar no está configurada. */
+  configWhatsapp: string | null;
+  configPaginas: string | null;
+}
+
+/** Un WhatsApp recién conectado; con coexistencia, si se pidió el historial. */
+export interface WhatsappConectado extends CuentaDeCanal {
+  historialPedido: boolean | null;
+}
+
+/** Vuelta de la ventana de Meta para páginas. `credencial` es un sobre sellado. */
+export interface SesionDePaginasDeMeta {
+  credencial: string;
+  facebook: PaginaDeFacebookDescubierta[];
+  instagram: CuentaDeInstagramDescubierta[];
 }
 
 /** Números que ve un token de WhatsApp, para elegir en vez de copiar ids. */

@@ -56,6 +56,11 @@ fi
 # inserta un saliente por su cuenta, se salta la ventana de 24 h, el estado de
 # la suscripción y el outbox, y eso no se nota hasta que llega la factura de
 # Meta o un cliente reporta el número.
+#
+# Lo que el CRM NO envía pero tiene que anotar —lo que el hotel responde desde
+# la app del celular, el historial importado (ADR-015)— también se inserta en
+# packages/envio, por `ajeno.ts`: la puerta que registra y no envía. Así esta
+# regla no necesita excepciones.
 if hits=$(grep -rl "INSERT INTO messages" apps packages --include='*.ts' 2>/dev/null); then
   for archivo in $hits; do
     case "$archivo" in
@@ -64,7 +69,7 @@ if hits=$(grep -rl "INSERT INTO messages" apps packages --include='*.ts' 2>/dev/
       packages/envio/* | */test/* | */tests/*) continue ;;
     esac
     if grep -q "'outbound'" "$archivo"; then
-      fallar "saliente insertado fuera de la puerta de envío: $archivo"         "ARCH §9. Usa enviarPorConversacion de @crmapp/envio."
+      fallar "saliente insertado fuera de la puerta de envío: $archivo"         "ARCH §9. Usa enviarPorConversacion de @crmapp/envio; si no lo envía el CRM, registrarSalienteAjeno."
     fi
   done
 fi

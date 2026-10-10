@@ -367,6 +367,10 @@ export class BandejaService {
                 (SELECT array_agg(o ->> 'titulo')
                    FROM jsonb_array_elements(m.payload -> 'interactivo' -> 'opciones') o)
                   AS opciones,
+                -- Coexistencia (ADR-015): lo que el hotel envió desde la app
+                -- del celular, y lo que vino con el historial importado.
+                COALESCE((m.payload ->> 'desdeLaApp')::boolean, false) AS desde_la_app,
+                COALESCE((m.payload ->> 'historial')::boolean, false) AS del_historial,
                 m.sent_by_user_id AS autor_id, u.full_name AS autor,
                 u.avatar_media_id AS autor_foto_id
            FROM messages m
@@ -1270,6 +1274,10 @@ export interface MensajeDeConversacion {
   modo_comentario: string | null;
   /** Títulos de las opciones de un mensaje con botones o lista. */
   opciones: string[] | null;
+  /** Lo envió el negocio desde la app del canal en su celular, no desde el CRM. */
+  desde_la_app: boolean;
+  /** Es anterior a conectar el canal: vino con el historial importado. */
+  del_historial: boolean;
 }
 
 function aResumen(f: FilaResumen, ahora: Date): ResumenDeConversacion {

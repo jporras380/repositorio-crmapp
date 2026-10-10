@@ -56,6 +56,8 @@ function mensaje(m: Partial<Mensaje>): Mensaje {
     medio_nombre: null,
     modo_comentario: null,
     opciones: null,
+    desde_la_app: false,
+    del_historial: false,
     ...m,
   };
 }
@@ -300,5 +302,18 @@ describe('mensajes con opciones (PR-112)', () => {
     const lista = await screen.findByRole('list', { name: 'Opciones enviadas' });
     expect(lista.textContent).toContain('Bungalow');
     expect(lista.querySelectorAll('li')).toHaveLength(3);
+  });
+});
+
+describe('coexistencia con la app del celular (ADR-015)', () => {
+  it('lo enviado desde el celular lo dice, en vez de «Un agente»', async () => {
+    pintar([mensaje({ texto: 'Sí, tenemos bungalow.', desde_la_app: true })]);
+    expect(await screen.findByText('Desde el celular')).toBeTruthy();
+    expect(screen.queryByText('Un agente')).toBeNull();
+  });
+
+  it('una foto del historial sin archivo ni pie no es una burbuja vacía', async () => {
+    pintar([mensaje({ direccion: 'inbound', tipo: 'image', texto: null, del_historial: true })]);
+    expect(await screen.findByText('Foto · el archivo no se importó')).toBeTruthy();
   });
 });

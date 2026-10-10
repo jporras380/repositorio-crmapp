@@ -9,6 +9,8 @@ afterEach(cleanup);
 describe('Canales', () => {
   it('lista las cuentas con su estado y, sin ser gestor, no ofrece conectar', async () => {
     const api = {
+      // Sin «Conectar con Meta»: se conecta pegando credenciales.
+      plataformaMeta: vi.fn().mockResolvedValue({ disponible: false }),
       canales: vi.fn().mockResolvedValue([
         {
           id: 'c1',
@@ -30,7 +32,11 @@ describe('Canales', () => {
   });
 
   it('un gestor puede conectar WhatsApp o Instagram, cada uno con su asistente', async () => {
-    const api = { canales: vi.fn().mockResolvedValue([]) } as unknown as Api;
+    const api = {
+      // Sin «Conectar con Meta»: se conecta pegando credenciales.
+      plataformaMeta: vi.fn().mockResolvedValue({ disponible: false }),
+      canales: vi.fn().mockResolvedValue([]),
+    } as unknown as Api;
     render(<Canales api={api} gestor={true} />);
     await userEvent.click(await screen.findByRole('button', { name: 'Conectar Instagram' }));
     expect(screen.getByRole('heading', { name: 'Conectar Instagram' })).toBeTruthy();

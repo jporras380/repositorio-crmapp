@@ -48,6 +48,25 @@ let paginasSuscritas: string[] = [];
 let camposSuscritos: string[] = [];
 const PAGINA_FB = '1122334455667788';
 
+// «Conectar con Meta» (ADR-015): la app de la plataforma y un Meta de mentira
+// que apunta lo que se le pide.
+const META = {
+  appId: '900100200300',
+  appSecret: 'clave-secreta-de-la-app-de-la-plataforma',
+  configWhatsapp: 'CFG-WHATSAPP',
+  configPaginas: 'CFG-PAGINAS',
+};
+const TOKEN_DE_PLATAFORMA = 'PLATAFORMA-token-de-negocio-que-devuelve-meta';
+/** Sigue en el WhatsApp Business del celular: coexistencia. */
+const NUMERO_EN_LA_APP = '700000000000001';
+/** Dado de alta en la ventana de Meta: hay que registrarlo. */
+const NUMERO_NUEVO = '700000000000002';
+const WABA_DE_PLATAFORMA = '800000000000001';
+const PAGINA_DE_PLATAFORMA = '900000000000001';
+let intercambios: string[] = [];
+let registros: { phoneNumberId: string; pin: string }[] = [];
+let sincronizaciones: string[] = [];
+
 let app: INestApplication;
 let admin: Pool;
 let http: ReturnType<typeof request>;
@@ -107,6 +126,24 @@ beforeAll(async () => {
       // resto de tokens no ve ninguna (y se usa el verificador de siempre).
       descubridor: {
         whatsapp: async ({ accessToken, wabaId }) => {
+          if (accessToken.startsWith('PLATAFORMA')) {
+            return {
+              necesitaWaba: false,
+              caducaEn: null,
+              cuentas: [
+                {
+                  wabaId: wabaId ?? WABA_DE_PLATAFORMA,
+                  nombre: 'Hotel con la app',
+                  numeros: [NUMERO_EN_LA_APP, NUMERO_NUEVO].map((phoneNumberId, i) => ({
+                    phoneNumberId,
+                    numero: `+51 955 000 00${i}`,
+                    nombreVerificado: 'Hotel con la app',
+                    calidad: 'GREEN',
+                  })),
+                },
+              ],
+            };
+          }
           if (accessToken.startsWith('MALO')) {
             throw new ErrorDeNegocio('credenciales_rechazadas', 'Meta rechazó el token.', 422);
           }
@@ -151,20 +188,53 @@ beforeAll(async () => {
               ]
             : [],
         paginas: async ({ accessToken }) =>
-          accessToken.startsWith('USUARIO')
+          accessToken.startsWith('PLATAFORMA')
             ? [
                 {
-                  paginaId: PAGINA_FB,
-                  pagina: 'Apart Hotel El Paraíso',
+                  paginaId: PAGINA_DE_PLATAFORMA,
+                  pagina: 'Hotel con la app',
                   tokenDePagina: TOKEN_DE_PAGINA,
-                  igUserId: null,
-                  usuario: null,
+                  igUserId: '17841400000000777',
+                  usuario: '@hotelconlaapp',
                 },
               ]
-            : [],
+            : accessToken.startsWith('USUARIO')
+              ? [
+                  {
+                    paginaId: PAGINA_FB,
+                    pagina: 'Apart Hotel El Paraíso',
+                    tokenDePagina: TOKEN_DE_PAGINA,
+                    igUserId: null,
+                    usuario: null,
+                  },
+                ]
+              : [],
         suscribirPagina: async ({ paginaId, campos }) => {
           paginasSuscritas.push(paginaId);
           camposSuscritos.push([...campos].sort().join(','));
+          return true;
+        },
+      },
+      meta: META,
+      plataformaMeta: {
+        intercambiarCodigo: async (code) => {
+          intercambios.push(code);
+          if (code.startsWith('CADUCADO')) {
+            throw new ErrorDeNegocio(
+              'codigo_de_meta_rechazado',
+              'Meta no aceptó la conexión.',
+              422,
+            );
+          }
+          return TOKEN_DE_PLATAFORMA;
+        },
+        estaEnLaApp: async ({ phoneNumberId }) => phoneNumberId === NUMERO_EN_LA_APP,
+        registrarNumero: async ({ phoneNumberId, pin }) => {
+          registros.push({ phoneNumberId, pin });
+          return true;
+        },
+        pedirSincronizacion: async ({ phoneNumberId, tipo }) => {
+          sincronizaciones.push(`${phoneNumberId}:${tipo}`);
           return true;
         },
       },
@@ -952,5 +1022,266 @@ describe('el tope de canales del plan', () => {
         WHERE tenant_id = (SELECT id FROM tenants WHERE slug = 'hostal-chico')`,
     );
     await conectar(3).expect(201);
+  });
+});
+
+/**
+ * «Conectar con Meta» (ADR-015): la app es de la plataforma, y el dueño no
+ * pega nada. Lo que se prueba es que el token no pasa en claro por el
+ * navegador, que el sobre no vale en otra cuenta, y que un canal conectado así
+ * verifica sus webhooks con la clave de la PLATAFORMA.
+ */
+describe('conectar con la app de Meta de la plataforma', () => {
+  let credencial: string;
+  let tokenOtra: string;
+
+  beforeAll(async () => {
+    const r = await http
+      .post('/v1/cuentas')
+      .send({
+        nombreDeCuenta: 'Otra con Meta',
+        slug: 'otra-con-meta',
+        email: 'owner@otrameta.test',
+        contrasena: 'contrasena-muy-larga',
+        nombreCompleto: 'Otra',
+      })
+      .expect(201);
+    tokenOtra = r.body.token;
+  });
+
+  it('la pantalla recibe los ids públicos de la app, y NUNCA su clave secreta', async () => {
+    const r = await http.get('/v1/canales/meta').set(auth(tokenOwner)).expect(200);
+    expect(r.body).toEqual({
+      disponible: true,
+      appId: META.appId,
+      version: 'v21.0',
+      configWhatsapp: META.configWhatsapp,
+      configPaginas: META.configPaginas,
+    });
+    expect(JSON.stringify(r.body)).not.toContain(META.appSecret);
+  });
+
+  it('un agente no abre una conexión con Meta', async () => {
+    await http
+      .post('/v1/canales/meta/whatsapp')
+      .set(auth(tokenAgente))
+      .send({ code: 'CODIGO-DE-META-1', wabaId: WABA_DE_PLATAFORMA })
+      .expect(403);
+  });
+
+  it('el código se cambia por los números, y el token vuelve SELLADO, no en claro', async () => {
+    intercambios = [];
+    const r = await http
+      .post('/v1/canales/meta/whatsapp')
+      .set(auth(tokenOwner))
+      .send({ code: 'CODIGO-DE-META-1', wabaId: WABA_DE_PLATAFORMA })
+      .expect(200);
+    expect(intercambios).toEqual(['CODIGO-DE-META-1']);
+    expect(
+      r.body.cuentas[0].numeros.map((n: { phoneNumberId: string }) => n.phoneNumberId),
+    ).toEqual([NUMERO_EN_LA_APP, NUMERO_NUEVO]);
+    credencial = r.body.credencial;
+    // Ni en la respuesta, ni dentro del sobre una vez decodificado.
+    expect(JSON.stringify(r.body)).not.toContain('PLATAFORMA-token');
+    expect(Buffer.from(credencial, 'base64url').toString('utf8')).not.toContain('PLATAFORMA-token');
+  });
+
+  it('un código que Meta ya no acepta: 422, y no se guarda nada', async () => {
+    const r = await http
+      .post('/v1/canales/meta/whatsapp')
+      .set(auth(tokenOwner))
+      .send({ code: 'CADUCADO-codigo-viejo', wabaId: WABA_DE_PLATAFORMA })
+      .expect(422);
+    expect(r.body.codigo).toBe('codigo_de_meta_rechazado');
+  });
+
+  it('el sobre de una cuenta no vale en otra, ni uno manipulado', async () => {
+    const ajeno = await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOtra))
+      .send({ phoneNumberId: NUMERO_EN_LA_APP, wabaId: WABA_DE_PLATAFORMA, credencial })
+      .expect(422);
+    expect(ajeno.body.codigo).toBe('conexion_caducada');
+
+    const roto = await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOwner))
+      .send({
+        phoneNumberId: NUMERO_EN_LA_APP,
+        wabaId: WABA_DE_PLATAFORMA,
+        credencial: 'AAAAAA' + credencial.slice(6),
+      })
+      .expect(422);
+    expect(roto.body.codigo).toBe('conexion_caducada');
+  });
+
+  it('coexistencia: el número sigue en el celular, así que NO se registra de nuevo', async () => {
+    registros = [];
+    sincronizaciones = [];
+    const r = await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOwner))
+      .send({ phoneNumberId: NUMERO_EN_LA_APP, wabaId: WABA_DE_PLATAFORMA, credencial })
+      .expect(201);
+    expect(r.body.conectadoVia).toBe('plataforma');
+    // Registrarlo otra vez lo sacaría de la app del celular.
+    expect(registros).toEqual([]);
+    // Y se piden la agenda y los chats que el dueño compartió, EN ESE ORDEN:
+    // Meta exige la agenda primero, y así los chats llegan ya con nombre.
+    expect(sincronizaciones).toEqual([
+      `${NUMERO_EN_LA_APP}:smb_app_state_sync`,
+      `${NUMERO_EN_LA_APP}:history`,
+    ]);
+    expect(r.body.historialPedido).toBe(true);
+
+    const { rows } = await admin.query<{ kind: string }>(
+      `SELECT kind FROM channel_secrets WHERE channel_account_id = $1 ORDER BY kind`,
+      [r.body.id],
+    );
+    expect(rows.map((x) => x.kind)).toEqual(['access_token', 'app_secret']);
+    const { rows: rastro } = await admin.query<{ meta: Record<string, unknown> }>(
+      `SELECT meta FROM audit_log WHERE entity_id = $1 AND action = 'canal.conectado'`,
+      [r.body.id],
+    );
+    expect(rastro[0]!.meta).toMatchObject({ via: 'plataforma', coexistencia: true });
+  });
+
+  it('sus webhooks se verifican con la clave de la PLATAFORMA, no con una del cliente', async () => {
+    const cuerpo = JSON.stringify({
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: WABA_DE_PLATAFORMA,
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: {
+                  display_phone_number: '51955000000',
+                  phone_number_id: NUMERO_EN_LA_APP,
+                },
+                contacts: [{ profile: { name: 'Rosa' }, wa_id: '51911222333' }],
+                messages: [
+                  {
+                    from: '51911222333',
+                    id: 'wamid.PLATAFORMA1',
+                    timestamp: '1757440000',
+                    type: 'text',
+                    text: { body: '¿Tienen bungalow?' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const conClaveAjena = await http
+      .post('/webhooks/whatsapp')
+      .set('content-type', 'application/json')
+      .set('x-hub-signature-256', firmar(cuerpo, 'una-clave-cualquiera-del-cliente'))
+      .send(cuerpo);
+    const conLaDeLaPlataforma = await http
+      .post('/webhooks/whatsapp')
+      .set('content-type', 'application/json')
+      .set('x-hub-signature-256', firmar(cuerpo, META.appSecret))
+      .send(cuerpo);
+    expect(conClaveAjena.status).toBe(401);
+    expect(conLaDeLaPlataforma.status).toBe(200);
+    const { rows } = await admin.query<{ signature_ok: boolean; status: string }>(
+      `SELECT signature_ok, status FROM inbound_events
+        WHERE raw::text LIKE '%wamid.PLATAFORMA1%' ORDER BY signature_ok`,
+    );
+    // La de clave ajena queda guardada como rastro, marcada y sin procesar;
+    // la firmada con la clave de la plataforma es la única que entra.
+    expect(rows).toEqual([
+      { signature_ok: false, status: 'failed' },
+      { signature_ok: true, status: 'pending' },
+    ]);
+  });
+
+  it('número nuevo: se registra con un PIN, que se guarda cifrado y no sale en el rastro', async () => {
+    registros = [];
+    sincronizaciones = [];
+    const r = await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOwner))
+      .send({ phoneNumberId: NUMERO_NUEVO, wabaId: WABA_DE_PLATAFORMA, credencial })
+      .expect(201);
+    // Un número nuevo no tiene app del celular de la que traer nada.
+    expect(sincronizaciones).toEqual([]);
+    expect(r.body.historialPedido).toBeNull();
+    expect(registros).toHaveLength(1);
+    expect(registros[0]!.phoneNumberId).toBe(NUMERO_NUEVO);
+    expect(registros[0]!.pin).toMatch(/^[0-9]{6}$/);
+
+    const { rows } = await admin.query<{ kind: string; ciphertext: Buffer }>(
+      `SELECT kind, ciphertext FROM channel_secrets WHERE channel_account_id = $1 ORDER BY kind`,
+      [r.body.id],
+    );
+    expect(rows.map((x) => x.kind)).toEqual(['access_token', 'app_secret', 'pin']);
+    const pin = rows.find((x) => x.kind === 'pin')!;
+    expect(pin.ciphertext.toString('utf8')).not.toContain(registros[0]!.pin);
+
+    const { rows: rastro } = await admin.query<{ meta: Record<string, unknown> }>(
+      `SELECT meta FROM audit_log WHERE entity_id = $1 AND action = 'canal.conectado'`,
+      [r.body.id],
+    );
+    expect(rastro[0]!.meta).toMatchObject({ coexistencia: false, registrado: true });
+    expect(JSON.stringify(rastro[0]!.meta)).not.toContain(registros[0]!.pin);
+  });
+
+  it('páginas: un inicio de sesión trae Facebook e Instagram, y conecta sin pegar nada', async () => {
+    const sesion = await http
+      .post('/v1/canales/meta/paginas')
+      .set(auth(tokenOwner))
+      .send({ code: 'CODIGO-DE-META-PAGINAS' })
+      .expect(200);
+    expect(sesion.body.facebook).toEqual([
+      { paginaId: PAGINA_DE_PLATAFORMA, pagina: 'Hotel con la app', yaConectado: false },
+    ]);
+    expect(sesion.body.instagram[0]).toMatchObject({
+      usuario: '@hotelconlaapp',
+      yaConectado: false,
+    });
+    expect(JSON.stringify(sesion.body)).not.toContain(TOKEN_DE_PAGINA);
+
+    const r = await http
+      .post('/v1/canales/facebook')
+      .set(auth(tokenOwner))
+      .send({ paginaId: PAGINA_DE_PLATAFORMA, credencial: sesion.body.credencial })
+      .expect(201);
+    expect(r.body.conectadoVia).toBe('plataforma');
+  });
+
+  it('sin plaza en el plan, el código NO se gasta: vale una sola vez', async () => {
+    // La otra cuenta está en Starter (un canal) y lo llena pegando credenciales.
+    await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOtra))
+      .send({ ...CRED, phoneNumberId: '710000000000001', wabaId: '810000000000001' })
+      .expect(201);
+    intercambios = [];
+    const r = await http
+      .post('/v1/canales/meta/whatsapp')
+      .set(auth(tokenOtra))
+      .send({ code: 'CODIGO-QUE-NO-DEBE-GASTARSE', wabaId: WABA_DE_PLATAFORMA })
+      .expect(402);
+    expect(r.body.codigo).toBe('limite_de_canales');
+    expect(intercambios).toEqual([]);
+  });
+
+  it('pegar credenciales sigue funcionando igual, y queda marcado como tal', async () => {
+    const lista = await http.get('/v1/canales').set(auth(tokenOtra)).expect(200);
+    expect(lista.body[0].conectadoVia).toBe('credenciales');
+  });
+
+  it('ni token ni sobre: se rechaza antes de llegar al servicio', async () => {
+    await http
+      .post('/v1/canales/whatsapp')
+      .set(auth(tokenOwner))
+      .send({ phoneNumberId: NUMERO_NUEVO, wabaId: WABA_DE_PLATAFORMA })
+      .expect(400);
   });
 });

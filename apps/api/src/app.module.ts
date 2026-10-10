@@ -83,6 +83,7 @@ import { ReservasService } from './reservas/reservas.service.js';
 import { ReservasController } from './reservas/reservas.controller.js';
 import { IaService } from './ia/ia.service.js';
 import { IaController } from './ia/ia.controller.js';
+import type { ClienteDePlataformaMeta, ConfigDeMeta } from './canales/plataforma-meta.js';
 import { HorarioService } from './horario/horario.service.js';
 import { HorarioController } from './horario/horario.controller.js';
 import { PrivacidadService } from './privacidad/privacidad.service.js';
@@ -128,6 +129,10 @@ export interface OpcionesDeApp {
   suscribir?: SuscriptorDeWebhook;
   /** Descubre cuentas con un solo token y suscribe páginas de Instagram. Se inyecta en tests. */
   descubridor?: DescubridorDeMeta;
+  /** La app de Meta de la plataforma (ADR-015). Sin ella, solo credenciales pegadas. */
+  meta?: ConfigDeMeta;
+  /** Cliente de la plataforma Meta, inyectable para probar sin red. */
+  plataformaMeta?: ClienteDePlataformaMeta;
   /** Proveedor de IA (Anthropic con la clave del hotel). Se inyecta en tests. */
   clienteDeIa?: ClienteDeIa;
   /** Crea y borra plantillas HSM en Meta. Se inyecta en tests. */
@@ -236,6 +241,8 @@ export class AppModule {
                 : {}),
               ...(opciones.suscribir ? { suscribir: opciones.suscribir } : {}),
               ...(opciones.descubridor ? { descubridor: opciones.descubridor } : {}),
+              ...(opciones.meta ? { meta: opciones.meta } : {}),
+              ...(opciones.plataformaMeta ? { plataformaMeta: opciones.plataformaMeta } : {}),
             }),
         },
         {

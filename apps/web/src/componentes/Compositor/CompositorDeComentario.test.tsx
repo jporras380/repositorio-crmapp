@@ -150,6 +150,8 @@ describe('CompositorDeComentario', () => {
       medio_nombre: null,
       modo_comentario: 'privada' as const,
       opciones: null,
+      desde_la_app: false,
+      del_historial: false,
     };
     render(
       <CompositorDeComentario
@@ -189,6 +191,8 @@ describe('CompositorDeComentario', () => {
       medio_nombre: null,
       modo_comentario: 'privada' as const,
       opciones: null,
+      desde_la_app: false,
+      del_historial: false,
     };
     render(
       <CompositorDeComentario

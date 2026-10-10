@@ -1,11 +1,11 @@
 ---
 estado: vivo
-fecha: 2026-10-02
+fecha: 2026-10-10
 modulo: meta
 tags: [estado, sesion]
 ---
 
-# Estado — 2 de octubre de 2026
+# Estado — 10 de octubre de 2026
 
 **El proyecto tiene cliente y dominio: Apart Hotel El Paraíso de Barranca.** Deja de ser especulativo, y con eso se cierran dos supuestos viejos: **P-05** (sí hay cliente) y **P-11** (la IA puede ver las conversaciones, con **clave del propio cliente**, y solo asistida — nunca contesta sola).
 
@@ -38,6 +38,7 @@ Lo que PR-97 deja al alcance sin ser deuda: `business_hours.team_id` —horario 
 
 ## Completado
 
+- **PR-114, «Conectar con Meta» y el QR de WhatsApp** ([[ADR-015-conectar-con-la-plataforma]], guía [[activar-conectar-con-meta]]): la conexión deja de exigir pegar tokens. Con la app de Meta de la plataforma, el dueño pulsa un botón; en WhatsApp escanea un QR desde su app del celular y **el mismo número queda en los dos sitios** (coexistencia). Lo que responde desde el teléfono aparece en la bandeja («desde el celular») y aparta a los bots; al conectar se traen la agenda y hasta 6 meses de chats, **con su fecha de verdad y cerrados** para no inundar la bandeja. El pegado de credenciales (ADR-004) sigue igual. **No está probado contra Meta real**: falta que la empresa sea Tech Provider, y que el CRM esté publicado con HTTPS. La guarda de ARCH §9 saltó —se insertaban salientes fuera de la puerta de envío— y se resolvió sin excepción: una segunda puerta en `packages/envio` que registra y no envía.
 - **PR-112, botones y listas de WhatsApp desde los bots** ([[ADR-014-mensajes-con-opciones]], [[salesbots]] §Bots que preguntan con botones): primer cambio al contrato `ChannelAdapter`, autorizado por el dueño. Capacidad `interactivos` + `sendInteractive`; donde no hay botones, o no caben, se mandan escritas con viñetas antes de guardar. Tipo de mensaje `interactive` (0053). El esquema de la API habría tirado las opciones en silencio (zod); test que lo impide, visto fallar.
 - **PR-111, cuánto se guardan los mensajes** ([[bandeja]] §Cuánto se guardan los mensajes): Ajustes → Privacidad, solo el propietario, apagado por defecto. Borra cada noche los mensajes más viejos que el plazo y sus archivos, **nunca** uno que otra cosa use; un test sobre el catálogo obliga a que toda columna nueva con archivos entre en la comprobación. Antes, un arreglo aparte: los tests del worker reintentan `ALTER ROLE` como los de la API (la CI de PR-110 cayó por esa carrera del banco de pruebas, no del producto).
 - **PR-110, horario por equipo** ([[bandeja]] §Horario por equipo): cada equipo puede tener el suyo; sin él usa el general. Una sola consulta decide qué horario rige una conversación, compartida por el aviso fuera de horario y los bots. El del equipo sustituye al general entero, aviso incluido. Rige conversaciones ya transferidas al equipo: el primer mensaje no tiene equipo todavía.

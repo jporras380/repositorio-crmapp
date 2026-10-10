@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ErrorDeApi, type Api } from '../../api/cliente.ts';
-import type { CuentaDeCanal } from '../../api/tipos.ts';
+import type { CuentaDeCanal, PlataformaMeta } from '../../api/tipos.ts';
 import { irA } from '../../estado/ruta.ts';
 import { hace } from '../../vista/tiempo.ts';
 import { ConectarCanal } from './ConectarCanal.tsx';
@@ -29,6 +29,17 @@ export function Canales({ api, gestor }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [conectando, setConectando] = useState<'whatsapp' | 'instagram' | 'facebook' | null>(null);
   const [renovando, setRenovando] = useState<CuentaDeCanal | null>(null);
+  // Si hay «Conectar con Meta» (ADR-015). Si la consulta falla, se sigue como
+  // siempre: pegando credenciales.
+  const [plataforma, setPlataforma] = useState<PlataformaMeta | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  useEffect(() => {
+    if (!gestor) return;
+    api
+      .plataformaMeta()
+      .then(setPlataforma)
+      .catch(() => setPlataforma(null));
+  }, [api, gestor]);
 
   const cargar = useCallback(async () => {
     try {
@@ -103,11 +114,19 @@ export function Canales({ api, gestor }: Props) {
           api={api}
           canal={conectando}
           alCancelar={() => setConectando(null)}
-          alConectar={async () => {
+          plataforma={plataforma}
+          alConectar={async (despues) => {
             setConectando(null);
+            setAviso(despues ?? null);
             await cargar();
           }}
         />
+      )}
+
+      {aviso && (
+        <p className={`${estilos.aviso} ${estilos.aviso_info}`} role="status">
+          {aviso}
+        </p>
       )}
 
       {cuentas && cuentas.length === 0 && !conectando && (
@@ -163,7 +182,11 @@ export function Canales({ api, gestor }: Props) {
                     Plantillas
                   </button>
                 )}
-                {gestor && (
+                {/*
+                  Quien conectó con el botón de Meta no tiene ningún token que
+                  pegar: ofrecérselo sería mandarlo a buscar algo que no existe.
+                */}
+                {gestor && c.conectadoVia !== 'plataforma' && (
                   <button className={estilos.secundario} onClick={() => setRenovando(c)}>
                     Renovar token
                   </button>

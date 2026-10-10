@@ -158,8 +158,8 @@ describe('particiones', () => {
     const { rows } = await withSystemTransaction(relay, (c) =>
       c.query<{ ensure_partitions_ahead: string }>('SELECT app.ensure_partitions_ahead(4)'),
     );
-    // 6 meses (−1..4) × 4 tablas.
-    expect(rows).toHaveLength(24);
+    // 6 meses (−1..4) × 4 tablas, más 6 de `messages` hacia atrás (0055).
+    expect(rows).toHaveLength(30);
     expect(rows.some((r) => r.ensure_partitions_ahead.startsWith('usage_events_'))).toBe(true);
   });
 

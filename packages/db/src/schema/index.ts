@@ -205,10 +205,25 @@ export const channelAccounts = pgTable(
     lastEventAt: timestamp('last_event_at', { withTimezone: true }),
     /** La WABA está suscrita a NUESTRA app. false = conectado pero no recibe (0014). */
     webhookSubscribed: boolean('webhook_subscribed'),
+    /** `credenciales` (ADR-004) o `plataforma` (ADR-015). Ver 0054. */
+    connectedVia: text('connected_via').notNull().default('credenciales'),
     createdAt: creado,
     updatedAt: actualizado,
   },
   (t) => [uniqueIndex('channel_accounts_external_idx').on(t.channel, t.externalId)],
+);
+
+/** La agenda de la app del canal: nombres para quien tiene conversación (0055). */
+export const channelContactNames = pgTable(
+  'channel_contact_names',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    channelAccountId: uuid('channel_account_id').notNull(),
+    externalUserId: text('external_user_id').notNull(),
+    displayName: text('display_name').notNull(),
+    updatedAt: actualizado,
+  },
+  (t) => [primaryKey({ columns: [t.channelAccountId, t.externalUserId] })],
 );
 
 export const channelSecrets = pgTable('channel_secrets', {

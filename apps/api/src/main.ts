@@ -24,6 +24,19 @@ const app = await NestFactory.create<NestExpressApplication>(
     ...(config.META_WEBHOOK_VERIFY_TOKEN
       ? { webhookVerifyToken: config.META_WEBHOOK_VERIFY_TOKEN }
       : {}),
+    // Las dos o ninguna: un id de app sin su clave no puede cambiar el código
+    // de Meta por un token, y enseñaría un botón que siempre falla.
+    ...(config.META_APP_ID && config.META_APP_SECRET
+      ? {
+          meta: {
+            appId: config.META_APP_ID,
+            appSecret: config.META_APP_SECRET,
+            configWhatsapp: config.META_CONFIG_ID_WHATSAPP,
+            configPaginas: config.META_CONFIG_ID_PAGINAS,
+            graphVersion: config.META_GRAPH_API_VERSION,
+          },
+        }
+      : {}),
     ...(config.S3_ENDPOINT &&
     config.S3_BUCKET &&
     config.S3_ACCESS_KEY_ID &&

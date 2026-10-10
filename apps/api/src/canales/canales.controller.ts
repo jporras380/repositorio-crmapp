@@ -17,20 +17,45 @@ import { AuthGuard, conContextoDePeticion } from '../auth/auth.guard.js';
 import { ErrorDeNegocio } from '../auth/auth.service.js';
 import type { CanalesService } from './canales.service.js';
 
-const AltaWhatsapp = z.object({
-  phoneNumberId: z.string().regex(/^\d{5,25}$/, 'phone_number_id numérico'),
-  wabaId: z.string().regex(/^\d{5,25}$/, 'id de WABA numérico'),
-  accessToken: z.string().min(20),
-  appSecret: z.string().min(16),
-  displayName: z.string().min(1).max(80).optional(),
-});
+/**
+ * De dónde salen el token y la clave: o los pega el cliente, o trae el sobre
+ * que le dio «Conectar con Meta» (ADR-015). Una de las dos formas, completa.
+ */
+const Origen = {
+  accessToken: z.string().min(20).optional(),
+  appSecret: z.string().min(16).optional(),
+  credencial: z.string().min(20).max(8000).optional(),
+};
+const unaDeLasDos = (d: {
+  accessToken?: string | undefined;
+  appSecret?: string | undefined;
+  credencial?: string | undefined;
+}) => Boolean(d.credencial) || (Boolean(d.accessToken) && Boolean(d.appSecret));
+const FALTA_ORIGEN = { message: 'falta el token y la clave secreta, o la conexión con Meta' };
 
-const AltaInstagram = z.object({
-  igUserId: z.string().regex(/^\d{5,25}$/, 'id de cuenta de Instagram numérico'),
-  accessToken: z.string().min(20),
-  appSecret: z.string().min(16),
-  displayName: z.string().min(1).max(80).optional(),
+const AltaWhatsapp = z
+  .object({
+    phoneNumberId: z.string().regex(/^\d{5,25}$/, 'phone_number_id numérico'),
+    wabaId: z.string().regex(/^\d{5,25}$/, 'id de WABA numérico'),
+    ...Origen,
+    displayName: z.string().min(1).max(80).optional(),
+  })
+  .refine(unaDeLasDos, FALTA_ORIGEN);
+
+const AltaInstagram = z
+  .object({
+    igUserId: z.string().regex(/^\d{5,25}$/, 'id de cuenta de Instagram numérico'),
+    ...Origen,
+    displayName: z.string().min(1).max(80).optional(),
+  })
+  .refine(unaDeLasDos, FALTA_ORIGEN);
+
+/** Vuelta de la ventana de Meta. El código es de un solo uso y dura minutos. */
+const SesionDeWhatsapp = z.object({
+  code: z.string().min(10).max(4000),
+  wabaId: z.string().regex(/^\d{5,25}$/, 'id de WABA numérico'),
 });
+const SesionDePaginas = z.object({ code: z.string().min(10).max(4000) });
 
 /** Solo el token: la clave secreta no hace falta para preguntar a Meta. */
 const DescubrirWhatsapp = z.object({
@@ -47,12 +72,13 @@ const DescubrirInstagram = z.object({
 
 const DescubrirFacebook = z.object({ accessToken: z.string().min(20) });
 
-const AltaFacebook = z.object({
-  paginaId: z.string().regex(/^\d{5,25}$/, 'id de página numérico'),
-  accessToken: z.string().min(20),
-  appSecret: z.string().min(16),
-  displayName: z.string().min(1).max(80).optional(),
-});
+const AltaFacebook = z
+  .object({
+    paginaId: z.string().regex(/^\d{5,25}$/, 'id de página numérico'),
+    ...Origen,
+    displayName: z.string().min(1).max(80).optional(),
+  })
+  .refine(unaDeLasDos, FALTA_ORIGEN);
 
 const RenovarCredenciales = z.object({
   accessToken: z.string().min(20),
@@ -81,6 +107,31 @@ export class CanalesController {
   @Get()
   listar(@Req() req: Req) {
     return conContextoDePeticion(req, () => this.canales.listar());
+  }
+
+  /** Si la plataforma tiene «Conectar con Meta», y con qué ids públicos. */
+  @Get('meta')
+  plataforma(@Req() req: Req) {
+    return conContextoDePeticion(req, async () => this.canales.plataforma());
+  }
+
+  /**
+   * Vuelta de la ventana de Meta para WhatsApp: cambia el código por los
+   * números que el dueño acaba de compartir. No conecta nada todavía.
+   */
+  @Post('meta/whatsapp')
+  @HttpCode(200)
+  sesionDeWhatsapp(@Req() req: Req, @Body() body: unknown) {
+    const d = validar(SesionDeWhatsapp, body);
+    return conContextoDePeticion(req, () => this.canales.sesionDeWhatsapp(d));
+  }
+
+  /** Lo mismo para páginas de Facebook y cuentas de Instagram. */
+  @Post('meta/paginas')
+  @HttpCode(200)
+  sesionDePaginas(@Req() req: Req, @Body() body: unknown) {
+    const d = validar(SesionDePaginas, body);
+    return conContextoDePeticion(req, () => this.canales.sesionDePaginas(d));
   }
 
   /**

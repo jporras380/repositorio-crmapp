@@ -25,7 +25,13 @@ import type { Canal, TipoDeMensaje } from './adaptador.js';
  * la misma para los tres canales.
  */
 export type EventoEntrante =
-  EventoDeMensaje | EventoDeEstado | EventoDeComentario | EventoDePlantilla;
+  | EventoDeMensaje
+  | EventoDeEstado
+  | EventoDeComentario
+  | EventoDePlantilla
+  | EventoDeEco
+  | EventoDeHistorial
+  | EventoDeContacto;
 
 export interface EventoBase {
   canal: Canal;
@@ -62,6 +68,68 @@ export interface EventoDeMensaje extends EventoBase {
   /** Si llegó por anuncio Click-to-WhatsApp: abre ventana de 72 h. */
   entradaGratuita?: boolean | undefined;
   respondeA?: string | undefined;
+}
+
+/**
+ * Un mensaje que el negocio envió **por fuera del CRM**, y que el proveedor
+ * nos cuenta para que la conversación esté entera.
+ *
+ * Existe por la coexistencia de WhatsApp (ADR-015): el hotel sigue usando la
+ * app WhatsApp Business del celular en el mismo número, y lo que responde
+ * desde ahí llega como eco. Sin esto el CRM enseñaría media conversación —las
+ * preguntas del huésped y ninguna respuesta— y un bot seguiría hablando
+ * encima de la persona que ya está atendiendo desde el teléfono.
+ *
+ * No es un `EventoDeMensaje` con otra dirección: no abre ventana, no dispara
+ * bots ni avisos, y no lo escribió nadie con sesión en el CRM.
+ */
+export interface EventoDeEco extends EventoBase {
+  clase: 'eco';
+  /** Clave de idempotencia (ADR-006), igual que en un entrante. */
+  externalMessageId: string;
+  /** A quién le escribió el negocio. */
+  externalUserId: string;
+  telefonoE164?: string | undefined;
+  tipo: TipoDeMensaje;
+  texto?: string | undefined;
+  mediaId?: string | undefined;
+  nombreDeArchivo?: string | undefined;
+}
+
+/**
+ * Un mensaje ANTIGUO, de antes de conectar el canal, que el proveedor entrega
+ * al importar el historial (coexistencia de WhatsApp, ADR-015).
+ *
+ * `ocurridoEn` es aquí la fecha del mensaje de verdad, y se guarda con ella:
+ * un historial con la fecha de hoy no es un historial. No abre ventana, no
+ * dispara bots, no cuenta como sin leer: ya pasó.
+ */
+export interface EventoDeHistorial extends EventoBase {
+  clase: 'historial';
+  externalMessageId: string;
+  /** La otra persona del hilo, lo escribiera quien lo escribiera. */
+  externalUserId: string;
+  telefonoE164?: string | undefined;
+  /** `inbound` si lo escribió la otra persona; `outbound` si fue el negocio. */
+  direccion: 'inbound' | 'outbound';
+  tipo: TipoDeMensaje;
+  texto?: string | undefined;
+  /** Cómo quedó en su día, cuando el proveedor lo dice. */
+  estado?: 'sent' | 'delivered' | 'read' | 'failed' | undefined;
+}
+
+/**
+ * Un contacto de la agenda que el negocio tiene en la app del canal.
+ *
+ * Solo sirve para NOMBRAR a quien tiene conversación: no crea un cliente. La
+ * agenda de un teléfono trae a mucha gente con la que el negocio nunca habló
+ * por aquí.
+ */
+export interface EventoDeContacto extends EventoBase {
+  clase: 'contacto';
+  externalUserId: string;
+  /** `null` cuando se borra de la agenda. */
+  nombre: string | null;
 }
 
 export interface EventoDeEstado extends EventoBase {
@@ -247,6 +315,36 @@ export class IngestaSandbox implements AdaptadorDeIngesta {
           idDeUsuarioDelProveedor: typeof e['bsuid'] === 'string' ? e['bsuid'] : undefined,
           nombreDeUsuario: typeof e['usuario'] === 'string' ? e['usuario'] : undefined,
           entradaGratuita: e['entradaGratuita'] === true,
+        });
+      } else if (e['clase'] === 'eco' && typeof e['externalMessageId'] === 'string') {
+        salida.push({
+          ...base,
+          clase: 'eco',
+          externalMessageId: e['externalMessageId'],
+          externalUserId: String(e['externalUserId'] ?? ''),
+          tipo: (e['tipo'] as TipoDeMensaje) ?? 'text',
+          texto: typeof e['text'] === 'string' ? e['text'] : undefined,
+          mediaId: typeof e['mediaId'] === 'string' ? e['mediaId'] : undefined,
+          telefonoE164: typeof e['telefono'] === 'string' ? e['telefono'] : undefined,
+        });
+      } else if (e['clase'] === 'historial' && typeof e['externalMessageId'] === 'string') {
+        salida.push({
+          ...base,
+          clase: 'historial',
+          externalMessageId: e['externalMessageId'],
+          externalUserId: String(e['externalUserId'] ?? ''),
+          direccion: e['direccion'] === 'outbound' ? 'outbound' : 'inbound',
+          tipo: (e['tipo'] as TipoDeMensaje) ?? 'text',
+          texto: typeof e['text'] === 'string' ? e['text'] : undefined,
+          telefonoE164: typeof e['telefono'] === 'string' ? e['telefono'] : undefined,
+          estado: e['estado'] as EventoDeHistorial['estado'],
+        });
+      } else if (e['clase'] === 'contacto' && typeof e['externalUserId'] === 'string') {
+        salida.push({
+          ...base,
+          clase: 'contacto',
+          externalUserId: e['externalUserId'],
+          nombre: typeof e['nombre'] === 'string' ? e['nombre'] : null,
         });
       } else if (e['clase'] === 'estado' && typeof e['externalMessageId'] === 'string') {
         salida.push({

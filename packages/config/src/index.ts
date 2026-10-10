@@ -90,6 +90,19 @@ export const esquemaConfig = z.object({
   // obligaria a inventarse un valor, y un valor inventado en una variable de
   // secreto acaba en produccion.
   META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+
+  // La app de Meta de la PLATAFORMA (ADR-015): «Conectar con Meta» y el QR de
+  // coexistencia de WhatsApp Business. Opcionales: sin ellas el botón no
+  // sale y se conecta pegando credenciales, como siempre (ADR-004). Hacen
+  // falta las dos primeras; cada `CONFIG_ID` enciende su forma de conectar.
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  META_CONFIG_ID_WHATSAPP: z.string().optional(),
+  META_CONFIG_ID_PAGINAS: z.string().optional(),
+  META_GRAPH_API_VERSION: z
+    .string()
+    .regex(/^v\d+\.\d+$/)
+    .optional(),
 });
 
 export type Config = z.infer<typeof esquemaConfig>;
@@ -112,6 +125,7 @@ const CAMPOS_SECRETOS = [
   'MASTER_ENCRYPTION_KEY',
   'JWT_SECRET',
   'S3_SECRET_ACCESS_KEY',
+  'META_APP_SECRET',
 ] as const satisfies readonly (keyof Config)[];
 
 export interface OpcionesDeCarga {

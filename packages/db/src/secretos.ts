@@ -14,7 +14,13 @@ import type { Pool, PoolClient } from 'pg';
 import type { Cifrador } from '@crmapp/crypto';
 import { withSystemTransaction } from './client.js';
 
-export type TipoDeSecreto = 'access_token' | 'app_secret' | 'webhook_secret' | 'refresh_token';
+export type TipoDeSecreto =
+  | 'access_token'
+  | 'app_secret'
+  | 'webhook_secret'
+  | 'refresh_token'
+  /** PIN con que la plataforma registró un número nuevo en la Cloud API (0054). */
+  | 'pin';
 
 export interface SecretoAGuardar {
   tenantId: string;

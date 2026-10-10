@@ -83,8 +83,10 @@ describe('migraciones', () => {
        WHERE p.relname = 'messages'
     `);
     await client.end();
-    // Mes anterior + actual + 3 por delante.
-    expect(rows[0]!.n).toBe(5);
+    // Mes anterior + actual + 3 por delante, y seis más hacia atrás (0055):
+    // es donde cae un historial importado con su fecha de verdad. Solo en
+    // `messages`; las demás tablas no reciben nada antiguo.
+    expect(rows[0]!.n).toBe(11);
   });
 
   it('no hay partición DEFAULT', async () => {

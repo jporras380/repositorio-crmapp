@@ -45,11 +45,13 @@ afterAll(async () => {
 describe('precrearParticiones', () => {
   it('crea (o confirma) particiones de las cuatro tablas para los meses pedidos', async () => {
     const nombres = await precrearParticiones(relay, 5);
-    // −1..5 = 7 meses × 4 tablas.
-    expect(nombres).toHaveLength(28);
-    for (const tabla of ['messages', 'audit_log', 'inbound_events', 'usage_events']) {
+    // −1..5 = 7 meses × 4 tablas, más 6 de `messages` hacia atrás (−7..−2):
+    // es donde cae un historial importado con su fecha de verdad (0055).
+    expect(nombres).toHaveLength(34);
+    for (const tabla of ['audit_log', 'inbound_events', 'usage_events']) {
       expect(nombres.filter((n) => n.startsWith(`${tabla}_`))).toHaveLength(7);
     }
+    expect(nombres.filter((n) => n.startsWith('messages_'))).toHaveLength(13);
     // Idempotente: la segunda vez devuelve los mismos nombres sin fallar.
     expect(await precrearParticiones(relay, 5)).toEqual(nombres);
   });

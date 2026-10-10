@@ -4,15 +4,22 @@ import type {
   CuentaDeInstagramDescubierta,
   DescubrimientoWhatsapp,
   PaginaDeFacebookDescubierta,
+  PlataformaMeta,
 } from '../../api/tipos.ts';
+import { ConectarConMeta } from './ConectarConMeta.tsx';
 import compartidos from './ajustes.module.css';
 import estilos from './ConectarCanal.module.css';
 
 interface Props {
   api: Api;
   canal: 'whatsapp' | 'instagram' | 'facebook';
+  /**
+   * Si la plataforma tiene «Conectar con Meta» (ADR-015). Con ella se ofrece
+   * primero el botón; pegar credenciales queda como la otra forma.
+   */
+  plataforma?: PlataformaMeta | null | undefined;
   alCancelar: () => void;
-  alConectar: () => Promise<void>;
+  alConectar: (aviso?: string) => Promise<void>;
 }
 
 /** Una opción elegible, igual para un número de WhatsApp que para una cuenta de Instagram. */
@@ -76,7 +83,29 @@ const mensajeDe = (e: unknown, porDefecto: string) =>
  * ese token, se pide el único dato que falta —el id de la cuenta— y se dice por
  * qué, en vez de volver al formulario largo.
  */
-export function ConectarCanal({ api, canal, alCancelar, alConectar }: Props) {
+export function ConectarCanal(props: Props) {
+  const { plataforma, canal } = props;
+  const conBoton =
+    plataforma?.disponible === true &&
+    (canal === 'whatsapp' ? plataforma.configWhatsapp : plataforma.configPaginas) !== null;
+  // Quien tiene su propia app de Meta puede seguir pegando sus credenciales.
+  const [pegando, setPegando] = useState(false);
+  if (conBoton && plataforma && !pegando) {
+    return (
+      <ConectarConMeta
+        api={props.api}
+        canal={canal}
+        plataforma={plataforma}
+        alCancelar={props.alCancelar}
+        alConectar={props.alConectar}
+        alPegarCredenciales={() => setPegando(true)}
+      />
+    );
+  }
+  return <ConCredenciales {...props} />;
+}
+
+function ConCredenciales({ api, canal, alCancelar, alConectar }: Props) {
   const esWhatsapp = canal === 'whatsapp';
   const textos = TEXTOS[canal];
   const [accessToken, setAccessToken] = useState('');

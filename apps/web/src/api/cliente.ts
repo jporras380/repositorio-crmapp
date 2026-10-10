@@ -20,6 +20,9 @@ import type {
   DeclaracionDePago,
   EquipoDeLaCuenta,
   HorarioDeAtencion,
+  PlataformaMeta,
+  SesionDePaginasDeMeta,
+  WhatsappConectado,
   PlazoDeRetencion,
   Privacidad,
   BorradorDePlantilla,
@@ -82,6 +85,13 @@ import type {
 } from './tipos.ts';
 
 export const BASE = '/api';
+
+/**
+ * De dónde salen el token y la clave de un canal: los pega el cliente, o trae
+ * el sobre sellado que le dio «Conectar con Meta». Una de las dos formas.
+ */
+export type OrigenDeCredenciales =
+  { accessToken: string; appSecret: string } | { credencial: string };
 
 export class ErrorDeApi extends Error {
   constructor(
@@ -397,13 +407,25 @@ export function crearApi(token: string | null) {
       ),
     // --- Ajustes -----------------------------------------------------------
     canales: () => peticion<CuentaDeCanal[]>('/v1/canales', t),
-    conectarWhatsapp: (cred: {
-      phoneNumberId: string;
-      wabaId: string;
-      accessToken: string;
-      appSecret: string;
-      displayName?: string;
-    }) => peticion<CuentaDeCanal>('/v1/canales/whatsapp', { ...t, metodo: 'POST', cuerpo: cred }),
+    /** Si hay «Conectar con Meta». Sin ella, se pegan credenciales. */
+    plataformaMeta: () => peticion<PlataformaMeta>('/v1/canales/meta', t),
+    /** Vuelta de la ventana de Meta: el código por los números y un sobre sellado. */
+    sesionMetaWhatsapp: (d: { code: string; wabaId: string }) =>
+      peticion<DescubrimientoWhatsapp & { credencial: string }>('/v1/canales/meta/whatsapp', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: d,
+      }),
+    sesionMetaPaginas: (d: { code: string }) =>
+      peticion<SesionDePaginasDeMeta>('/v1/canales/meta/paginas', {
+        ...t,
+        metodo: 'POST',
+        cuerpo: d,
+      }),
+    conectarWhatsapp: (
+      cred: { phoneNumberId: string; wabaId: string; displayName?: string } & OrigenDeCredenciales,
+    ) =>
+      peticion<WhatsappConectado>('/v1/canales/whatsapp', { ...t, metodo: 'POST', cuerpo: cred }),
     descubrirWhatsapp: (d: { accessToken: string; wabaId?: string }) =>
       peticion<DescubrimientoWhatsapp>('/v1/canales/whatsapp/descubrir', {
         ...t,
@@ -422,18 +444,10 @@ export function crearApi(token: string | null) {
         metodo: 'POST',
         cuerpo: d,
       }),
-    conectarFacebook: (cred: {
-      paginaId: string;
-      accessToken: string;
-      appSecret: string;
-      displayName?: string;
-    }) => peticion<CuentaDeCanal>('/v1/canales/facebook', { ...t, metodo: 'POST', cuerpo: cred }),
-    conectarInstagram: (cred: {
-      igUserId: string;
-      accessToken: string;
-      appSecret: string;
-      displayName?: string;
-    }) => peticion<CuentaDeCanal>('/v1/canales/instagram', { ...t, metodo: 'POST', cuerpo: cred }),
+    conectarFacebook: (cred: { paginaId: string; displayName?: string } & OrigenDeCredenciales) =>
+      peticion<CuentaDeCanal>('/v1/canales/facebook', { ...t, metodo: 'POST', cuerpo: cred }),
+    conectarInstagram: (cred: { igUserId: string; displayName?: string } & OrigenDeCredenciales) =>
+      peticion<CuentaDeCanal>('/v1/canales/instagram', { ...t, metodo: 'POST', cuerpo: cred }),
     desconectarCanal: (id: string) =>
       peticion<void>(`/v1/canales/${id}`, { ...t, metodo: 'DELETE' }),
     renovarCredenciales: (id: string, d: { accessToken: string; appSecret?: string }) =>
