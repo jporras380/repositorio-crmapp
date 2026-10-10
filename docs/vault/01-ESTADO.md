@@ -191,6 +191,14 @@ Nada.
 
 ## Qué sigue
 
+**Lo primero al retomar (quedó a medias el 2026-10-10): PR-115, TikTok como canal.** El dueño lo pidió junto con el QR de WhatsApp y los botones de Meta; estos dos están hechos (PR-114) y TikTok **no se ha empezado**. Lo que hay que hacer:
+
+- Leer la documentación de la *TikTok Business Messaging API* (beta abierta en LATAM): inicio de sesión OAuth, formato de webhooks y firma, envío de mensajes, límites. **No inventar formatos.**
+- Adaptador `packages/channels/src/tiktok/` (envío e ingesta) dentro del contrato; `Canal` ya incluye `tiktok`. Capacidad `interactivos: null` y sin plantillas hasta comprobar lo contrario.
+- Conexión por inicio de sesión con la app de la plataforma, igual que Meta: reutilizar la credencial sellada de `plataforma-meta.ts`. `TIKTOK_APP_ID` y `TIKTOK_APP_SECRET` ya están en `.env.example`.
+- Pide una app de TikTok for Developers aprobada y su revisión de seguridad y privacidad: trámite del dueño, como el de Meta.
+
+
 1. **Conectar Instagram de verdad** para ver entrar un comentario: hace falta un token con permisos de Instagram y páginas. El número de WhatsApp de prueba ya usa un token de usuario del sistema (caduca el 2026-11-13).
 2. **Probar con credenciales reales** la IA (clave de Anthropic del hotel) y Facebook (token con permisos de páginas).
 3. Botones desde el **compositor** del agente, y respuestas rápidas de Instagram y Messenger: el contrato ya lo permite (ADR-014), falta construirlo si se pide.
